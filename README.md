@@ -15,8 +15,8 @@ Installing Claditor is quite straightforward.
 1. Save the main.cpp file and CMakeLists.txt file in a directory of your choice.
 2. Run the command:
 
-   cmake --build build -j
+   >cmake --build build -j
 
 3. The program can now be started with the command:
 
-   ./build/claditor
+   >./build/claditor
