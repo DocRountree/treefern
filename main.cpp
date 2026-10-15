@@ -1,12 +1,15 @@
 // TreeFern — JSON-based live GUI cladogram editor
 //
 // File:   Ctrl+N new · Ctrl+O open · Ctrl+Shift+S save as · drop a .json file
-// Mouse:  left click node = select · drag = pan · wheel = zoom (Shift = fast)
-//         double-click node = edit name & info · right-click node = context menu
+// Mouse:  left click node/label = select · drag = pan · wheel = zoom (Shift = fast)
+//         double-click = edit name & info · right-click = context menu
+//         hover a node to see its label even when there is no room for it
 // Keys:   A add child  E (or R) edit name & info  C collapse/expand  F focus
 //         Del/Backspace delete  X / Ctrl+X cut subtree  V / Ctrl+V paste (graft)
 //         Home reset view  Esc cancel cut / deselect
 //         + / - fan spread   [ / ] branch shrink ratio
+// Layout: at every fork children are ordered lightest -> heaviest, so the
+//         heaviest clade is always the rightmost (clockwise) branch.
 // The open file is autosaved on every change and watched for external edits.
 
 #include <QtWidgets>
@@ -15,15 +18,20 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <vector>
 
 // ------------------------------------------------------------- config ---
 static const QColor BG(14, 17, 26), FG(225, 230, 240), DIM(130, 140, 160),
-    ACCENT(255, 200, 80), LABEL_BG(20, 24, 36), CUT_COL(255, 90, 90);
+    ACCENT(255, 200, 80), CUT_COL(255, 90, 90);
+static const QColor LABEL_BG(20, 24, 36, 190);        // translucent label boxes
+static const QColor LABEL_BG_HOVER(28, 34, 50, 240);  // hovered / forced labels
 constexpr double ROOT_LEN = 220.0;
 constexpr double MIN_ZOOM = 1e-3, MAX_ZOOM = 1e12;
 constexpr double ZOOM_STEP = 1.15, FAST_ZOOM_STEP = 2.0;
 constexpr double LABEL_MIN_SCREEN_LEN = 35;
+constexpr double LABEL_GAP = 2;    // minimum spacing between label boxes
+constexpr double WRAP_COST = 0.45; // placement penalty per extra wrapped line
 constexpr int MAX_LABELS = 400;
 constexpr int MAX_RECENT = 10;
 constexpr double PI = 3.14159265358979323846;
@@ -46,12 +54,6 @@ struct Node {
         int n = 0;
         for (auto& k : kids) n += 1 + k->countDesc();
         return n;
-    }
-    int leafWeight() const {
-        if (collapsed || kids.empty()) return 1;
-        int w = 0;
-        for (auto& k : kids) w += k->leafWeight();
-        return w;
     }
     int depth() const {
         int d = 0;
@@ -348,27 +350,57 @@ struct Layout {
     void compute(const Node* root) {
         pos.clear();
         edges.clear();
+        size_.clear();
+        leaves_.clear();
         if (!root) return;
+        weigh(root);
         pos[root] = {0, 0, ROOT_LEN, -PI / 2, 0};
         rec(root, 0, 0, -PI / 2, ROOT_LEN, 0);
     }
 
+    // clade size: the node plus all of its descendants (collapsed or not)
+    int weight(const Node* n) const { return size_.value(n, 1); }
+
 private:
+    QHash<const Node*, int> size_;    // node + all descendants (ignores collapse)
+    QHash<const Node*, int> leaves_;  // visible leaves (respects collapse)
+
+    void weigh(const Node* n) {
+        int s = 1, l = 0;
+        for (auto& k : n->kids) {
+            weigh(k.get());
+            s += size_[k.get()];
+            l += leaves_[k.get()];
+        }
+        if (n->collapsed || n->kids.empty()) l = 1;
+        size_[n] = s;
+        leaves_[n] = l;
+    }
+
     void rec(const Node* n, double x, double y, double ang, double len, int depth) {
         if (n->collapsed || n->kids.empty()) return;
-        std::vector<int> w;
+
+        // Lightest first, heaviest last. Angles increase clockwise on screen,
+        // i.e. towards the right-hand side of the branch direction, so the
+        // heaviest clade always ends up as the rightmost branch.
+        std::vector<const Node*> kids;
+        for (auto& k : n->kids) kids.push_back(k.get());
+        std::stable_sort(kids.begin(), kids.end(), [this](const Node* a, const Node* b) {
+            return std::make_pair(size_.value(a), leaves_.value(a)) <
+                   std::make_pair(size_.value(b), leaves_.value(b));
+        });
+
         int total = 0;
-        for (auto& k : n->kids) { w.push_back(k->leafWeight()); total += w.back(); }
-        bool many = n->kids.size() > 1;
+        for (auto k : kids) total += leaves_.value(k);
+        const bool many = kids.size() > 1;
         // wider subtrees get a bigger share of the fan; fan narrows with depth
-        double sp = many ? spread * std::pow(0.92, depth) : 0;
+        const double sp = many ? spread * std::pow(0.92, depth) : 0;
         double a = ang - sp / 2;
-        for (size_t i = 0; i < n->kids.size(); ++i) {
-            double share = sp * w[i] / total;
+        for (const Node* c : kids) {
+            double share = sp * leaves_.value(c) / total;
             double ca = many ? a + share / 2 : ang;
             a += share;
             double cx = x + std::cos(ca) * len, cy = y + std::sin(ca) * len;
-            const Node* c = n->kids[i].get();
             edges.push_back({{x, y}, {cx, cy}, depth, c});
             pos[c] = {cx, cy, len * shrink, ca, depth + 1};
             rec(c, cx, cy, ca, len * shrink, depth + 1);
@@ -420,11 +452,38 @@ static bool clipLine(const QRectF& r, QPointF& a, QPointF& b) {
     return true;
 }
 
-// Box of size w*h whose node-facing side touches (px, py).
-static QRectF anchoredRect(double w, double h, double px, double py, double ux, double uy) {
-    double l = ux > 0.35 ? px : ux < -0.35 ? px - w : px - w / 2;
-    double t = uy > 0.35 ? py : uy < -0.35 ? py - h : py - h / 2;
-    return QRectF(std::round(l), std::round(t), w, h);
+// Ways to lay out a label: one line, plus balanced 2- and 3-line wraps when
+// they make the box noticeably narrower. Never truncates.
+static std::vector<QStringList> wrapOptions(const QStringList& words, const QFontMetricsF& fm) {
+    const int n = words.size();
+    std::vector<double> pre(n + 1, 0);
+    for (int i = 0; i < n; ++i) pre[i + 1] = pre[i] + fm.horizontalAdvance(words[i]);
+    const double sp = fm.horizontalAdvance(' ');
+    auto W = [&](int a, int b) { return pre[b] - pre[a] + (b - a - 1) * sp; };
+    auto seg = [&](int a, int b) { return words.mid(a, b - a).join(' '); };
+
+    std::vector<QStringList> out{{words.join(' ')}};
+    double prevW = W(0, n);
+    if (n >= 2) {
+        int bi = 1;
+        double bw = 1e300;
+        for (int i = 1; i < n; ++i) {
+            double m = std::max(W(0, i), W(i, n));
+            if (m < bw) { bw = m; bi = i; }
+        }
+        if (bw < prevW * 0.9) { out.push_back({seg(0, bi), seg(bi, n)}); prevW = bw; }
+    }
+    if (n >= 3) {
+        int bi = 1, bj = 2;
+        double bw = 1e300;
+        for (int i = 1; i < n - 1; ++i)
+            for (int j = i + 1; j < n; ++j) {
+                double m = std::max({W(0, i), W(i, j), W(j, n)});
+                if (m < bw) { bw = m; bi = i; bj = j; }
+            }
+        if (bw < prevW * 0.9) out.push_back({seg(0, bi), seg(bi, bj), seg(bj, n)});
+    }
+    return out;
 }
 
 static QString fmtZoom(double z) {
@@ -442,6 +501,7 @@ public:
     explicit Canvas(Model* m) : model(m) {
         setFocusPolicy(Qt::StrongFocus);
         setMinimumSize(300, 200);
+        setMouseTracking(true);  // for hover labels
         relayout();
     }
 
@@ -472,7 +532,7 @@ protected:
         moved = false;
     }
     void mouseMoveEvent(QMouseEvent* e) override {
-        if (dragBtn == Qt::NoButton) return;
+        if (dragBtn == Qt::NoButton) { updateHover(e->position()); return; }
         QPointF d = e->position() - lastPos;
         if (QLineF(e->position(), pressPos).length() > 4) moved = true;
         if (moved) {
@@ -486,7 +546,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* e) override {
         auto btn = dragBtn;
         dragBtn = Qt::NoButton;
-        if (moved || btn != e->button()) return;
+        if (moved || btn != e->button()) { updateHover(e->position()); return; }
         const Node* hit = hitTest(e->position());
         QString id = hit ? hit->id : QString();
         if (btn == Qt::LeftButton) emit clicked(id);
@@ -504,8 +564,13 @@ protected:
         if (notches != 0) {
             cam.zoomAt(std::pow(fast ? FAST_ZOOM_STEP : ZOOM_STEP, notches), e->position(), size());
             update();
+            updateHover(e->position());
             emit viewChanged();
         }
+    }
+    void leaveEvent(QEvent*) override {
+        if (!hoverId.isEmpty()) { hoverId.clear(); update(); }
+        unsetCursor();
     }
 
 private:
@@ -513,17 +578,34 @@ private:
     QPointF pressPos, lastPos;
     Qt::MouseButton dragBtn = Qt::NoButton;
     bool moved = false;
+    QString hoverId;
+    std::vector<std::pair<QRectF, QString>> labelHits;  // label boxes from the last paint
 
     double nodeRadius(double len) const { return std::clamp(len * 0.06 * cam.zoom + 2, 3.0, 18.0); }
 
+    void updateHover(QPointF pos) {
+        const Node* h = hitTest(pos);
+        QString id = h ? h->id : QString();
+        if (h) setCursor(Qt::PointingHandCursor);
+        else unsetCursor();
+        if (id != hoverId) { hoverId = id; update(); }
+    }
+
+    // Priority: a node disc under the cursor, then a label box (topmost
+    // first), then the nearest node within a small tolerance.
     const Node* hitTest(QPointF p) const {
         const Node* best = nullptr;
         double bd = 1e18;
+        bool exact = false;
         for (auto it = lay.pos.cbegin(); it != lay.pos.cend(); ++it) {
             QPointF s = cam.toScreen(it->x, it->y, size());
-            double d = QLineF(s, p).length();
-            if (d <= nodeRadius(it->len) + 5 && d < bd) { best = it.key(); bd = d; }
+            double d = QLineF(s, p).length(), r = nodeRadius(it->len);
+            if (d <= r + 5 && d < bd) { best = it.key(); bd = d; exact = d <= r; }
         }
+        if (exact) return best;
+        for (auto it = labelHits.rbegin(); it != labelHits.rend(); ++it)
+            if (it->first.contains(p))
+                if (const Node* n = model->find(it->second)) return n;
         return best;
     }
 };
@@ -532,6 +614,7 @@ void Canvas::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.setRenderHint(QPainter::Antialiasing);
     p.fillRect(rect(), BG);
+    labelHits.clear();
     if (!model->isOpen()) {
         p.setPen(DIM);
         p.drawText(rect(), Qt::AlignCenter, "No file open — use File ▸ Open or File ▸ New");
@@ -540,11 +623,10 @@ void Canvas::paintEvent(QPaintEvent*) {
     const QSizeF vs = size();
     const Node* sel = model->find(selId);
     const Node* cut = model->find(cutId);
+    const Node* hov = model->find(hoverId);
     auto inCut = [&](const Node* n) { return cut && cut->contains(n); };
 
-    // ---- edges (clipped to view, kept as label obstacles)
-    struct Seg { QPointF a, b; double pad; QRectF box; };
-    std::vector<Seg> segs;
+    // ---- edges (clipped to view)
     const QRectF view(-60, -60, vs.width() + 120, vs.height() + 120);
     for (const Edge& e : lay.edges) {
         QPointF a = cam.toScreen(e.a.x(), e.a.y(), vs), b = cam.toScreen(e.b.x(), e.b.y(), vs);
@@ -553,21 +635,16 @@ void Canvas::paintEvent(QPaintEvent*) {
         QColor c = inCut(e.child) ? CUT_COL.darker(140) : depthColor(e.depth, 0.7);
         p.setPen(QPen(c, w, Qt::SolidLine, Qt::RoundCap));
         p.drawLine(a, b);
-        double pad = w / 2 + 1;
-        segs.push_back({a, b, pad, QRectF(a, b).normalized().adjusted(-pad, -pad, pad, pad)});
     }
 
-    // ---- visible nodes (also obstacles)
-    struct Vis { const Node* n; QPointF s; Geom g; double r; int own; };
+    // ---- visible nodes
+    struct Vis { const Node* n; QPointF s; Geom g; double r; };
     std::vector<Vis> nodes;
-    std::vector<QRectF> nodeRects;
     for (auto it = lay.pos.cbegin(); it != lay.pos.cend(); ++it) {
         QPointF s = cam.toScreen(it->x, it->y, vs);
         if (s.x() < -100 || s.x() > vs.width() + 100 || s.y() < -100 || s.y() > vs.height() + 100)
             continue;
-        double r = nodeRadius(it->len);
-        nodes.push_back({it.key(), s, *it, r, int(nodeRects.size())});
-        nodeRects.emplace_back(s.x() - r - 2, s.y() - r - 2, 2 * r + 4, 2 * r + 4);
+        nodes.push_back({it.key(), s, *it, nodeRadius(it->len)});
     }
     p.setPen(Qt::NoPen);
     for (auto& v : nodes) {
@@ -580,63 +657,93 @@ void Canvas::paintEvent(QPaintEvent*) {
         if (v.n == cut) { p.setPen(QPen(CUT_COL, 2, Qt::DashLine)); p.drawEllipse(v.s, v.r + 8, v.r + 8); }
     }
 
-    // ---- labels: greedy placement with collision avoidance
+    // ---- labels: centred over their node; if that spot is taken, nudge
+    //      (staying on top of the node) and/or wrap, never overlapping
+    //      another label. Biggest clades claim space first.
     std::vector<Vis> cands;
     for (auto& v : nodes)
         if (v.g.len * cam.zoom > LABEL_MIN_SCREEN_LEN || v.n == sel) cands.push_back(v);
     std::sort(cands.begin(), cands.end(), [&](const Vis& a, const Vis& b) {
-        return std::make_tuple(a.n != sel, a.g.depth, -a.g.len) <
-               std::make_tuple(b.n != sel, b.g.depth, -b.g.len);
+        return std::make_tuple(a.n != sel, -lay.weight(a.n), a.g.depth, -a.g.len) <
+               std::make_tuple(b.n != sel, -lay.weight(b.n), b.g.depth, -b.g.len);
     });
 
-    static const double OFFS[] = {0, .45, -.45, .9, -.9, 1.4, -1.4, 2.0, -2.0, PI};
+    struct Lbl { QRectF box; QString text; QFont font; const Node* n; bool forced; };
+    std::vector<Lbl> labels;
     std::vector<QRectF> placed;
     const double padX = 5, padY = 2;
 
-    auto blocked = [&](const QRectF& t, int own) {
-        for (auto& r : placed) if (r.intersects(t)) return true;
-        for (size_t i = 0; i < nodeRects.size(); ++i)
-            if (int(i) != own && nodeRects[i].intersects(t)) return true;
-        for (auto& s : segs) {
-            if (!s.box.intersects(t)) continue;
-            QPointF a = s.a, b = s.b;
-            if (clipLine(t.adjusted(-s.pad, -s.pad, s.pad, s.pad), a, b)) return true;
-        }
+    auto blocked = [&](const QRectF& r) {
+        QRectF t = r.adjusted(-LABEL_GAP, -LABEL_GAP, LABEL_GAP, LABEL_GAP);
+        for (const QRectF& q : placed)
+            if (q.intersects(t)) return true;
         return false;
     };
 
-    for (auto& v : cands) {
-        if (int(placed.size()) >= MAX_LABELS) break;
-        QString text = v.n->name;
-        if (v.n->collapsed && !v.n->kids.empty())
-            text += QString("  [+%1]").arg(v.n->countDesc());
-        if (v.n == cut) text = "✂ " + text;
+    auto makeLabel = [&](const Vis& v, bool force) -> std::optional<Lbl> {
+        QStringList words = v.n->name.split(' ', Qt::SkipEmptyParts);
+        if (words.isEmpty()) words << "?";
+        if (v.n == cut) words[0] = "✂ " + words[0];
+        if (v.n->collapsed && !v.n->kids.empty()) words << QString("[+%1]").arg(v.n->countDesc());
+
         QFont f = font();
         f.setPixelSize(std::clamp(int(v.g.len * cam.zoom * 0.09), 11, 40));
         QFontMetricsF fm(f);
-        double w = fm.horizontalAdvance(text) + 2 * padX, h = fm.height() + 2 * padY;
-        double gap = v.r + 6;
-        bool isSel = v.n == sel;
+        const std::vector<QStringList> opts = wrapOptions(words, fm);
 
-        std::optional<QRectF> chosen;
-        for (double off : OFFS) {
-            double ang = v.g.angle + off, ux = std::cos(ang), uy = std::sin(ang);
-            QRectF r = anchoredRect(w, h, v.s.x() + ux * gap, v.s.y() + uy * gap, ux, uy);
-            if (!blocked(r.adjusted(-2, -1, 2, 1), v.own)) { chosen = r; break; }
+        struct Cand { double cost; QRectF r; int opt; };
+        std::vector<Cand> cs;
+        for (int k = 0; k < int(opts.size()); ++k) {
+            double tw = 0;
+            for (const QString& line : opts[k]) tw = std::max(tw, fm.horizontalAdvance(line));
+            const double w = std::ceil(tw) + 2 * padX;
+            const double h = std::ceil(fm.height() + (opts[k].size() - 1) * fm.lineSpacing()) + 2 * padY;
+            // largest shifts that still leave the box touching the node disc
+            const double mx = w / 2 + v.r - 1, my = h / 2 + v.r - 1;
+            for (int i = -2; i <= 2; ++i)
+                for (int j = -2; j <= 2; ++j) {
+                    double dx = mx * i / 2, dy = my * j / 2;
+                    QRectF r(std::round(v.s.x() + dx - w / 2), std::round(v.s.y() + dy - h / 2), w, h);
+                    double qx = std::clamp(v.s.x(), r.left(), r.right());
+                    double qy = std::clamp(v.s.y(), r.top(), r.bottom());
+                    if (std::hypot(qx - v.s.x(), qy - v.s.y()) > v.r) continue;  // must stay over node
+                    cs.push_back({std::abs(dx) / w + std::abs(dy) / h + WRAP_COST * k, r, k});
+                }
         }
-        if (!chosen) {
-            if (!isSel) continue;  // no room: hidden until zoomed in further
-            double ux = std::cos(v.g.angle), uy = std::sin(v.g.angle);
-            chosen = anchoredRect(w, h, v.s.x() + ux * gap, v.s.y() + uy * gap, ux, uy);
-        }
-        placed.push_back(chosen->adjusted(-2, -1, 2, 1));
+        std::stable_sort(cs.begin(), cs.end(), [](const Cand& a, const Cand& b) { return a.cost < b.cost; });
+        for (const Cand& c : cs)
+            if (!blocked(c.r)) return Lbl{c.r, opts[c.opt].join('\n'), f, v.n, false};
+        if (!force) return std::nullopt;  // no room: hidden until zoomed in (or hovered)
+        return Lbl{cs.front().r, opts[cs.front().opt].join('\n'), f, v.n, true};
+    };
 
-        p.setPen(isSel ? QPen(ACCENT, 1) : Qt::NoPen);
-        p.setBrush(LABEL_BG);
-        p.drawRoundedRect(*chosen, 5, 5);
-        p.setFont(f);
-        p.setPen(isSel ? ACCENT : inCut(v.n) ? CUT_COL : FG);
-        p.drawText(chosen->adjusted(padX, padY, -padX, -padY), Qt::AlignLeft | Qt::AlignVCenter, text);
+    bool hovShown = false;
+    for (const Vis& v : cands) {
+        if (int(labels.size()) >= MAX_LABELS) break;
+        if (auto l = makeLabel(v, v.n == sel)) {
+            placed.push_back(l->box);
+            labels.push_back(*l);
+            if (v.n == hov) hovShown = true;
+        }
+    }
+    // hovered node without a label: draw one on top of everything, without
+    // disturbing the placement of the others
+    if (hov && !hovShown)
+        for (const Vis& v : nodes)
+            if (v.n == hov) {
+                if (auto l = makeLabel(v, true)) labels.push_back(*l);
+                break;
+            }
+
+    for (const Lbl& l : labels) {
+        const bool isSel = l.n == sel, isHov = l.n == hov;
+        p.setPen(isSel ? QPen(ACCENT, 1) : isHov ? QPen(DIM, 1) : QPen(Qt::NoPen));
+        p.setBrush(isHov || l.forced ? LABEL_BG_HOVER : LABEL_BG);
+        p.drawRoundedRect(l.box, 5, 5);
+        p.setFont(l.font);
+        p.setPen(isSel ? ACCENT : inCut(l.n) ? CUT_COL : FG);
+        p.drawText(l.box.adjusted(padX, padY, -padX, -padY), Qt::AlignCenter, l.text);
+        labelHits.push_back({l.box, l.n->id});
     }
 
     if (selId.isEmpty()) {
