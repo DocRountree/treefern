@@ -1,9 +1,9 @@
 # TreeFern
-TreeFern is a FOSS GUI cladogram editor written in C++.
+TreeFern is a lightweight FOSS tool for editing cladograms, written in C++.
 
-It stores cladograms as JSON files, and both tracks and commits changes to the file in real-time.
+It stores cladograms as JSON files, and both tracks changes made in the file and commits changes made in the GUI in real-time, and saves them automatically. 
 
-TreeFern supports adding daughter/sister clades, editing clade names and information, and cutting/pasting clades onto new mother clades.
+TreeFern supports adding daughter/sister clades, editing clade names and information, and cutting/pasting clades onto new mother clades. It uses a sinole, self-contained rendering engine based on the fractal nature of evolutionary relationships. 
 
 
 
