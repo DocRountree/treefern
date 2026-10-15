@@ -1,5 +1,5 @@
 # TreeFern
-TreeFern is a free and ooen-source GUI cladogram editor written in C++.
+TreeFern is a FOSS GUI cladogram editor written in C++.
 
 It stores cladograms as JSON files, and both tracks and commits changes to the file in real-time.
 
@@ -13,27 +13,31 @@ TreeFern supports adding daughter/sister clades, editing clade names and informa
 Installing TreeFern is quite straightforward.
 
 1. Save the [main.cpp](main.cpp) file and [CMakeLists.txt](CMakeLists.txt) file in a directory of your choice. Make sure you have CMake installed and that your machine can compile C++ code.
-2. Run the command:
+2. In that directory, to build the program, run the command:
+
+   >cmake -B build
+   
+4. To compile the program, run the command:
 
    >cmake --build build -j
 
-3. The program can now be started with the command:
+5. TreeFern can now be started with the command:
 
-   >./build/TreeFern
+   >./build/treefern
 
 
 # Usage
 
-TreeFern reads .JSON files to build a recursive cladogram, and stores written information about clades according to user instructions. (See the [JSON Tmplate](template.json) for more information.)
+TreeFern reads .JSON files to build a recursive cladogram, and stores written information about clades according to user preference. (See the [JSON Template](template.json) for more information.)
 
-<img width="1453" height="1375" alt="2026-10-14-205954_1453x1375_scrot" src="https://github.com/user-attachments/assets/590a33b6-8b49-407d-9ca7-cc2f493b65b4" />
+<img width="1627" height="1322" alt="1" src="https://github.com/user-attachments/assets/9b12d441-bd94-4f71-a649-5ff3ca46df6b" />
 
 
 Functionality can be accessed via keyboard shortcuts, or via GUI buttons in the side panel which appears when a clade is selected by a single left-click.
 
-<img width="1764" height="1381" alt="2026-10-14-210040_1764x1381_scrot" src="https://github.com/user-attachments/assets/92611c9f-fcf2-480d-a1cd-563dbabc47a7" />
+<img width="2015" height="1346" alt="2" src="https://github.com/user-attachments/assets/165afa40-7f22-4cdc-9a0b-ea1464f8dfb9" />
 
 
 Double-clicking a clade opens the Edit menu (also accessible by clicking "Edit" in the side-panel, or by the keyboard shortcut 'e').
 
-<img width="1998" height="1382" alt="2026-10-14-210108_1998x1382_scrot" src="https://github.com/user-attachments/assets/7dad3803-a886-424e-bd32-fa2521433b85" />
+<img width="2188" height="1349" alt="3" src="https://github.com/user-attachments/assets/e6998241-9ee5-4964-9054-876f835c587f" />
