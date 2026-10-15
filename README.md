@@ -12,7 +12,7 @@ Claditor supports adding daughter/sister clades, editing clade names and informa
 
 Installing Claditor is quite straightforward.
 
-1. Save the main.cpp file and CMakeLists.txt file in a directory of your choice.
+1. Save the [main.cpp](main.cpp) file and [CMakeLists.txt](CMakeLists.txt) file in a directory of your choice. Make sure you have CMake installed and that your machine can compile C++ code.
 2. Run the command:
 
    >cmake --build build -j
@@ -24,7 +24,7 @@ Installing Claditor is quite straightforward.
 
 # Usage
 
-Claditor reads .JSON files to build a recursive cladogram, and stores written information about clades according to user instructions. (See JSON Template for more information.)
+Claditor reads .JSON files to build a recursive cladogram, and stores written information about clades according to user instructions. (See the [JSON Tmplate](template.json) for more information.)
 
 <img width="1453" height="1375" alt="2026-10-14-205954_1453x1375_scrot" src="https://github.com/user-attachments/assets/590a33b6-8b49-407d-9ca7-cc2f493b65b4" />
 
