@@ -28,9 +28,11 @@ Claditor reads .JSON files to build a recursive cladogram, and stores written in
 
 <img width="1453" height="1375" alt="2026-10-14-205954_1453x1375_scrot" src="https://github.com/user-attachments/assets/590a33b6-8b49-407d-9ca7-cc2f493b65b4" />
 
-Functionality can be accessed via keyboard shortcuts, or via GUI buttons in the side panel, which appear when a clade of selected by a single left-click.
+
+Functionality can be accessed via keyboard shortcuts, or via GUI buttons in the side panel which appears when a clade is selected by a single left-click.
 
 <img width="1764" height="1381" alt="2026-10-14-210040_1764x1381_scrot" src="https://github.com/user-attachments/assets/92611c9f-fcf2-480d-a1cd-563dbabc47a7" />
+
 
 Double-clicking a clade opens the Edit menu (also accessible by clicking "Edit" in the side-panel, or by the keyboard shortcut 'e').
 
