@@ -1,4 +1,4 @@
-// Claditor — JSON-based fractal cladogram editor (Qt rewrite)
+// Claditor — JSON-based GUI cladogram editor
 //
 // File:   Ctrl+N new · Ctrl+O open · Ctrl+Shift+S save as · drop a .json file
 // Mouse:  left click node = select · drag = pan · wheel = zoom (Shift = fast)
