@@ -1,4 +1,4 @@
-// Claditor — JSON-based GUI cladogram editor
+// TreeFern — JSON-based live GUI cladogram editor
 //
 // File:   Ctrl+N new · Ctrl+O open · Ctrl+Shift+S save as · drop a .json file
 // Mouse:  left click node = select · drag = pan · wheel = zoom (Shift = fast)
@@ -847,7 +847,7 @@ public:
     // Shown at startup when there is no file to open.
     bool startupPrompt() {
         QMessageBox box(this);
-        box.setWindowTitle("Claditor");
+        box.setWindowTitle("TreeFern");
         box.setText("Open an existing cladogram or create a new one?");
         auto bOpen = box.addButton("Open…", QMessageBox::AcceptRole);
         auto bNew = box.addButton("New…", QMessageBox::AcceptRole);
@@ -936,7 +936,7 @@ private:
             canvas->cutId.clear();
             canvas->cam.reset();
         }
-        setWindowTitle("Claditor — " + model.path);
+        setWindowTitle("TreeFern — " + model.path);
         addRecent(model.path);
         canvas->relayout();
         refresh();
@@ -1107,8 +1107,8 @@ private:
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
-    QCoreApplication::setOrganizationName("Claditor");
-    QCoreApplication::setApplicationName("Claditor");
+    QCoreApplication::setOrganizationName("TreeFern");
+    QCoreApplication::setApplicationName("TreeFern");
     app.setStyle("Fusion");
     QPalette pal;
     pal.setColor(QPalette::Window, QColor(26, 31, 46));
@@ -1122,7 +1122,7 @@ int main(int argc, char** argv) {
     app.setPalette(pal);
 
     MainWindow w;
-    w.setWindowTitle("Claditor");
+    w.setWindowTitle("TreeFern");
     w.show();
 
     const QStringList args = app.arguments();
