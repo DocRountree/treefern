@@ -3,7 +3,7 @@ TreeFern is a lightweight FOSS tool for editing cladograms, written in C++.
 
 It stores cladograms as JSON files, and both tracks changes made in the file and commits changes made in the GUI in real-time, and saves them automatically. 
 
-TreeFern supports adding daughter/sister clades, editing clade names and information, and cutting/pasting clades onto new mother clades. It uses a sinole, self-contained rendering engine based on the fractal nature of evolutionary relationships. 
+TreeFern supports adding daughter/sister clades, editing clade names and information, and cutting/pasting clades onto new mother clades.
 
 
 
@@ -17,11 +17,11 @@ Installing TreeFern is quite straightforward.
 
    >cmake -B build
    
-4. To compile the program, run the command:
+3. To compile the program, run the command:
 
    >cmake --build build -j
 
-5. TreeFern can now be started with the command:
+4. TreeFern can now be started with the command:
 
    >./build/treefern
 
