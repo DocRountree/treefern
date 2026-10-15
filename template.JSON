@@ -1,7 +1,3 @@
-The following is the template which comes with the software, which exposes the format for new clades and information about them. It renders to the pictured cladogram.
-
-<img width="1453" height="1375" alt="ReptileCladogram" src="https://github.com/user-attachments/assets/c0440bda-f898-4a8c-b33a-7a14388e1e45" />
-
 {
     "children": [
         {
