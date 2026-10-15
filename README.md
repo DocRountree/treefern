@@ -1,5 +1,5 @@
 # TreeFern
-TreeFern is a GUI cladogram editor written in C++.
+TreeFern is a free and ooen-source GUI cladogram editor written in C++.
 
 It stores cladograms as JSON files, and both tracks and commits changes to the file in real-time.
 
