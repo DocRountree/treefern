@@ -48,13 +48,29 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DQT_HOST_PATH="$RUNNER_TEMP/Qt/6.6.3/gcc_64"
           cmake --build .
-          # Automatically finds the generated .html file and copies it to index.html
-          find . -maxdepth 1 -name "*.html" ! -name "index.html" -exec cp {} index.html \;
+
+          # Create a clean folder for the website files
+          mkdir -p dist
+          WASM_FILE=$(find . -maxdepth 2 -name "*.wasm" | head -n 1)
+          APP_NAME=$(basename "$WASM_FILE" .wasm)
+          echo "Detected compiled app name: $APP_NAME"
+
+          # Copy compiled .wasm and .js files
+          cp "$(dirname "$WASM_FILE")/$APP_NAME.wasm" dist/
+          cp "$(dirname "$WASM_FILE")/$APP_NAME.js" dist/
+
+          # Copy qtloader.js, qtlogo.svg, and generate index.html from Qt's wasm_shell.html
+          WASM_PLUGINS="$RUNNER_TEMP/Qt/6.6.3/wasm_singlethread/plugins/platforms"
+          cp "$WASM_PLUGINS/qtloader.js" dist/
+          cp "$WASM_PLUGINS/qtlogo.svg" dist/
+          sed "s/@APPNAME@/$APP_NAME/g" "$WASM_PLUGINS/wasm_shell.html" > dist/index.html
+
+          ls -la dist/
 
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'build/'
+          path: 'build/dist/'
 
       - name: Deploy to GitHub Pages
         id: deployment
