@@ -42,6 +42,9 @@ jobs:
 
       - name: Compile Qt App to WebAssembly
         run: |
+          # Ensure CMakeLists.txt uses qt_add_executable so Qt links the WebAssembly platform plugin and entry point!
+          sed -i 's/\badd_executable\b/qt_add_executable/g' CMakeLists.txt
+
           mkdir build
           cd build
           "$RUNNER_TEMP/Qt/6.6.3/wasm_singlethread/bin/qt-cmake" .. \
@@ -52,18 +55,14 @@ jobs:
           # Create a clean folder for the website files
           mkdir -p dist
           WASM_FILE=$(find . -maxdepth 2 -name "*.wasm" | head -n 1)
+          APP_DIR=$(dirname "$WASM_FILE")
           APP_NAME=$(basename "$WASM_FILE" .wasm)
-          echo "Detected compiled app name: $APP_NAME"
 
-          # Copy compiled .wasm and .js files
-          cp "$(dirname "$WASM_FILE")/$APP_NAME.wasm" dist/
-          cp "$(dirname "$WASM_FILE")/$APP_NAME.js" dist/
-
-          # Copy qtloader.js, qtlogo.svg, and generate index.html from Qt's wasm_shell.html
-          WASM_PLUGINS="$RUNNER_TEMP/Qt/6.6.3/wasm_singlethread/plugins/platforms"
-          cp "$WASM_PLUGINS/qtloader.js" dist/
-          cp "$WASM_PLUGINS/qtlogo.svg" dist/
-          sed "s/@APPNAME@/$APP_NAME/g" "$WASM_PLUGINS/wasm_shell.html" > dist/index.html
+          cp "$APP_DIR/$APP_NAME.wasm" dist/
+          cp "$APP_DIR/$APP_NAME.js" dist/
+          cp "$APP_DIR/qtloader.js" dist/
+          cp "$APP_DIR/qtlogo.svg" dist/
+          cp "$APP_DIR/$APP_NAME.html" dist/index.html
 
           ls -la dist/
 
