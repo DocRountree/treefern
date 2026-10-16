@@ -30,12 +30,12 @@ Installing TreeFern is quite straightforward.
 
 TreeFern reads .JSON files to build a recursive cladogram, and stores written information about clades according to user preference. (See the [JSON Template](template.json) for more information.)
 
-<img width="1611" height="1369" alt="1" src="https://github.com/user-attachments/assets/3ea700d6-0341-42e3-a45e-72970173b55e" />
+<img width="1667" height="1312" alt="2" src="https://github.com/user-attachments/assets/7670062f-9244-49b9-b407-100d8e7eb7c3" />
 
 
 Functionality can be accessed via keyboard shortcuts, or via GUI buttons in the side panel which appears when a clade is selected by a single left-click.
 
-<img width="1667" height="1312" alt="2" src="https://github.com/user-attachments/assets/7670062f-9244-49b9-b407-100d8e7eb7c3" />
+<img width="1611" height="1369" alt="1" src="https://github.com/user-attachments/assets/3ea700d6-0341-42e3-a45e-72970173b55e" />
 
 
 Double-clicking a clade opens the Edit menu (also accessible by clicking "Edit" in the side-panel, or by the keyboard shortcut 'e').
