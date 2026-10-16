@@ -44,7 +44,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          "$RUNNER_TEMP/Qt/6.6.3/wasm_singlethread/bin/qt-cmake" .. -DCMAKE_BUILD_TYPE=Release
+          "$RUNNER_TEMP/Qt/6.6.3/wasm_singlethread/bin/qt-cmake" .. \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DQT_HOST_PATH="$RUNNER_TEMP/Qt/6.6.3/gcc_64"
           cmake --build .
           # Automatically finds the generated .html file and copies it to index.html
           find . -maxdepth 1 -name "*.html" ! -name "index.html" -exec cp {} index.html \;
