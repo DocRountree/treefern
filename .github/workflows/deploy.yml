@@ -1,0 +1,50 @@
+name: Build Qt Wasm and Deploy to Pages
+
+on:
+  push:
+    branches: [ "main", "master" ] # Triggers whenever you save a file in the browser
+  workflow_dispatch:               # Also adds a manual "Run" button just in case
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout C++ Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.50
+
+      - name: Install Qt 6.7 for WebAssembly
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.2'
+          target: 'desktop'
+          arch: 'wasm_singlethread'
+          # If your app uses extra modules like qtsvg or qtmultimedia, uncomment the line below:
+          # modules: 'qtsvg qtmultimedia'
+
+      - name: Compile Qt App to WebAssembly
+        run: |
+          mkdir build
+          cd build
+          qt-cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake --build .
+          # Automatically finds the generated .html file and copies it to index.html
+          find . -maxdepth 1 -name "*.html" ! -name "index.html" -exec cp {} index.html \;
+
+      - name: Upload to GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'build/'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
