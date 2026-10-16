@@ -48,8 +48,11 @@ jobs:
           # 2. Enable Emscripten ASYNCIFY so QDialog::exec(), QMessageBox::exec(), and QInputDialog work in the browser!
           echo 'target_link_options(treefern PRIVATE "SHELL:-s ASYNCIFY -s ASYNCIFY_STACK_SIZE=65536")' >> CMakeLists.txt
 
-          # 3. On WebAssembly startup, automatically open/create the Reptiles sample tree in virtual RAM if no file exists yet
-          sed -i 's/if (!w.startupPrompt()) return 0;/w.openOrCreate("\/reptiles.json");/g' main.cpp
+          # 3. Make MainWindow static so it is NOT destroyed when main() yields to the browser event loop!
+          sed -i 's/MainWindow w;/static MainWindow w;/g' main.cpp
+
+          # 4. Open/create the sample tree in /tmp/reptiles.json on startup
+          sed -i 's/if (!w.startupPrompt()) return 0;/w.openOrCreate("\/tmp\/reptiles.json");/g' main.cpp
 
           mkdir build
           cd build
