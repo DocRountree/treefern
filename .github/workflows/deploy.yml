@@ -42,8 +42,14 @@ jobs:
 
       - name: Compile Qt App to WebAssembly
         run: |
-          # Ensure CMakeLists.txt uses qt_add_executable so Qt links the WebAssembly platform plugin and entry point!
+          # 1. Upgrade add_executable to qt_add_executable
           sed -i 's/\badd_executable\b/qt_add_executable/g' CMakeLists.txt
+
+          # 2. Enable Emscripten ASYNCIFY so QDialog::exec(), QMessageBox::exec(), and QInputDialog work in the browser!
+          echo 'target_link_options(treefern PRIVATE "SHELL:-s ASYNCIFY -s ASYNCIFY_STACK_SIZE=65536")' >> CMakeLists.txt
+
+          # 3. On WebAssembly startup, automatically open/create the Reptiles sample tree in virtual RAM if no file exists yet
+          sed -i 's/if (!w.startupPrompt()) return 0;/w.openOrCreate("\/reptiles.json");/g' main.cpp
 
           mkdir build
           cd build
