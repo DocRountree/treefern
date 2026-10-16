@@ -35,6 +35,10 @@ jobs:
           aqt install-qt linux desktop 6.6.3 gcc_64 -O "$RUNNER_TEMP/Qt"
           # 2. Install the WebAssembly kit
           aqt install-qt linux desktop 6.6.3 wasm_singlethread -O "$RUNNER_TEMP/Qt"
+          # 3. Mark all Qt scripts and binaries as executable on Linux
+          chmod -R +x "$RUNNER_TEMP/Qt/6.6.3/wasm_singlethread/bin"
+          chmod -R +x "$RUNNER_TEMP/Qt/6.6.3/gcc_64/bin"
+          chmod -R +x "$RUNNER_TEMP/Qt/6.6.3/gcc_64/libexec"
 
       - name: Compile Qt App to WebAssembly
         run: |
