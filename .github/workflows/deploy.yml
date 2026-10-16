@@ -22,24 +22,25 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Qt 6.6.3 requires Emscripten 3.1.37
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
-          version: 3.1.50
+          version: 3.1.37
 
-      - name: Install Qt 6.7 for WebAssembly
+      - name: Install Qt 6.6.3 for WebAssembly
         run: |
-          pip install aqtinstall
-          # 1. Install Linux host tools (needed for moc, rcc, and qt-cmake)
-          aqt install-qt linux desktop 6.7.2 linux_gcc_64 -O "$RUNNER_TEMP/Qt"
+          pip install -U aqtinstall
+          # 1. Install Linux host tools (moc, rcc, qt-cmake)
+          aqt install-qt linux desktop 6.6.3 gcc_64 -O "$RUNNER_TEMP/Qt"
           # 2. Install the WebAssembly kit
-          aqt install-qt linux desktop 6.7.2 wasm_singlethread -O "$RUNNER_TEMP/Qt"
+          aqt install-qt linux desktop 6.6.3 wasm_singlethread -O "$RUNNER_TEMP/Qt"
 
       - name: Compile Qt App to WebAssembly
         run: |
           mkdir build
           cd build
-          "$RUNNER_TEMP/Qt/6.7.2/wasm_singlethread/bin/qt-cmake" .. -DCMAKE_BUILD_TYPE=Release
+          "$RUNNER_TEMP/Qt/6.6.3/wasm_singlethread/bin/qt-cmake" .. -DCMAKE_BUILD_TYPE=Release
           cmake --build .
           # Automatically finds the generated .html file and copies it to index.html
           find . -maxdepth 1 -name "*.html" ! -name "index.html" -exec cp {} index.html \;
