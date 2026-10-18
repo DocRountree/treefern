@@ -1358,10 +1358,8 @@ public:
     InfoPanel(const Model* m, const QList<QAction*>& acts) : model(m) {
         search->setPlaceholderText("Search clades by name…  (Ctrl+F)");
         search->setClearButtonEnabled(true);
-        search->setFocusPolicy(Qt::ClickFocus);
         search->installEventFilter(this);
         results->setMaximumHeight(180);
-        results->setFocusPolicy(Qt::NoFocus);
         results->hide();
         QFont f = title->font();
         f.setPointSize(16);
@@ -1371,18 +1369,14 @@ public:
         meta->setWordWrap(true);
         meta->setTextInteractionFlags(Qt::TextSelectableByMouse);
         kids->setMaximumHeight(160);
-        kids->setFocusPolicy(Qt::NoFocus);
         up->setFlat(true);
-        up->setFocusPolicy(Qt::NoFocus);
         info->setPlaceholderText("(no info — press E, double-click the node, or click 'Edit')");
-        info->setFocusPolicy(Qt::ClickFocus);
         empty->setWordWrap(true);
 
         auto grid = new QGridLayout;
         for (int i = 0; i < acts.size(); ++i) {
             auto b = new QToolButton;
             b->setDefaultAction(acts[i]);
-            b->setFocusPolicy(Qt::NoFocus);
             b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
             b->setMinimumHeight(30);
             grid->addWidget(b, i / 2, i % 2);
@@ -1419,7 +1413,6 @@ public:
         up->setStyleSheet("text-align:left; " + colorCss(T.link));
     }
 
-    bool isSearchFocused() const { return search->hasFocus(); }
     void focusSearch() { search->setFocus(); search->selectAll(); }
     void clearNode() { nodeBox->hide(); empty->show(); }
 
@@ -1485,15 +1478,13 @@ protected:
             return QWidget::eventFilter(o, e);
         const int key = static_cast<QKeyEvent*>(e)->key();
         const bool enter = key == Qt::Key_Return || key == Qt::Key_Enter;
-        if (!(key == Qt::Key_Up || key == Qt::Key_Down || enter || key == Qt::Key_Escape))
+        if (!(key == Qt::Key_Up || key == Qt::Key_Down || enter || (key == Qt::Key_Escape && !search->text().isEmpty())))
             return QWidget::eventFilter(o, e);
         e->accept();
         if (e->type() == QEvent::ShortcutOverride) return true;
         const int n = results->count();
-        if (key == Qt::Key_Escape) {
-            if (!search->text().isEmpty()) search->clear();
-            else search->clearFocus();
-        } else if (key == Qt::Key_Down && n) results->setCurrentRow(std::min(n - 1, results->currentRow() + 1));
+        if (key == Qt::Key_Escape) search->clear();
+        else if (key == Qt::Key_Down && n) results->setCurrentRow(std::min(n - 1, results->currentRow() + 1));
         else if (key == Qt::Key_Up && n) results->setCurrentRow(std::max(0, results->currentRow() - 1));
         else if (enter) choose(results->currentItem());
         return true;
@@ -1864,7 +1855,6 @@ private:
         aCut->setEnabled(s && s->parent);
         aPaste->setEnabled(s && cut && !cut->contains(s));
         aSaveAs->setEnabled(model.isOpen());
-        if (!panel->isSearchFocused()) canvas->setFocus();
         canvas->update();
         updateHud();
     }
