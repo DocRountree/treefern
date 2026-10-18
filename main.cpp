@@ -547,9 +547,9 @@ private:
 
     // Standard: a node's frame has its origin at its fork, +x along its growth
     // direction, and unit = its outgoing branch length. All children leave the
-    // fork together (a polytomy is never faked as nested bifurcations), fanned
-    // out by weight; each child is scaled so its subtree's bounding circle fits
-    // its wedge. Returns that bounding circle (centre on the local x axis, radius).
+    // fork together, fanned out by weight; each child is scaled so its subtree's 
+    // bounding circle fits its wedge. Returns that bounding circle
+    // (centre on the local x axis, radius).
     std::pair<double, double> standard(const Node* n) {
         if (hidesKids(n)) return {0, STD_NODE};
         const auto kids = ordered(n);
