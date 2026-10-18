@@ -28,7 +28,7 @@ Installing TreeFern is quite straightforward.
 
 # Usage
 
-TreeFern reads .JSON files to build a recursive cladogram, and stores written information about clades according to user preference. (See the [JSON Template](template.json) for more information.)
+TreeFern reads .JSON files to build a recursive cladogram, and stores written information about clades according to user preference. (See the [JSON Template](template.JSON) for more information.)
 
 <img width="1667" height="1312" alt="2" src="https://github.com/user-attachments/assets/7670062f-9244-49b9-b407-100d8e7eb7c3" />
 
