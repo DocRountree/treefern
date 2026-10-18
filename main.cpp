@@ -43,6 +43,8 @@ constexpr double STD_FAN_STEP = 15 * DEG;  // extra fan angle per child beyond t
 constexpr double STD_MAX_FAN = 300 * DEG;  // fan cap (unless the spread itself is wider)
 constexpr double STD_CURVE = 0.1;          // how far a branch keeps its parent's heading
 constexpr double STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w_max)^this
+constexpr double DEFAULT_CURL = 0.35;      // -1..1, fraction of the safe fan rotation
+constexpr double STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
 // camera
 constexpr double MIN_PX = 0.6;          // disks: cull subtrees smaller than this on screen
 constexpr double FIT_MARGIN = 120;      // px left free around a fitted tree
@@ -403,6 +405,7 @@ struct Layout {
     Style style = Standard;
     double spread = DEFAULT_SPREAD;  // standard: fan angle of a fork
     double shrink = DEFAULT_SHRINK;  // standard: branch length ratio
+    double curl = DEFAULT_CURL;      // standard: how far lopsided forks turn toward the heavy side
     QHash<const Node*, Local> loc;   // parent-relative frames (root: relative to the view)
     QHash<const Node*, double> ext;  // subtree radius around the node's origin, own units
     QRectF bbox;                     // whole tree, in view units
@@ -560,13 +563,22 @@ private:
             loc[kids[i]] = Local{u, u * s, 0};
             circles.push_back({u * (1 + s * c), s * R});
         };
+        // Rigidly rotating the fan keeps the wedges disjoint and the enclose()
+        // circle valid; it only has to stay clear of the incoming stem at angle pi.
+        auto shiftFor = [&](double fan, double imbalance) {
+            const double room = std::max(0.0, PI - fan / 2 - STD_BACK_GAP);
+            return std::clamp(curl, -1.0, 1.0) * imbalance * room;
+        };
         if (m == 1) {
-            place(0, 0, PI / 2, std::sqrt(shrink));
+            place(0, shiftFor(PI, 1.0), PI / 2, std::sqrt(shrink));
         } else {
             const double fan = std::min(std::max(spread, STD_MAX_FAN), spread + (m - 2) * STD_FAN_STEP);
             const std::vector<double> th = wedges(kids, fan);
             const double wmax = weight(kids.back());
-            double a = -fan / 2;
+            double rest = 0;
+            for (size_t i = 0; i + 1 < m; ++i) rest += weight(kids[i]);
+            const double imbalance = std::max(0.0, (wmax - rest) / (wmax + rest));  // 0 = balanced fork
+            double a = -fan / 2 + shiftFor(fan, imbalance);
             for (size_t i = 0; i < m; ++i) {
                 const double want = i == m - 1 ? std::sqrt(shrink)  // main stem
                                                : shrink * std::pow(weight(kids[i]) / wmax, STD_WEIGHT_EXP);
@@ -988,6 +1000,7 @@ private:
             shownLoc[it.key()] = L;
             shownLocById_[it.key()->id] = L;
         }
+        levelCamera();
         if (following && camAnim.state() != QAbstractAnimation::Running)
             if (const auto d = screenFrame(model->find(selId))) {
                 if (havePrev_) {
@@ -1000,7 +1013,24 @@ private:
             }
         update();
     }
-
+    // The view never rotates: the anchor's on-screen angle must equal the sum
+    // of the shown frame rotations from the anchor up to the root. A relayout
+    // changes those rotations, so counter-rotate the camera about a pivot
+    // (the selection if visible, else the view centre). Summing angles instead
+    // of composing frames stays exact at any zoom depth.
+    void levelCamera() {
+        if (camAnim.state() == QAbstractAnimation::Running) return;  // flight targets are already level
+        const Node* a = anchorNode();
+        if (!a) return;
+        double want = 0;
+        for (const Node* x = a; x; x = x->parent) want += std::arg(sloc(x).z);
+        const double err = std::remainder(want - std::arg(cam.f.z), 2 * PI);
+        if (std::abs(err) < 1e-12) return;
+        C pivot = centre();
+        if (const auto s = screenFrame(model->find(selId)); s && QRectF(rect()).contains(qpt(s->o))) pivot = s->o;
+        const C rot = std::polar(1.0, err);
+        cam.f = {pivot + rot * (cam.f.o - pivot), rot * cam.f.z};
+    }
     Item makeItem(const Node* n, const Frame& f, int depth) const {
         const double s = std::abs(f.z);
         const double r = disks() ? s
@@ -1521,7 +1551,7 @@ public:
             else canvas->selId.clear();
             refresh();
         });
-        // Spread / shrink only affect the standard layout, so only it is recomputed.
+        // Spread / shrink / curl only affect the standard layout, so only it is recomputed.
         auto layoutKey = [this, &mk](QList<QKeySequence> keys, auto fn) {
             mk("", keys, [this, fn] {
                 fn(canvas->lay);
@@ -1533,6 +1563,9 @@ public:
         layoutKey({Qt::Key_Minus}, [](Layout& l) { l.spread = std::max(20 * DEG, l.spread - 10 * DEG); });
         layoutKey({Qt::Key_BracketLeft}, [](Layout& l) { l.shrink = std::max(0.4, l.shrink - 0.02); });
         layoutKey({Qt::Key_BracketRight}, [](Layout& l) { l.shrink = std::min(0.9, l.shrink + 0.02); });
+        // curl: ',' = less (toward -1, counter-clockwise), '.' = more (toward +1, clockwise)
+        layoutKey({Qt::Key_Comma}, [](Layout& l) { l.curl = std::max(-1.0, l.curl - 0.05); });
+        layoutKey({Qt::Key_Period}, [](Layout& l) { l.curl = std::min(1.0, l.curl + 0.05); });
 
         QMenu* cladeMenu = menuBar()->addMenu("&Clade");
         fillCladeMenu(cladeMenu, aFind);
@@ -1830,7 +1863,10 @@ private:
         QString cut, params;
         if (Node* c = model.find(canvas->cutId)) cut = QString("   ✂ cut: %1 (select target, V)").arg(c->name);
         if (!canvas->disks())
-            params = QString("   spread %1°   shrink %2").arg(qRound(canvas->lay.spread / DEG)).arg(canvas->lay.shrink, 0, 'f', 2);
+            params = QString("   spread %1°   shrink %2   curl %3")
+                         .arg(qRound(canvas->lay.spread / DEG))
+                         .arg(canvas->lay.shrink, 0, 'f', 2)
+                         .arg(canvas->lay.curl, 0, 'f', 2);
         hud->setText(QString("%1   zoom %2%3   nodes %4%5   |   %6")
                          .arg(Layout::styleName(canvas->lay.style), canvas->zoomText(), params)
                          .arg(canvas->lay.count())
