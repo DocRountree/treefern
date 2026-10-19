@@ -11,7 +11,6 @@
 //    so coordinates stay in pixel range and zoom depth is effectively unlimited.
 //
 // File format: {"root": id, "nodes": [{id, parent?, name, info, collapsed}, …]}
-//  * Nesting depth is constant, so tree depth is unlimited.
 
 #include <QtWidgets>
 #include <algorithm>
