@@ -27,10 +27,10 @@ To install TreeFern, use the following steps:
 # Features
 
 * **Two View Layouts**
-  * **Standard** Tapered branching tree structure in which heavier child branches curve away from their parent branches, inspired by OneZoom.org's viewer.
+  * **Standard** Tapered branching tree structure in which heavier child branches curve away from their parent branches, inspired by OneZoom.org's viewer. 
+<img width="1705" height="1414" alt="2026-10-19-135804_1705x1414_scrot" src="https://github.com/user-attachments/assets/41640b73-b5ff-4089-9430-c34cc7d7c54d" />
   * **Disks** Nested circular packing where child clades are inscribed discs inside their parent clade discs.
- 
-<img width="1705" height="1414" alt="2026-10-19-135804_1705x1414_scrot" src="https://github.com/user-attachments/assets/41640b73-b5ff-4089-9430-c34cc7d7c54d" /> <img width="1717" height="1420" alt="2026-10-19-135953_1717x1420_scrot" src="https://github.com/user-attachments/assets/bc76fdc9-8de5-4fde-a381-db6876cb9cd9" />
+<img width="1717" height="1420" alt="2026-10-19-135953_1717x1420_scrot" src="https://github.com/user-attachments/assets/bc76fdc9-8de5-4fde-a381-db6876cb9cd9" />
 
 * **Dyamic Labels:** Labels too small to be seen are hidden until zoomed in, and labels dynamically adjust positions to avoid overcrowding. This is the most finicky feature and I will probably be working on it for a while. Label modes can also be toggled between an over-node and beside-node layout, which persists between sessions.
 
