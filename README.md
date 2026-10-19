@@ -1,16 +1,15 @@
 # TreeFern
 TreeFern is a lightweight FOSS tool for editing cladograms, written in C++.
 
-It stores cladograms as JSON files, and both tracks changes made in the file and commits changes made in the GUI in real-time, and saves them automatically. 
+It stores cladograms as JSON files, with live file synchronization and autosave. 
 
-TreeFern supports adding daughter/sister clades, editing clade names and information, and cutting/pasting clades onto new mother clades.
-
+TreeFern supports adding daughter/sister clades, adding metadata information to clades, and cutting/pasting clades onto new mother clades.
 
 
 
 # Installation
 
-Installing TreeFern is quite straightforward.
+To install TreeFern, use the following steps:
 
 1. Save the [main.cpp](main.cpp) file and [CMakeLists.txt](CMakeLists.txt) file in a directory of your choice. Make sure you have CMake installed and that your machine can compile C++ code.
 2. In that directory, to build the program, run the command:
@@ -25,19 +24,31 @@ Installing TreeFern is quite straightforward.
 
    >./build/treefern
 
+# Features
+
+* **Two View Layouts**
+  * **Standard** Tapered branching tree structure in which heavier child branches curve away from their parent branches, inspired by OneZoom.org's viewer.
+  * **Disks** Nested circular packing where child clades are inscribed discs inside their parent clade discs.
+* **Dyamic Labels:** Labels too small to be seen are hidden until zoomed in, and labels dynamically adjust positions to avoid overcrowding. This is the most finicky feature and I will probably be working on it for a while. Label modes can also be toggled between an over-node and beside-node layout, which persists between sessions.
+* **Search & Navigation:** Navigation can be done entirely by keyboard, entirely by mouse, and clades can be found by a search bar in the side panel.
+* **Dark & Light Modes:** Dark Mode is standard, and light mode can be activated in the view panel - setting persists across sessions.
+
 
 # Usage
 
-TreeFern reads .JSON files to build a recursive cladogram, and stores written information about clades according to user preference. (See the [JSON Template](template.JSON) for more information.)
+Treefern can be launched from the terminal by running:
 
-<img width="1667" height="1312" alt="2" src="https://github.com/user-attachments/assets/7670062f-9244-49b9-b407-100d8e7eb7c3" />
+>./treefern
+
+Or by clicking in the GUI on the executable file (or a shortcut to it) that gets built during the installation.
+
+In the terminal, a specific file can be opened with TreeFern by running:
+
+>./treefern file.json
+
+The GUI for the program also has a file picker, and can open JSON files that are dragged into the program canvas.
 
 
-Functionality can be accessed via keyboard shortcuts, or via GUI buttons in the side panel which appears when a clade is selected by a single left-click.
-
-<img width="1611" height="1369" alt="1" src="https://github.com/user-attachments/assets/3ea700d6-0341-42e3-a45e-72970173b55e" />
+# Example
 
 
-Double-clicking a clade opens the Edit menu (also accessible by clicking "Edit" in the side-panel, or by the keyboard shortcut 'e').
-
-<img width="1210" height="1097" alt="3" src="https://github.com/user-attachments/assets/57944cc9-2241-46ac-8652-a641fcf9be43" />
