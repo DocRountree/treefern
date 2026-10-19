@@ -29,8 +29,11 @@ To install TreeFern, use the following steps:
 * **Two View Layouts**
   * **Standard** Tapered branching tree structure in which heavier child branches curve away from their parent branches, inspired by OneZoom.org's viewer.
   * **Disks** Nested circular packing where child clades are inscribed discs inside their parent clade discs.
+
 * **Dyamic Labels:** Labels too small to be seen are hidden until zoomed in, and labels dynamically adjust positions to avoid overcrowding. This is the most finicky feature and I will probably be working on it for a while. Label modes can also be toggled between an over-node and beside-node layout, which persists between sessions.
-* **Search & Navigation:** Navigation can be done entirely by keyboard, entirely by mouse, and clades can be found by a search bar in the side panel.
+
+* **Search & Navigation:** Navigation can be done entirely by keyboard or entirely by mouse, and clades can be found by a search bar in the side panel.
+
 * **Dark & Light Modes:** Dark Mode is standard, and light mode can be activated in the view panel - setting persists across sessions.
 
 
