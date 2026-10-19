@@ -50,16 +50,16 @@ In the terminal, a specific file can be opened with TreeFern by running:
 The GUI for the program also has a file picker, and can open JSON files that are dragged into the program canvas.
 
 # Screenshots
-
-**Standard vs. Disks layout**
+<br>
+**Standard vs. Disks layout:**
 
 <img width="1705" height="1414" alt="Standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690" />
 <img width="1717" height="1420" alt="Disks layout" src="https://github.com/user-attachments/assets/787e1073-e624-46f7-ae94-a4d7b69feb1d" />
-
-**Light Mode**
+<br>
+**Light Mode:**
 
 <img width="1720" height="1421" alt="Light mode" src="https://github.com/user-attachments/assets/7cbe0f3a-47f7-4e0a-9221-42b328ce9440" />
-
-**Labels beside nodes**
+<br>
+**Labels beside nodes:**
 
 <img width="1718" height="1421" alt="Labels beside nodes" src="https://github.com/user-attachments/assets/e501e873-f8ca-4104-8ab2-2d8eace6a696" />
