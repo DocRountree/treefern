@@ -30,7 +30,9 @@ constexpr int MAX_LABELS = 400, MAX_RECENT = 10, MAX_SEARCH = 200;
 // labels
 constexpr double LABEL_MIN_SCREEN_LEN = 35;  // disks: smaller discs get no label
 constexpr double LABEL_GAP = 2;              // min spacing between label boxes
-constexpr double WRAP_COST = 0.45;           // placement penalty per extra wrapped line
+constexpr double WRAP_COST = 0.12;           // placement penalty per extra wrapped line
+constexpr int MAX_WRAP_LINES = 6;            // most lines a label may wrap onto
+constexpr double STEM_COST = 0.8;            // soft penalty for covering the node's own branches
 // disks style (nested discs)
 constexpr double POLY_MARGIN = 0.96;      // usable fraction of a parent's radius
 constexpr double POLY_GAP = 0.94;         // fraction of its wedge a child fills (both styles)
@@ -651,32 +653,39 @@ static QRectF anchoredRect(double w, double h, double px, double py, double ux, 
     return QRectF(std::round(l), std::round(t), w, h);
 }
 
-// Ways to lay out a label: one line, plus balanced 2- and 3-line wraps when
-// they make the box noticeably narrower. Never truncates.
+// Ways to lay out a label: for each line count k = 1..MAX_WRAP_LINES, the split
+// that minimises the widest line (exact linear-partition DP). An option is kept
+// only if it is narrower than every option with fewer lines. Never truncates.
 static std::vector<QStringList> wrapOptions(const QStringList& words, const QFontMetricsF& fm) {
     const int n = words.size();
     std::vector<double> pre(n + 1, 0);
     for (int i = 0; i < n; ++i) pre[i + 1] = pre[i] + fm.horizontalAdvance(words[i]);
     const double sp = fm.horizontalAdvance(' ');
     auto W = [&](int a, int b) { return pre[b] - pre[a] + (b - a - 1) * sp; };
-    auto seg = [&](int a, int b) { return words.mid(a, b - a).join(' '); };
 
-    std::vector<QStringList> out{{words.join(' ')}};
-    double prevW = W(0, n);
-    if (n >= 2) {
-        int bi = 1;
-        double bw = 1e300;
-        for (int i = 1; i < n; ++i)
-            if (double m = std::max(W(0, i), W(i, n)); m < bw) { bw = m; bi = i; }
-        if (bw < prevW * 0.9) { out.push_back({seg(0, bi), seg(bi, n)}); prevW = bw; }
-    }
-    if (n >= 3) {
-        int bi = 1, bj = 2;
-        double bw = 1e300;
-        for (int i = 1; i < n - 1; ++i)
-            for (int j = i + 1; j < n; ++j)
-                if (double m = std::max({W(0, i), W(i, j), W(j, n)}); m < bw) { bw = m; bi = i; bj = j; }
-        if (bw < prevW * 0.9) out.push_back({seg(0, bi), seg(bi, bj), seg(bj, n)});
+    const int K = std::min(n, MAX_WRAP_LINES);
+    constexpr double INF = 1e300;
+    // best[k][j]: smallest possible widest line when words [0, j) fill k lines; cut = start of the last line
+    std::vector<std::vector<double>> best(K + 1, std::vector<double>(n + 1, INF));
+    std::vector<std::vector<int>> cut(K + 1, std::vector<int>(n + 1, 0));
+    best[0][0] = 0;
+    for (int k = 1; k <= K; ++k)
+        for (int j = k; j <= n; ++j)
+            for (int i = k - 1; i < j; ++i)
+                if (const double m = std::max(best[k - 1][i], W(i, j)); m < best[k][j]) {
+                    best[k][j] = m;
+                    cut[k][j] = i;
+                }
+
+    std::vector<QStringList> out;
+    double prevW = INF;
+    for (int k = 1; k <= K; ++k) {
+        if (!(best[k][n] < prevW - 0.5)) continue;  // must be visibly narrower
+        QStringList lines;
+        for (int kk = k, j = n; kk > 0; j = cut[kk][j], --kk)
+            lines.prepend(words.mid(cut[kk][j], j - cut[kk][j]).join(' '));
+        out.push_back(lines);
+        prevW = best[k][n];
     }
     return out;
 }
@@ -1149,8 +1158,8 @@ void Canvas::paintEvent(QPaintEvent*) {
     }
 }
 
-// Standard only: tapered branches, culled to the view. Records them for hit
-// tests and returns them as label obstacles (beside mode only).
+// Standard only: tapered branches, culled to the view. Returns them as
+// label obstacles.
 std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
     std::vector<Seg> segs;
     if (disks()) return segs;
@@ -1166,7 +1175,6 @@ std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
         const auto mid = drawTaper(p, a, ctrl, b, wa, wb, col, view);
         for (size_t i = 0; i + 1 < mid.size(); ++i) {
             hitSegs_.push_back({mid[i], mid[i + 1], m / 2, br.child});
-            if (labelMode != LabelMode::Beside) continue;
             const double pad = m / 2 + 1;
             segs.push_back({mid[i], mid[i + 1], pad,
                             QRectF(mid[i], mid[i + 1]).normalized().adjusted(-pad, -pad, pad, pad),
@@ -1196,37 +1204,70 @@ void Canvas::drawNodes(QPainter& p) {
     }
 }
 
-// Greedy placement, selection first, then well-sized clades. Over mode: centred
-// on the node (disks parents: near the top of the disc), nudged and/or wrapped
-// to avoid other labels. Beside mode: one line next to the node, avoiding
-// labels, nodes and non-incident branches. Labels without room are skipped, except
-// the selection (forced) and the hovered node (drawn last, displacing nothing).
+// Greedy placement, selection first, then well-sized clades. Each label tries
+// every wrap option at every candidate position (Over: around the node centre /
+// disc top; Beside: rings around the node), cheapest first, and takes the first
+// one that is not blocked. Hard obstacles: placed labels (+gap), other nodes,
+// and branches not incident to the node. Its own branches are a soft cost.
+// The selection is forced if nothing is free; the hovered label is drawn last.
 void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
     const bool dk = disks(), beside = labelMode == LabelMode::Beside;
     const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
     constexpr double padX = 5, padY = 2;
     static const double OFFS[] = {0, .45, -.45, .9, -.9, 1.4, -1.4, 2.0, -2.0, 2.5, -2.5, PI};
-    const QRectF view = QRectF(rect());
+    const QRectF view = QRectF(rect()), inner = view.adjusted(4, 4, -4, -4);
     const QRectF nearView = view.adjusted(-120, -120, 120, 120);
 
+    // Uniform grid over branch pieces. Every rect a strict test can see lies in
+    // nearView, so clamping to it loses nothing.
+    constexpr double CELL = 64;
+    auto forCells = [&](const QRectF& r, auto&& f) {
+        if (!r.intersects(nearView)) return;
+        const QRectF c = r.intersected(nearView);
+        for (int x = int(std::floor(c.left() / CELL)); x <= int(std::floor(c.right() / CELL)); ++x)
+            for (int y = int(std::floor(c.top() / CELL)); y <= int(std::floor(c.bottom() / CELL)); ++y)
+                f(qMakePair(x, y));
+    };
+    QHash<QPair<int, int>, std::vector<int>> grid;
+    for (int i = 0; i < int(segs.size()); ++i) forCells(segs[i].box, [&](QPair<int, int> k) { grid[k].push_back(i); });
+    std::vector<int> stamp(segs.size(), -1);
+    int query = 0;
+    // Does r touch any (padded) branch piece accepted by `want`? Exact clip test.
+    auto anySeg = [&](const QRectF& r, auto&& want) {
+        ++query;
+        bool hit = false;
+        forCells(r, [&](QPair<int, int> k) {
+            if (hit) return;
+            const auto it = grid.constFind(k);
+            if (it == grid.cend()) return;
+            for (int i : *it) {
+                if (stamp[i] == query) continue;
+                stamp[i] = query;
+                const Seg& s = segs[i];
+                if (!s.box.intersects(r) || !want(s)) continue;
+                QPointF a = s.a, b = s.b;
+                if (clipLine(r.adjusted(-s.pad, -s.pad, s.pad, s.pad), a, b)) { hit = true; return; }
+            }
+        });
+        return hit;
+    };
+
     std::vector<QRectF> nodeRects, placed;
-    if (beside && !dk)
+    if (!dk)
         for (const Item& v : items_)
             nodeRects.push_back(QRectF(v.s.x() - v.r - 2, v.s.y() - v.r - 2, 2 * v.r + 4, 2 * v.r + 4));
 
     auto blocked = [&](const QRectF& r, int own) {
-        if (!view.adjusted(4, 4, -4, -4).contains(r) && items_[own].n != sel) return true;
+        const Node* me = items_[own].n;
+        if (me != sel && !inner.contains(r)) return true;
         const QRectF t = r.adjusted(-LABEL_GAP, -LABEL_GAP, LABEL_GAP, LABEL_GAP);
         if (std::any_of(placed.begin(), placed.end(), [&](const QRectF& q) { return q.intersects(t); })) return true;
         for (size_t i = 0; i < nodeRects.size(); ++i)
             if (int(i) != own && nodeRects[i].intersects(r)) return true;
-        const Node* me = items_[own].n;
-        for (const Seg& s : segs) {
-            if (s.p == me || s.c == me) continue;  // ignore branches directly connected to this node
-            QPointF a = s.a, b = s.b;
-            if (s.box.intersects(r) && clipLine(r.adjusted(-s.pad, -s.pad, s.pad, s.pad), a, b)) return true;
-        }
-        return false;
+        return anySeg(r, [me](const Seg& s) { return s.p != me && s.c != me; });
+    };
+    auto onOwnStem = [&](const QRectF& r, const Node* me) {
+        return anySeg(r, [me](const Seg& s) { return s.p == me || s.c == me; });
     };
 
     struct Lbl { QRectF box; QString text; QFont font; const Node* n; QPointF target; bool forced, leader; };
@@ -1237,39 +1278,22 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
         if (v.n->collapsed && !v.n->kids.empty()) words << QString("[+%1]").arg(v.n->countDesc());
 
         QFont f = font();
-        const double scaleRef = dk ? v.lenPx * 0.11 : v.lenPx * 0.14;
-        f.setPixelSize(std::clamp(int(scaleRef), 11, 28));
+        f.setPixelSize(std::clamp(int(dk ? v.lenPx * 0.11 : v.lenPx * 0.14), 11, 28));
         const QFontMetricsF fm(f);
-
-        if (beside) {
-            const QString text = words.join(' ');
-            const double w = std::ceil(fm.horizontalAdvance(text)) + 2 * padX, h = std::ceil(fm.height()) + 2 * padY;
-            const int maxRings = (v.lenPx > 80 || force) ? 3 : 1;
-            for (int ring = 0; ring < maxRings; ++ring) {
-                const double gap = v.r + 6 + ring * 22;
-                for (double off : OFFS) {
-                    const double ux = std::cos(v.angle + off), uy = std::sin(v.angle + off);
-                    const QRectF r = anchoredRect(w, h, v.s.x() + ux * gap, v.s.y() + uy * gap, ux, uy);
-                    if (!blocked(r, own)) return Lbl{r, text, f, v.n, v.s, false, ring > 0};
-                }
-            }
-            const double ux = std::cos(v.angle), uy = std::sin(v.angle), gap = v.r + 6;
-            return force ? std::optional<Lbl>(Lbl{anchoredRect(w, h, v.s.x() + ux * gap, v.s.y() + uy * gap, ux, uy),
-                                                  text, f, v.n, v.s, true, false})
-                         : std::nullopt;
-        }
 
         QPointF c = v.s;
         double rr = v.r;
-        if (dk && !Layout::hidesKids(v.n)) {
-            c.ry() -= v.r * 0.82;
-            rr = std::min(v.r * 0.1, 12.0) + 2;
-            if (v.r > 200 && c.y() < 24 && v.s.y() + v.r > 80) {
-                c.setY(std::clamp(24.0, v.s.y() - v.r + 24.0, v.s.y()));
-                c.setX(std::clamp(c.x(), 80.0, width() - 80.0));
+        if (!beside) {
+            if (dk && !Layout::hidesKids(v.n)) {
+                c.ry() -= v.r * 0.82;
+                rr = std::min(v.r * 0.1, 12.0) + 2;
+                if (v.r > 200 && c.y() < 24 && v.s.y() + v.r > 80) {
+                    c.setY(std::clamp(24.0, v.s.y() - v.r + 24.0, v.s.y()));
+                    c.setX(std::clamp(c.x(), 80.0, width() - 80.0));
+                }
             }
+            if (!force && !nearView.contains(c)) return std::nullopt;
         }
-        if (!force && !nearView.contains(c)) return std::nullopt;
 
         const std::vector<QStringList> opts = wrapOptions(words, fm);
         struct Cand { double cost; QRectF r; int opt; bool leader; };
@@ -1280,8 +1304,20 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
             const double w = std::ceil(tw) + 2 * padX;
             const double h = std::ceil(fm.height() + (opts[k].size() - 1) * fm.lineSpacing()) + 2 * padY;
 
-            if (dk && !force && v.lenPx < 140 && w > v.r * 1.85) continue;
+            if (beside) {
+                const int maxRings = (v.lenPx > 80 || force) ? 3 : 1;
+                for (int ring = 0; ring < maxRings; ++ring) {
+                    const double gap = v.r + 6 + ring * 22;
+                    for (double off : OFFS) {
+                        const double ux = std::cos(v.angle + off), uy = std::sin(v.angle + off);
+                        cs.push_back({ring + std::abs(off) * 0.25 + WRAP_COST * k,
+                                      anchoredRect(w, h, v.s.x() + ux * gap, v.s.y() + uy * gap, ux, uy), k, ring > 0});
+                    }
+                }
+                continue;
+            }
 
+            if (dk && !force && v.lenPx < 140 && w > v.r * 1.85) continue;
             const double mx = w / 2 + rr - 1, my = h / 2 + rr - 1;
             const int steps = (v.lenPx > 90 || force) ? 3 : 2;
             for (int i = -steps; i <= steps; ++i)
@@ -1296,6 +1332,9 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
                 }
         }
         if (cs.empty()) return std::nullopt;
+        if (!segs.empty())
+            for (Cand& cd : cs)
+                if (onOwnStem(cd.r, v.n)) cd.cost += STEM_COST;
         std::stable_sort(cs.begin(), cs.end(), [](const Cand& a, const Cand& b) { return a.cost < b.cost; });
         for (const Cand& cd : cs)
             if (!blocked(cd.r, own)) return Lbl{cd.r, opts[cd.opt].join('\n'), f, v.n, c, false, cd.leader};
@@ -1308,10 +1347,8 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
     for (int i = 0; i < int(items_.size()); ++i) {
         const Item& v = items_[i];
         const bool isLeaf = Layout::hidesKids(v.n);
-        if (v.n == sel || v.lenPx >= (isLeaf && !dk ? minLen * 0.65 : minLen))
-            cands.push_back(i);
+        if (v.n == sel || v.lenPx >= (isLeaf && !dk ? minLen * 0.65 : minLen)) cands.push_back(i);
     }
-
     auto priority = [&](const Item& v) {
         const bool giantOffCenter = v.lenPx > std::max(width(), height()) * 1.2;
         return std::make_tuple(v.n != sel, giantOffCenter, -lay.weight(v.n), v.depth, -v.lenPx);
