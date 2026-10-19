@@ -9,6 +9,9 @@
 //  * Canvas anchors the camera to one node's on-screen frame and re-anchors to
 //    a child or the parent while zooming; all other frames are derived from it,
 //    so coordinates stay in pixel range and zoom depth is effectively unlimited.
+//
+// File format: {"root": id, "nodes": [{id, parent?, name, info, collapsed}, …]}
+//  * Nesting depth is constant, so tree depth is unlimited.
 
 #include <QtWidgets>
 #include <algorithm>
@@ -47,6 +50,7 @@ constexpr double STD_CURVE = 0.1;          // how far a branch keeps its parent'
 constexpr double STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w_max)^this
 constexpr double DEFAULT_CURL = 0.35;      // -1..1, fraction of the safe fan rotation
 constexpr double STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
+constexpr double STD_POLY_GUTTER = 6 * DEG;  // min angle between sibling wedges (3+ children only)
 // camera
 constexpr double MIN_PX = 0.6;          // disks: cull subtrees smaller than this on screen
 constexpr double FIT_MARGIN = 120;      // px left free around a fitted tree
@@ -294,22 +298,68 @@ private:
         return up;
     }
 
-    static std::unique_ptr<Node> fromJson(const QJsonObject& o, QSet<QString>& seen) {
-        QString id = o.value("id").toString();
-        if (id.isEmpty() || seen.contains(id)) id = newId();  // repair missing / duplicate ids
-        seen.insert(id);
-        std::unique_ptr<Node> n(new Node{id, o.value("name").toString("Unnamed"), o.value("info").toString(),
-                                         o.value("collapsed").toBool(false)});
-        for (const auto& v : o.value("children").toArray())
-            if (v.isObject()) n->addChild(fromJson(v.toObject(), seen));
-        return n;
+    // Flat format: {"root": id, "nodes": [{id, parent?, name, info, collapsed}, …]}.
+    // Children keep file order. Repairs: duplicate/missing ids get fresh ones;
+    // nodes whose parent is missing, or that sit on a parent cycle, are dropped.
+    static std::unique_ptr<Node> fromJson(const QJsonObject& top, QString& err) {
+        struct Rec { std::unique_ptr<Node> n; QString parent; };
+        std::vector<Rec> recs;
+        QHash<QString, size_t> byId;
+        for (const auto& v : top.value("nodes").toArray()) {
+            if (!v.isObject()) continue;
+            const QJsonObject o = v.toObject();
+            QString id = o.value("id").toString();
+            if (id.isEmpty() || byId.contains(id)) id = newId();
+            byId[id] = recs.size();
+            recs.push_back({std::unique_ptr<Node>(new Node{id, o.value("name").toString("Unnamed"),
+                                                           o.value("info").toString(),
+                                                           o.value("collapsed").toBool(false)}),
+                            o.value("parent").toString()});
+        }
+        const QString rootId = top.value("root").toString();
+        if (!byId.contains(rootId)) {
+            err = "JSON error: missing or unknown \"root\"";
+            return nullptr;
+        }
+        const size_t rootIdx = byId[rootId];
+
+        // Keep only nodes whose parent chain reaches the root (iterative: no cycles, no recursion).
+        std::vector<char> state(recs.size(), 0);  // 0 unknown, 1 visiting, 2 ok, 3 bad
+        state[rootIdx] = 2;
+        for (size_t i = 0; i < recs.size(); ++i) {
+            std::vector<size_t> chain;
+            size_t j = i;
+            while (state[j] == 0) {
+                state[j] = 1;
+                chain.push_back(j);
+                const auto it = byId.constFind(recs[j].parent);
+                if (it == byId.cend()) { state[j] = 3; break; }
+                j = *it;
+            }
+            const char verdict = state[j] == 2 ? 2 : 3;  // reached root, or hit missing/cycle/bad
+            for (size_t c : chain) state[c] = verdict;
+        }
+        // Link in file order. Raw pointers are taken first because addChild moves ownership.
+        std::vector<Node*> raw(recs.size());
+        for (size_t i = 0; i < recs.size(); ++i) raw[i] = recs[i].n.get();
+        std::unique_ptr<Node> root = std::move(recs[rootIdx].n);
+        for (size_t i = 0; i < recs.size(); ++i)
+            if (i != rootIdx && state[i] == 2) raw[byId[recs[i].parent]]->addChild(std::move(recs[i].n));
+        return root;  // dropped records are freed with `recs`
     }
 
-    static QJsonObject toJson(const Node* n) {
-        QJsonArray kids;
-        for (auto& k : n->kids) kids.append(toJson(k.get()));
-        return {{"id", n->id}, {"name", n->name}, {"info", n->info},
-                {"collapsed", n->collapsed}, {"children", kids}};
+    static QJsonObject toJson(const Node* root) {
+        QJsonArray nodes;
+        std::vector<const Node*> stack{root};
+        while (!stack.empty()) {  // pre-order; siblings keep their order
+            const Node* n = stack.back();
+            stack.pop_back();
+            QJsonObject o{{"id", n->id}, {"name", n->name}, {"info", n->info}, {"collapsed", n->collapsed}};
+            if (n->parent) o["parent"] = n->parent->id;
+            nodes.append(o);
+            for (auto it = n->kids.rbegin(); it != n->kids.rend(); ++it) stack.push_back(it->get());
+        }
+        return {{"root", root->id}, {"nodes", nodes}};
     }
 
     static std::unique_ptr<Node> parseFile(const QString& p, QString& err) {
@@ -325,17 +375,18 @@ private:
         else if (!doc.isObject())
             err = "JSON error in " + p + ": top level must be an object";
         else {
-            QSet<QString> seen;
-            return fromJson(doc.object(), seen);
+            auto tree = fromJson(doc.object(), err);
+            if (!tree) err = err.replace("JSON error", "JSON error in " + p);
+            return tree;
         }
         return nullptr;
     }
 
     bool save() {
         if (!root_ || path.isEmpty()) return false;
+        const QJsonObject json = toJson(root_.get());
         QSaveFile f(path);  // atomic write-and-rename
-        if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(toJson(root_.get())).toJson()) < 0 ||
-            !f.commit()) {
+        if (!f.open(QIODevice::WriteOnly) || f.write(QJsonDocument(json).toJson()) < 0 || !f.commit()) {
             status = "Cannot write " + path;
             return false;
         }
@@ -502,6 +553,28 @@ private:
         return th;
     }
 
+    // A subtree as seen by its parent: its bounding circle (centre c on its own
+    // x axis, radius R) and the pieces covering it (its node disc plus each
+    // child's bounding circle), all in its own frame.
+    struct Hull { double c, R; std::vector<std::pair<C, double>> pieces; };
+
+    // Angular range, relative to the child's axis and seen from the parent's
+    // fork, covered by a child placed at distance 1 with scale s. Returns a
+    // full turn if a piece reaches the fork or the range is too wide to pack.
+    static std::pair<double, double> angularSpan(const std::vector<std::pair<C, double>>& pieces, double s) {
+        double lo = 1e300, hi = -1e300;
+        for (const auto& [p, r] : pieces) {
+            const C q = 1.0 + s * p;
+            const double d = std::abs(q);
+            if (s * r >= d * 0.999) return {-PI, PI};
+            const double a = std::arg(q), h = std::asin(s * r / d);
+            lo = std::min(lo, a - h);
+            hi = std::max(hi, a + h);
+        }
+        if (hi - lo >= PI) return {-PI, PI};
+        return {lo, hi};
+    }
+
     // Disks: children sit on a ring inside the parent disc, clockwise from 12
     // o'clock. Each is the largest disc inscribed in its wedge (wedges capped
     // at a half-turn), so siblings can never overlap.
@@ -549,23 +622,30 @@ private:
 
     // Standard: a node's frame has its origin at its fork, +x along its growth
     // direction, and unit = its outgoing branch length. All children leave the
-    // fork together, fanned out by weight; each child is scaled so its subtree's 
-    // bounding circle fits its wedge. Returns that bounding circle
-    // (centre on the local x axis, radius).
-    std::pair<double, double> standard(const Node* n) {
-        if (hidesKids(n)) return {0, STD_NODE};
+    // fork together. Two-child forks split the fan by weight and inscribe each
+    // child's bounding circle in its wedge. Forks of 3+ children are packed by
+    // the angular range each child really covers (see angularSpan): neighbours
+    // abut with a gutter, slack becomes even gaps, and if the fan is too tight
+    // every child shrinks by a common factor. Returns the bounding circle and pieces.
+    Hull standard(const Node* n) {
+        if (hidesKids(n)) return {0, STD_NODE, {{C(0, 0), STD_NODE}}};
         const auto kids = ordered(n);
         const size_t m = kids.size();
+        // Children's hulls don't depend on where they are placed, so compute them first.
+        std::vector<Hull> sub(m);
+        for (size_t i = 0; i < m; ++i) sub[i] = standard(kids[i]);
         std::vector<std::pair<C, double>> circles{{C(0, 0), STD_WIDTH}};
-        auto place = [&](size_t i, double mid, double halfWedge, double want) {
-            const auto [c, R] = standard(kids[i]);
-            const double sb = std::sin(std::min(halfWedge, PI / 2)) * POLY_GAP;
-            const double s = R > c * sb ? std::min(want, sb / (R - c * sb)) : want;  // inscribed in the wedge
+        auto placeAt = [&](size_t i, double mid, double s) {
             const C u = std::polar(1.0, mid);
             loc[kids[i]] = Local{u, u * s, 0};
-            circles.push_back({u * (1 + s * c), s * R});
+            circles.push_back({u * (1 + s * sub[i].c), s * sub[i].R});
         };
-        // Rigidly rotating the fan keeps the wedges disjoint and the enclose()
+        auto place = [&](size_t i, double mid, double halfWedge, double want) {
+            const double c = sub[i].c, R = sub[i].R;
+            const double sb = std::sin(std::min(halfWedge, PI / 2)) * POLY_GAP;
+            placeAt(i, mid, R > c * sb ? std::min(want, sb / (R - c * sb)) : want);  // inscribed in the wedge
+        };
+        // Rigidly rotating the fan keeps the children disjoint and the enclose()
         // circle valid; it only has to stay clear of the incoming stem at angle pi.
         auto shiftFor = [&](double fan, double imbalance) {
             const double room = std::max(0.0, PI - fan / 2 - STD_BACK_GAP);
@@ -575,20 +655,52 @@ private:
             place(0, shiftFor(PI, 1.0), PI / 2, std::sqrt(shrink));
         } else {
             const double fan = std::min(std::max(spread, STD_MAX_FAN), spread + (m - 2) * STD_FAN_STEP);
-            const std::vector<double> th = wedges(kids, fan);
             const double wmax = weight(kids.back());
+            std::vector<double> want(m);
             double rest = 0;
-            for (size_t i = 0; i + 1 < m; ++i) rest += weight(kids[i]);
+            for (size_t i = 0; i < m; ++i) {
+                want[i] = i == m - 1 ? std::sqrt(shrink)  // main stem
+                                     : shrink * std::pow(weight(kids[i]) / wmax, STD_WEIGHT_EXP);
+                if (i + 1 < m) rest += weight(kids[i]);
+            }
             const double imbalance = std::max(0.0, (wmax - rest) / (wmax + rest));  // 0 = balanced fork
             double a = -fan / 2 + shiftFor(fan, imbalance);
-            for (size_t i = 0; i < m; ++i) {
-                const double want = i == m - 1 ? std::sqrt(shrink)  // main stem
-                                               : shrink * std::pow(weight(kids[i]) / wmax, STD_WEIGHT_EXP);
-                place(i, a + th[i] / 2, th[i] / 2, want);
-                a += th[i];
+            if (m == 2) {  // bifurcation: unchanged
+                const std::vector<double> th = wedges(kids, fan);
+                for (size_t i = 0; i < m; ++i) {
+                    place(i, a + th[i] / 2, th[i] / 2, want[i]);
+                    a += th[i];
+                }
+            } else {
+                const double gutter = std::min(STD_POLY_GUTTER, 0.25 * fan / double(m - 1));
+                std::vector<std::pair<double, double>> sp(m);
+                auto total = [&](double k) {  // fan used when every child is scaled by k
+                    double t = double(m - 1) * gutter;
+                    for (size_t i = 0; i < m; ++i) {
+                        sp[i] = angularSpan(sub[i].pieces, k * want[i]);
+                        t += sp[i].second - sp[i].first;
+                    }
+                    return t;
+                };
+                double k = 1;
+                if (total(1) > fan) {
+                    double lo = 1e-3, hi = 1;
+                    for (int it = 0; it < 40; ++it) {
+                        const double mk = (lo + hi) / 2;
+                        (total(mk) <= fan ? lo : hi) = mk;
+                    }
+                    k = lo;
+                }
+                const double used = total(k);  // also leaves sp[] for this k
+                const double gap = gutter + std::max(0.0, fan - used) / double(m - 1);
+                for (size_t i = 0; i < m; ++i) {
+                    placeAt(i, a - sp[i].first, k * want[i]);  // this child's range starts at a
+                    a += sp[i].second - sp[i].first + gap;
+                }
             }
         }
-        return enclose(circles);
+        const auto [x, r] = enclose(circles);
+        return {x, r, std::move(circles)};
     }
 };
 
