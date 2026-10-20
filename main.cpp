@@ -50,6 +50,7 @@ constexpr double STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w
 constexpr double DEFAULT_CURL = 0.35;      // -1..1, fraction of the safe fan rotation
 constexpr double STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
 constexpr double STD_POLY_GUTTER = 6 * DEG;  // min angle between sibling wedges (3+ children only)
+constexpr double STD_POLY_MIN_ARC = 12 * DEG;  // min angle a child of a 3+ fork occupies (spaces out leaves)
 // camera
 constexpr double MIN_PX = 0.6;          // disks: cull subtrees smaller than this on screen
 constexpr double FIT_MARGIN = 120;      // px left free around a fitted tree
@@ -672,11 +673,18 @@ private:
                 }
             } else {
                 const double gutter = std::min(STD_POLY_GUTTER, 0.25 * fan / double(m - 1));
+                // A leaf only covers its tiny tip disc, so without a floor leaves pack
+                // at the gutter. Capped so the fan always fits once the clades shrink.
+                const double minArc = std::min(STD_POLY_MIN_ARC, 0.7 * (fan - double(m - 1) * gutter) / double(m));
                 std::vector<std::pair<double, double>> sp(m);
                 auto total = [&](double k) {  // fan used when every child is scaled by k
                     double t = double(m - 1) * gutter;
                     for (size_t i = 0; i < m; ++i) {
                         sp[i] = angularSpan(sub[i].pieces, k * want[i]);
+                        if (const double w = sp[i].second - sp[i].first; w < minArc) {
+                            const double mid = (sp[i].first + sp[i].second) / 2;
+                            sp[i] = {mid - minArc / 2, mid + minArc / 2};
+                        }
                         t += sp[i].second - sp[i].first;
                     }
                     return t;
