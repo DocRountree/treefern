@@ -1,0 +1,837 @@
+{
+    "nodes": [
+        {
+            "collapsed": false,
+            "id": "7767e1d8a2",
+            "info": "Life is a system of chemical replicators composed of cells. It reproduces using DNA replication and is encapsulated in phospholipid membranes.",
+            "name": "Life"
+        },
+        {
+            "collapsed": false,
+            "id": "c7bc58519b",
+            "info": "Bacteria are single-celled organisms, and one of the two primary divisions of life on Earth.",
+            "name": "Bacteria",
+            "parent": "7767e1d8a2"
+        },
+        {
+            "collapsed": false,
+            "id": "a4a8941edb",
+            "info": "Also known as terrabacteria",
+            "name": "Bacillati",
+            "parent": "c7bc58519b"
+        },
+        {
+            "collapsed": false,
+            "id": "d8a0ddce66",
+            "info": "The clade which devloped oxygenic photosynthesis. While other clades use sunlight to drive other reactions, cyanobacteria are the only to use sunlight split water, using the electrons and protons from hydrogen to power the enzyme complexes which combine carbon dioxide into sugars, releasing oxygen as a byproduct. All other clades which use this process get it by culturing internal populations of cyanobacteria, typically as endosymbiotic chloroplasts, sometimes as trapped free-living populations, and sometimes as endosymbiotes of trapped free-living populations.",
+            "name": "Cyanobacteria",
+            "parent": "a4a8941edb"
+        },
+        {
+            "collapsed": false,
+            "id": "d7d569aa04",
+            "info": "",
+            "name": "Bacillota",
+            "parent": "a4a8941edb"
+        },
+        {
+            "collapsed": false,
+            "id": "edf973be2a",
+            "info": "",
+            "name": "Clostridia",
+            "parent": "d7d569aa04"
+        },
+        {
+            "collapsed": false,
+            "id": "be5508c006",
+            "info": "",
+            "name": "Bacilli",
+            "parent": "d7d569aa04"
+        },
+        {
+            "collapsed": false,
+            "id": "d70fd2d29c",
+            "info": "",
+            "name": "Bacillales",
+            "parent": "be5508c006"
+        },
+        {
+            "collapsed": false,
+            "id": "0b674511bd",
+            "info": "",
+            "name": "Lactobacillales",
+            "parent": "be5508c006"
+        },
+        {
+            "collapsed": false,
+            "id": "6266543bfd",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "0b674511bd"
+        },
+        {
+            "collapsed": false,
+            "id": "17a4d52aec",
+            "info": "A clade of bacteria well-known for having members which are pathogenic to humans, causing skin and throat infections.",
+            "name": "Streptococcaceae",
+            "parent": "6266543bfd"
+        },
+        {
+            "collapsed": false,
+            "id": "d3fbd72d71",
+            "info": "",
+            "name": "Enterococcaceae",
+            "parent": "6266543bfd"
+        },
+        {
+            "collapsed": false,
+            "id": "dc4c6f4a40",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "0b674511bd"
+        },
+        {
+            "collapsed": false,
+            "id": "ba6e8ef254",
+            "info": "",
+            "name": "Carnobacteriaceae",
+            "parent": "dc4c6f4a40"
+        },
+        {
+            "collapsed": false,
+            "id": "d5ee75cfe6",
+            "info": "A clade which contains important components of the bacterial community inside mammalian reproductive tracts and inside all chordate digestive tracts. Historically important to humans for driving the fermentation process behind yoghurt, cheese, sauerkraut, kimchi, pickles, salami, pepperoni, sourdough bread, and some types of beer and wine.",
+            "name": "Lactobacillaceae",
+            "parent": "dc4c6f4a40"
+        },
+        {
+            "collapsed": false,
+            "id": "fe5099fd6e",
+            "info": "",
+            "name": "Gracilicutes",
+            "parent": "c7bc58519b"
+        },
+        {
+            "collapsed": false,
+            "id": "ccc6e21d8c",
+            "info": "",
+            "name": "Proteobacteria",
+            "parent": "fe5099fd6e"
+        },
+        {
+            "collapsed": false,
+            "id": "bec46802fd",
+            "info": "",
+            "name": "Alpha-Proteobacteria",
+            "parent": "ccc6e21d8c"
+        },
+        {
+            "collapsed": false,
+            "id": "4d54521fd0",
+            "info": "Called the \"core alphaproteobacteria\" in the literature",
+            "name": "Unnamed",
+            "parent": "bec46802fd"
+        },
+        {
+            "collapsed": false,
+            "id": "62b11dd13b",
+            "info": "",
+            "name": "Rickettsidae",
+            "parent": "4d54521fd0"
+        },
+        {
+            "collapsed": false,
+            "id": "374e90eb98",
+            "info": "",
+            "name": "Rickettsiales",
+            "parent": "62b11dd13b"
+        },
+        {
+            "collapsed": false,
+            "id": "2f18e7b0ba",
+            "info": "Mitochondria are obligate intracellular endosymbiotes of almost all modern eukaryotes, and are vitally important in the evolution of the same. Their ancestral traits are highly reduced after millions of years of coevolution within their hosts, and they can no longer live alone. They have now become as intrinsic parts of the soma of their host cells, called organelles.",
+            "name": "Mitochondria",
+            "parent": "374e90eb98"
+        },
+        {
+            "collapsed": false,
+            "id": "8392e79dc5",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "374e90eb98"
+        },
+        {
+            "collapsed": false,
+            "id": "f54b78713a",
+            "info": "",
+            "name": "Rickettsiaceae",
+            "parent": "8392e79dc5"
+        },
+        {
+            "collapsed": false,
+            "id": "2e35d43f7f",
+            "info": "",
+            "name": "Anaplasmataceae",
+            "parent": "8392e79dc5"
+        },
+        {
+            "collapsed": false,
+            "id": "cf7a8c7ffb",
+            "info": "",
+            "name": "Pelagibacterales",
+            "parent": "62b11dd13b"
+        },
+        {
+            "collapsed": false,
+            "id": "e43ee3a5ec",
+            "info": "",
+            "name": "Caulobacteridae",
+            "parent": "4d54521fd0"
+        },
+        {
+            "collapsed": false,
+            "id": "f353d31068",
+            "info": "A clade which is noteworthy for its symbiotic relationship with plant hosts in which it uses enzyme complexes called nitrogenases to convert nitrogen into ammonia - making it more bioavailable to the plant. Plants attract rhizobia by secreting flavonoids from the root, and rhizobia track these flavonoids to find their hosts. The rhizobia in turn produce large hybrid sugar-fat molecules, which the plants recognise as signals called Nod factors, to begin building environments called nodules, in which the nitrogen-fixing bacteria enter and live, receiving sugars from the plant. In that stage of life, known as a bacteroid, the rhizobium loses much of its machinery for free-living, swelling in size, losing its shape, and making its cellular envelope more permeable, while at the same time increasing the copies of its genome to increase its protein output. Humans have long used crop rotation involving the host species of rhizobia because they empriically increased agricultural yield, even before identifying how the effect worked.",
+            "name": "Rhizobium",
+            "parent": "e43ee3a5ec"
+        },
+        {
+            "collapsed": false,
+            "id": "4663020b27",
+            "info": "A clade of bacteria famous for its relationship to plants, in which it modifies plant genomes through horizontal gene transfer. In one well-known case, its modifications to the hormonal regulation of sweet potatoes directly influenced the human cultivation of the crop. From the 1980s onward, techniques derived from the study of agrobacteria have been staples of biotechnology, enabling impactful shifts in industrial agriculture through the creation of genetically-modified food.",
+            "name": "Agrobacterium",
+            "parent": "e43ee3a5ec"
+        },
+        {
+            "collapsed": false,
+            "id": "c585267eb0",
+            "info": "",
+            "name": "Magnetococcidae",
+            "parent": "bec46802fd"
+        },
+        {
+            "collapsed": false,
+            "id": "8b05c9a334",
+            "info": "",
+            "name": "Gammaproteobacteria",
+            "parent": "ccc6e21d8c"
+        },
+        {
+            "collapsed": false,
+            "id": "d373a5c12e",
+            "info": "",
+            "name": "Yersinia",
+            "parent": "8b05c9a334"
+        },
+        {
+            "collapsed": false,
+            "id": "f07e45d999",
+            "info": "",
+            "name": "E. Coli",
+            "parent": "8b05c9a334"
+        },
+        {
+            "collapsed": false,
+            "id": "35c72835fe",
+            "info": "",
+            "name": "Planctobacteria",
+            "parent": "fe5099fd6e"
+        },
+        {
+            "collapsed": false,
+            "id": "dfe28cc458",
+            "info": "Archaea are the second major division of life on Earth, and the most biodiverse clade.",
+            "name": "Archaea",
+            "parent": "7767e1d8a2"
+        },
+        {
+            "collapsed": false,
+            "id": "ae235f1bfe",
+            "info": "",
+            "name": "Euryarchaeota",
+            "parent": "dfe28cc458"
+        },
+        {
+            "collapsed": false,
+            "id": "23ed447c47",
+            "info": ".",
+            "name": "DPANN Archaea",
+            "parent": "ae235f1bfe"
+        },
+        {
+            "collapsed": false,
+            "id": "fb78050226",
+            "info": "",
+            "name": "Methanobacteriati",
+            "parent": "ae235f1bfe"
+        },
+        {
+            "collapsed": false,
+            "id": "ac5181a17e",
+            "info": "",
+            "name": "Methanobacteriota",
+            "parent": "fb78050226"
+        },
+        {
+            "collapsed": false,
+            "id": "3fa709679d",
+            "info": "ICNP systematic name proposal: Halobacteriatila",
+            "name": "Unnamed",
+            "parent": "fb78050226"
+        },
+        {
+            "collapsed": false,
+            "id": "e1de9db627",
+            "info": "",
+            "name": "Thermoplasmatota",
+            "parent": "3fa709679d"
+        },
+        {
+            "collapsed": false,
+            "id": "d2cba453bf",
+            "info": "",
+            "name": "Halobacteriota",
+            "parent": "3fa709679d"
+        },
+        {
+            "collapsed": false,
+            "id": "42d719aedb",
+            "info": "",
+            "name": "Eocyta",
+            "parent": "dfe28cc458"
+        },
+        {
+            "collapsed": false,
+            "id": "ee840dc77c",
+            "info": "Also known as Promethearchaeati and Eukaryomorpha.",
+            "name": "Asgard Archaea",
+            "parent": "42d719aedb"
+        },
+        {
+            "collapsed": false,
+            "id": "48c4138f4c",
+            "info": "Disputed bifurcation order.",
+            "name": "Unnamed",
+            "parent": "ee840dc77c"
+        },
+        {
+            "collapsed": false,
+            "id": "f91701a644",
+            "info": "Disputed bifurcation order.",
+            "name": "Unnamed",
+            "parent": "48c4138f4c"
+        },
+        {
+            "collapsed": false,
+            "id": "49aaf051e1",
+            "info": "Cells with a nucleus. Once believed to be equally-related to bacteria and archaea, it is now understood to be nested within the archaea, although it is still disputed whether eukarya diversed within the heimdallarchaeia or as sister to it. The acquisition of endosymbiotic mitochondria from formerly free-living bacteria by the ancestral archaeote is believed to have driven the early development of the clade, and influecned its metabolism and membrane dynamics through the adoption of bacterial machinery.",
+            "name": "Eukarya",
+            "parent": "f91701a644"
+        },
+        {
+            "collapsed": false,
+            "id": "4a58542184",
+            "info": "",
+            "name": "Diphoda",
+            "parent": "49aaf051e1"
+        },
+        {
+            "collapsed": false,
+            "id": "d39a42cebe",
+            "info": "",
+            "name": "Discoba",
+            "parent": "4a58542184"
+        },
+        {
+            "collapsed": false,
+            "id": "d2587ff41f",
+            "info": "",
+            "name": "Eucorta",
+            "parent": "4a58542184"
+        },
+        {
+            "collapsed": false,
+            "id": "de85ad6068",
+            "info": "",
+            "name": "Hemimastigophora",
+            "parent": "d2587ff41f"
+        },
+        {
+            "collapsed": false,
+            "id": "74b9f89c08",
+            "info": "",
+            "name": "Diaphoretickes",
+            "parent": "d2587ff41f"
+        },
+        {
+            "collapsed": false,
+            "id": "c4db51061f",
+            "info": "",
+            "name": "TACK",
+            "parent": "74b9f89c08"
+        },
+        {
+            "collapsed": false,
+            "id": "fed6598ffa",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "74b9f89c08"
+        },
+        {
+            "collapsed": false,
+            "id": "7272d0fafd",
+            "info": "",
+            "name": "Cryptista",
+            "parent": "fed6598ffa"
+        },
+        {
+            "collapsed": false,
+            "id": "3a0f8b3061",
+            "info": "An extremely diverse clade of multicellular eukaryotes. In most members, nutrients are aquired through photosynthesis, although some parasitic species and clades siphon nutrients instead. Plants were pivotal in the migration of some life to land, as the first to colonize it, and generally among the lowest levels of nutrient producers for the complex food webs that sustain land ecologies. Many species and clades of plants have various types of symbiotic relationships with bacteria, fungi, animals, and other plants.",
+            "name": "Plants",
+            "parent": "fed6598ffa"
+        },
+        {
+            "collapsed": false,
+            "id": "8d007e2fd3",
+            "info": "",
+            "name": "Opimoda",
+            "parent": "49aaf051e1"
+        },
+        {
+            "collapsed": false,
+            "id": "c402552a87",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "8d007e2fd3"
+        },
+        {
+            "collapsed": false,
+            "id": "410874ca66",
+            "info": "",
+            "name": "Malawimonadida",
+            "parent": "c402552a87"
+        },
+        {
+            "collapsed": false,
+            "id": "8b1dbee7f3",
+            "info": "",
+            "name": "Ancyromonadida",
+            "parent": "c402552a87"
+        },
+        {
+            "collapsed": false,
+            "id": "ef66711b1d",
+            "info": "",
+            "name": "Podiata",
+            "parent": "8d007e2fd3"
+        },
+        {
+            "collapsed": false,
+            "id": "e41cf77dfb",
+            "info": "",
+            "name": "Amorphea",
+            "parent": "ef66711b1d"
+        },
+        {
+            "collapsed": false,
+            "id": "359d7c096c",
+            "info": "",
+            "name": "Amoebozoa",
+            "parent": "e41cf77dfb"
+        },
+        {
+            "collapsed": false,
+            "id": "34602c64c2",
+            "info": "",
+            "name": "Obazoa",
+            "parent": "e41cf77dfb"
+        },
+        {
+            "collapsed": false,
+            "id": "dc8d1d0887",
+            "info": "",
+            "name": "Opisthokonta",
+            "parent": "34602c64c2"
+        },
+        {
+            "collapsed": false,
+            "id": "0b9d4bed30",
+            "info": "",
+            "name": "Holomycota",
+            "parent": "dc8d1d0887"
+        },
+        {
+            "collapsed": false,
+            "id": "573ca2b57e",
+            "info": "",
+            "name": "Nucleariae",
+            "parent": "0b9d4bed30"
+        },
+        {
+            "collapsed": false,
+            "id": "00693db6e8",
+            "info": "Heterotrophs that absorb nutrients.",
+            "name": "Fungi",
+            "parent": "0b9d4bed30"
+        },
+        {
+            "collapsed": false,
+            "id": "873890013f",
+            "info": "",
+            "name": "Holozoa",
+            "parent": "dc8d1d0887"
+        },
+        {
+            "collapsed": false,
+            "id": "ca81811eb7",
+            "info": "",
+            "name": "Ichthyosporea",
+            "parent": "873890013f"
+        },
+        {
+            "collapsed": false,
+            "id": "b1d45f8d6b",
+            "info": "",
+            "name": "Filozoa",
+            "parent": "873890013f"
+        },
+        {
+            "collapsed": false,
+            "id": "db1633d74f",
+            "info": "",
+            "name": "Choanozoa",
+            "parent": "b1d45f8d6b"
+        },
+        {
+            "collapsed": false,
+            "id": "3f1b07c849",
+            "info": "Multicellular heterotrophs.",
+            "name": "Animalia",
+            "parent": "db1633d74f"
+        },
+        {
+            "collapsed": false,
+            "id": "c885f42890",
+            "info": "",
+            "name": "Sponges (Porifera)",
+            "parent": "3f1b07c849"
+        },
+        {
+            "collapsed": false,
+            "id": "d440851f63",
+            "info": "",
+            "name": "Eumetazoa",
+            "parent": "3f1b07c849"
+        },
+        {
+            "collapsed": false,
+            "id": "705250a6c5",
+            "info": "",
+            "name": "Comb Jellies (Ctenophores)",
+            "parent": "d440851f63"
+        },
+        {
+            "collapsed": false,
+            "id": "abe499bcb0",
+            "info": "",
+            "name": "Planulozoa",
+            "parent": "d440851f63"
+        },
+        {
+            "collapsed": false,
+            "id": "9b5a6df1ac",
+            "info": "",
+            "name": "Bilateria",
+            "parent": "abe499bcb0"
+        },
+        {
+            "collapsed": false,
+            "id": "4e59a5eae8",
+            "info": "",
+            "name": "Xenacoelomorpha",
+            "parent": "9b5a6df1ac"
+        },
+        {
+            "collapsed": false,
+            "id": "a8b08d2945",
+            "info": "",
+            "name": "Nephrozoa",
+            "parent": "9b5a6df1ac"
+        },
+        {
+            "collapsed": false,
+            "id": "98a722330f",
+            "info": "",
+            "name": "Protostomia",
+            "parent": "a8b08d2945"
+        },
+        {
+            "collapsed": false,
+            "id": "5e9d65b820",
+            "info": "",
+            "name": "Ecdysozoa",
+            "parent": "98a722330f"
+        },
+        {
+            "collapsed": false,
+            "id": "046ccb8600",
+            "info": "",
+            "name": "Arthropoda",
+            "parent": "5e9d65b820"
+        },
+        {
+            "collapsed": false,
+            "id": "76941a178b",
+            "info": "",
+            "name": "Spiralia",
+            "parent": "98a722330f"
+        },
+        {
+            "collapsed": false,
+            "id": "23ff11be0a",
+            "info": "",
+            "name": "Mollusca",
+            "parent": "76941a178b"
+        },
+        {
+            "collapsed": false,
+            "id": "1e4c36f424",
+            "info": "",
+            "name": "Gnathifera",
+            "parent": "76941a178b"
+        },
+        {
+            "collapsed": false,
+            "id": "3b018ba91c",
+            "info": "",
+            "name": "Trochozoa",
+            "parent": "76941a178b"
+        },
+        {
+            "collapsed": false,
+            "id": "824a7a8457",
+            "info": "",
+            "name": "Deuterostomia",
+            "parent": "a8b08d2945"
+        },
+        {
+            "collapsed": false,
+            "id": "61e77cf08f",
+            "info": "",
+            "name": "Chordata",
+            "parent": "824a7a8457"
+        },
+        {
+            "collapsed": false,
+            "id": "d83841057b",
+            "info": "",
+            "name": "Cephalochordata",
+            "parent": "61e77cf08f"
+        },
+        {
+            "collapsed": false,
+            "id": "f25298a1ee",
+            "info": "",
+            "name": "Olfactores",
+            "parent": "61e77cf08f"
+        },
+        {
+            "collapsed": false,
+            "id": "e3814f8f83",
+            "info": "",
+            "name": "Tunicata",
+            "parent": "f25298a1ee"
+        },
+        {
+            "collapsed": false,
+            "id": "e84871e44d",
+            "info": "",
+            "name": "Vertebrata",
+            "parent": "f25298a1ee"
+        },
+        {
+            "collapsed": false,
+            "id": "a97fa60d1f",
+            "info": "",
+            "name": "Ambulacraria",
+            "parent": "824a7a8457"
+        },
+        {
+            "collapsed": false,
+            "id": "927a38146d",
+            "info": "",
+            "name": "Echinodermata",
+            "parent": "a97fa60d1f"
+        },
+        {
+            "collapsed": false,
+            "id": "682c97c6fe",
+            "info": "",
+            "name": "Crinoidea",
+            "parent": "927a38146d"
+        },
+        {
+            "collapsed": false,
+            "id": "191a77e905",
+            "info": "",
+            "name": "Eleutherozoa",
+            "parent": "927a38146d"
+        },
+        {
+            "collapsed": false,
+            "id": "b654845674",
+            "info": "",
+            "name": "Asteroidea",
+            "parent": "191a77e905"
+        },
+        {
+            "collapsed": false,
+            "id": "bc1c3ba473",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "191a77e905"
+        },
+        {
+            "collapsed": false,
+            "id": "6191261882",
+            "info": "",
+            "name": "Echinozoa",
+            "parent": "bc1c3ba473"
+        },
+        {
+            "collapsed": false,
+            "id": "6d52b82e09",
+            "info": "",
+            "name": "Echinoidea",
+            "parent": "6191261882"
+        },
+        {
+            "collapsed": false,
+            "id": "b84d568a19",
+            "info": "",
+            "name": "Holothuroidea",
+            "parent": "6191261882"
+        },
+        {
+            "collapsed": false,
+            "id": "0efec6712a",
+            "info": "",
+            "name": "Ophiuroidea",
+            "parent": "bc1c3ba473"
+        },
+        {
+            "collapsed": false,
+            "id": "42dcca2004",
+            "info": "",
+            "name": "Brittlestars",
+            "parent": "0efec6712a"
+        },
+        {
+            "collapsed": false,
+            "id": "03215f8c9a",
+            "info": "",
+            "name": "Basket Stars",
+            "parent": "0efec6712a"
+        },
+        {
+            "collapsed": false,
+            "id": "472a0828dc",
+            "info": "",
+            "name": "Hemichordata",
+            "parent": "a97fa60d1f"
+        },
+        {
+            "collapsed": false,
+            "id": "107bbf7720",
+            "info": "The paraphyletic corals, together with the polyphyletic jellies and the anemones.",
+            "name": "Cnidaria",
+            "parent": "abe499bcb0"
+        },
+        {
+            "collapsed": false,
+            "id": "32895e75de",
+            "info": "",
+            "name": "Choanoflagella",
+            "parent": "db1633d74f"
+        },
+        {
+            "collapsed": false,
+            "id": "e951f47c05",
+            "info": "",
+            "name": "Filasteria",
+            "parent": "b1d45f8d6b"
+        },
+        {
+            "collapsed": false,
+            "id": "ac4695d358",
+            "info": "",
+            "name": "Breviatea",
+            "parent": "34602c64c2"
+        },
+        {
+            "collapsed": false,
+            "id": "7835bbb70d",
+            "info": "",
+            "name": "CRuMs",
+            "parent": "ef66711b1d"
+        },
+        {
+            "collapsed": false,
+            "id": "68aa2c6474",
+            "info": "",
+            "name": "Heimdallarchaeia",
+            "parent": "f91701a644"
+        },
+        {
+            "collapsed": false,
+            "id": "ca8ca25ee3",
+            "info": "",
+            "name": "Wukongarchaeota",
+            "parent": "48c4138f4c"
+        },
+        {
+            "collapsed": false,
+            "id": "28ea988438",
+            "info": "Disputed bifurcation order.",
+            "name": "Unnamed",
+            "parent": "ee840dc77c"
+        },
+        {
+            "collapsed": false,
+            "id": "d7c2f4be37",
+            "info": "",
+            "name": "Thorarchaeota",
+            "parent": "28ea988438"
+        },
+        {
+            "collapsed": false,
+            "id": "1cdc05e6d1",
+            "info": "Also known as Promethearchaeia",
+            "name": "Lokiarchaeia",
+            "parent": "28ea988438"
+        },
+        {
+            "collapsed": false,
+            "id": "0e0aadca2f",
+            "info": "",
+            "name": "Lokiarchaeota",
+            "parent": "1cdc05e6d1"
+        },
+        {
+            "collapsed": false,
+            "id": "97216971e6",
+            "info": "",
+            "name": "Helarchaeota",
+            "parent": "1cdc05e6d1"
+        },
+        {
+            "collapsed": false,
+            "id": "d3df386df2",
+            "info": "Also known as TACK",
+            "name": "Thermoproteati",
+            "parent": "42d719aedb"
+        }
+    ],
+    "root": "7767e1d8a2"
+}
