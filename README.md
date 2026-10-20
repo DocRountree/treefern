@@ -66,3 +66,7 @@ The GUI for the program also has a file picker, and can open JSON files that are
 **Labels beside nodes:**
 
 <img width="1718" height="1421" alt="Labels beside nodes" src="https://github.com/user-attachments/assets/e501e873-f8ca-4104-8ab2-2d8eace6a696" />
+
+# License
+
+TreeFern is licenbsed under the GNU General Public License v.3
