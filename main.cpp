@@ -49,8 +49,7 @@ constexpr double STD_CURVE = 0.1;          // how far a branch keeps its parent'
 constexpr double STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w_max)^this
 constexpr double DEFAULT_CURL = 0.35;      // -1..1, fraction of the safe fan rotation
 constexpr double STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
-constexpr double STD_POLY_GUTTER = 6 * DEG;  // min angle between sibling wedges (3+ children only)
-constexpr double STD_POLY_MIN_ARC = 12 * DEG;  // min angle a child of a 3+ fork occupies (spaces out leaves)
+constexpr double STD_CLEARANCE = 0.2;      // 3+ forks: min distance between sibling subtrees, in fork units
 // camera
 constexpr double MIN_PX = 0.6;          // disks: cull subtrees smaller than this on screen
 constexpr double FIT_MARGIN = 120;      // px left free around a fitted tree
@@ -559,15 +558,16 @@ private:
     struct Hull { double c, R; std::vector<std::pair<C, double>> pieces; };
 
     // Angular range, relative to the child's axis and seen from the parent's
-    // fork, covered by a child placed at distance 1 with scale s. Returns a
-    // full turn if a piece reaches the fork or the range is too wide to pack.
-    static std::pair<double, double> angularSpan(const std::vector<std::pair<C, double>>& pieces, double s) {
+    // fork, covered by a child placed at distance 1 with scale s, every piece
+    // grown by `pad` (parent units). Returns a full turn if a piece reaches the
+    // fork or the range is too wide to pack.
+    static std::pair<double, double> angularSpan(const std::vector<std::pair<C, double>>& pieces, double s, double pad) {
         double lo = 1e300, hi = -1e300;
         for (const auto& [p, r] : pieces) {
             const C q = 1.0 + s * p;
-            const double d = std::abs(q);
-            if (s * r >= d * 0.999) return {-PI, PI};
-            const double a = std::arg(q), h = std::asin(s * r / d);
+            const double d = std::abs(q), rr = s * r + pad;
+            if (rr >= d * 0.999) return {-PI, PI};
+            const double a = std::arg(q), h = std::asin(rr / d);
             lo = std::min(lo, a - h);
             hi = std::max(hi, a + h);
         }
@@ -624,8 +624,9 @@ private:
     // direction, and unit = its outgoing branch length. All children leave the
     // fork together. Two-child forks split the fan by weight and inscribe each
     // child's bounding circle in its wedge. Forks of 3+ children are packed by
-    // the angular range each child really covers (see angularSpan): neighbours
-    // abut with a gutter, slack becomes even gaps, and if the fan is too tight
+    // the angular range each child covers when grown by half the clearance (see
+    // angularSpan): neighbours abut, so sibling subtrees stay a clearance apart;
+    // slack becomes even gaps, and if the fan is too tight
     // every child shrinks by a common factor. Returns the bounding circle and pieces.
     Hull standard(const Node* n) {
         if (hidesKids(n)) return {0, STD_NODE, {{C(0, 0), STD_NODE}}};
@@ -672,19 +673,14 @@ private:
                     a += th[i];
                 }
             } else {
-                const double gutter = std::min(STD_POLY_GUTTER, 0.25 * fan / double(m - 1));
-                // A leaf only covers its tiny tip disc, so without a floor leaves pack
-                // at the gutter. Capped so the fan always fits once the clades shrink.
-                const double minArc = std::min(STD_POLY_MIN_ARC, 0.7 * (fan - double(m - 1) * gutter) / double(m));
+                // Half the clearance around every child; a fork too crowded to give even
+                // its leaves that much (each takes 2·asin(pad)) gets proportionally less.
+                const double pad = std::min(STD_CLEARANCE / 2, std::sin(0.9 * fan / (2.0 * double(m))));
                 std::vector<std::pair<double, double>> sp(m);
                 auto total = [&](double k) {  // fan used when every child is scaled by k
-                    double t = double(m - 1) * gutter;
+                    double t = 0;
                     for (size_t i = 0; i < m; ++i) {
-                        sp[i] = angularSpan(sub[i].pieces, k * want[i]);
-                        if (const double w = sp[i].second - sp[i].first; w < minArc) {
-                            const double mid = (sp[i].first + sp[i].second) / 2;
-                            sp[i] = {mid - minArc / 2, mid + minArc / 2};
-                        }
+                        sp[i] = angularSpan(sub[i].pieces, k * want[i], pad);
                         t += sp[i].second - sp[i].first;
                     }
                     return t;
@@ -699,7 +695,7 @@ private:
                     k = lo;
                 }
                 const double used = total(k);  // also leaves sp[] for this k
-                const double gap = gutter + std::max(0.0, fan - used) / double(m - 1);
+                const double gap = std::max(0.0, fan - used) / double(m - 1);
                 for (size_t i = 0; i < m; ++i) {
                     placeAt(i, a - sp[i].first, k * want[i]);  // this child's range starts at a
                     a += sp[i].second - sp[i].first + gap;
@@ -952,7 +948,7 @@ protected:
 private:
     // A node as drawn this frame: screen centre, drawn radius, frame scale (px),
     // growth direction on screen, tree depth.
-    struct Item { const Node* n; QPointF s; double r, lenPx, angle; int depth; };
+    struct Item { const Node* n; QPointF s; double r, lenPx, angle; int depth; double branchPx; };
     // The branch into `child`, from its parent's frame pf to its own frame cf (depth = parent's).
     struct Branch { const Node* child; Frame pf, cf; int depth; };
     struct HitSeg { QPointF a, b; double hw; const Node* n; };
@@ -1161,9 +1157,13 @@ private:
     }
     Item makeItem(const Node* n, const Frame& f, int depth) const {
         const double s = std::abs(f.z);
-        const double r = disks() ? s
-                       : Layout::hidesKids(n) ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
-        return {n, qpt(f.o), r, s, std::arg(f.z) + sloc(n).dir, depth};
+        const bool leaf = Layout::hidesKids(n);
+        const double r = disks() ? s : leaf ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
+        // Standard: a leaf has no outgoing branch, so its size on screen is the branch drawn to it.
+        double len = s;
+        if (!disks() && leaf && n->parent)
+            if (const Local L = sloc(n); std::abs(L.z) > 0) len = s / std::abs(L.z) * std::abs(L.o);
+        return {n, qpt(f.o), r, s, std::arg(f.z) + sloc(n).dir, depth, len};
     }
 
     // Collect visible nodes and branches: the anchor's subtree, then each
@@ -1292,9 +1292,12 @@ std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
         if (!view.intersects(QPolygonF({a, b, ctrl}).boundingRect().adjusted(-m, -m, m, m))) continue;
         const QColor col = inCut(br.child) ? T.cut.darker(140) : depthColor(br.depth, 0.7);
         const auto mid = drawTaper(p, a, ctrl, b, wa, wb, col, view);
+        const double n = double(mid.size() - 1);
         for (size_t i = 0; i + 1 < mid.size(); ++i) {
-            hitSegs_.push_back({mid[i], mid[i + 1], m / 2, br.child});
-            const double pad = m / 2 + 1;
+            // the taper is linear in t, so a piece is widest at one of its ends
+            const double w = std::max(wa + (wb - wa) * (i / n), wa + (wb - wa) * ((i + 1) / n));
+            hitSegs_.push_back({mid[i], mid[i + 1], w / 2, br.child});
+            const double pad = w / 2 + 1;
             segs.push_back({mid[i], mid[i + 1], pad,
                             QRectF(mid[i], mid[i + 1]).normalized().adjusted(-pad, -pad, pad, pad),
                             br.child->parent, br.child});
@@ -1465,8 +1468,7 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
     std::vector<int> cands;
     for (int i = 0; i < int(items_.size()); ++i) {
         const Item& v = items_[i];
-        const bool isLeaf = Layout::hidesKids(v.n);
-        if (v.n == sel || v.lenPx >= (isLeaf && !dk ? minLen * 0.65 : minLen)) cands.push_back(i);
+        if (v.n == sel || v.branchPx >= minLen) cands.push_back(i);
     }
     auto priority = [&](const Item& v) {
         const bool giantOffCenter = v.lenPx > std::max(width(), height()) * 1.2;
