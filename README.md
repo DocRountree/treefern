@@ -39,13 +39,13 @@ To install TreeFern, use the following steps:
 
 Treefern can be launched from the terminal by running:
 
->./treefern
+>./build/treefern
 
 Or by clicking in the GUI on the executable file (or a shortcut to it) that gets built during the installation.
 
 In the terminal, a specific file can be opened with TreeFern by running:
 
->./treefern file.json
+>./build/treefern file.json
 
 The GUI for the program also has a file picker, and can open JSON files that are dragged into the program canvas.
 
@@ -69,4 +69,4 @@ The GUI for the program also has a file picker, and can open JSON files that are
 
 # License
 
-TreeFern is licenbsed under the GNU General Public License v.3
+TreeFern is licensed under the GNU General Public License v.3
