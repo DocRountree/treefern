@@ -120,7 +120,7 @@ export class TreeView {
         this.cam = { anchor: '', f: Frame(C(0, 0), C(300, 0)) };
         // hyperbolic camera: the anchor node's frame -> the unit disk (a Möbius map),
         // and the disk's radius and centre on screen
-        this.hcam = { anchor: '', A: mrot(-PI / 2), R: 100, D: C(150, 100) };
+        this.hcam = { anchor: '', A: mrot(-PI / 2), R: 100 };  // the disk stays centred: see hD()
         this.hAnim = null;     // hyperbolic flight {start, A0, q, turn}
         this.morph = null;     // layout morph {start, from, to}
         this.shownLoc = new Map();
@@ -183,7 +183,6 @@ export class TreeView {
         this.dpr = dpr;
         if (!first) {  // keep the view centred
             this.cam.f.o = add(this.cam.f.o, sub(this.centre(), oc));
-            this.hcam.D = add(this.hcam.D, sub(this.centre(), oc));
         }
         this.draw();
     }
@@ -404,11 +403,9 @@ export class TreeView {
 
     zoomBy(f, p) {
         if (this.hyp()) {
-            const lo = Math.min(this.width, this.height);
-            const R1 = clamp(this.hcam.R * f, lo * 0.15, lo * 80);
-            f = R1 / this.hcam.R;
-            this.hcam.R = R1;
-            this.hcam.D = add(p, scale(sub(this.hcam.D, p), f));
+            // the disk stays centred and grows about its centre; drag slides the tree in it
+            const d = this.hDefaultR();
+            this.hcam.R = clamp(this.hcam.R * f, d * 0.6, d * 4);
             return;
         }
         this.camAnim = null;
@@ -573,7 +570,7 @@ export class TreeView {
     }
 
     drawDisk(alpha) {
-        const ctx = this.ctx, { R: r, D } = this.hcam, dark = this.theme.dark;
+        const ctx = this.ctx, r = this.hcam.R, D = this.hD(), dark = this.theme.dark;
         ctx.globalAlpha = alpha;
         ctx.beginPath();
         ctx.arc(D.x, D.y, r, 0, 2 * PI);
@@ -902,11 +899,12 @@ export class TreeView {
     // ---- hyperbolic camera (Poincaré disk). Node frames are reached from the
     // anchor through the tree by Möbius maps, like the Euclidean camera, so
     // precision does not depend on how deep the anchor is.
+    hD() { return this.centre(); }  // the disk's centre on screen
     hDefaultR() { return Math.max(40, Math.min(this.width, this.height - this.insetBottom) * 0.46); }
     hReset() {
         this.hAnim = null;
         const r = this.doc.root;
-        this.hcam = { anchor: r ? r.id : '', A: mrot(-PI / 2), R: this.hDefaultR(), D: this.centre() };
+        this.hcam = { anchor: r ? r.id : '', A: mrot(-PI / 2), R: this.hDefaultR() };
     }
     hFixAnchor() {
         let a = this.doc.find(this.hcam.anchor);
@@ -927,12 +925,13 @@ export class TreeView {
         return mnormalize(m);
     }
     hFrame(m) {
-        return Frame(add(this.hcam.D, scale(mOrigin(m), this.hcam.R)), scale(mDeriv0(m), this.hcam.R * HYP_UNIT));
+        return Frame(add(this.hD(), scale(mOrigin(m), this.hcam.R)), scale(mDeriv0(m), this.hcam.R * HYP_UNIT));
     }
     // Control point making the drawn branch follow the geodesic (a circle arc).
     hCtrl(pm, L, a, b) {
-        const c = mOrigin(L), mid = scale(c, Math.tanh(HYP_EDGE / 4) / Math.tanh(HYP_EDGE / 2));
-        const m = add(this.hcam.D, scale(mapply(pm, mid), this.hcam.R));
+        // the hyperbolic midpoint of the edge (edges differ in length): distance d/2 is tanh(d/4)
+        const c = mOrigin(L), r = abs(c), mid = r > 0 ? scale(c, Math.tanh(Math.atanh(r) / 2) / r) : c;
+        const m = add(this.hD(), scale(mapply(pm, mid), this.hcam.R));
         return sub(scale(m, 2), scale(add(a, b), 0.5));
     }
     hComputeItems() {
@@ -965,7 +964,7 @@ export class TreeView {
     }
     // Slide the plane so the point under `from` follows the pointer to `to`.
     hPan(from, to) {
-        const { R: r, D } = this.hcam;
+        const r = this.hcam.R, D = this.hD();
         const disk = p => { const u = scale(sub(p, D), 1 / r), k = abs(u); return k > 0.97 ? scale(u, 0.97 / k) : u; };
         const u0 = disk(from), u1 = disk(to);
         this.hcam.A = mnormalize(mmul(mmul(minv(mtoZero(u1)), mtoZero(u0)), this.hcam.A));
@@ -1002,7 +1001,7 @@ export class TreeView {
     focusNow(n) {
         if (!n || !this.lay.loc.has(n)) return;
         if (this.hyp()) {
-            this.hcam = { anchor: n.id, A: mrot(-PI / 2), R: this.hDefaultR(), D: this.centre() };
+            this.hcam = { anchor: n.id, A: mrot(-PI / 2), R: this.hDefaultR() };
             return;
         }
         let mag = Math.min(this.width, this.height) * 0.42;

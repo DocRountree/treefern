@@ -21,7 +21,11 @@ const STD_CLEARANCE = 0.2;      // 3+ forks: min distance between sibling subtre
 // pythagoras style: the standard layout with a wide footprint, drawn as blocks
 export const PY_W = 0.5;       // half the side of a clade's square, in its own units
 // hyperbolic style (Poincaré disk)
-export const HYP_EDGE = 1.1;    // hyperbolic length of every edge
+export const HYP_EDGE = 1.1;    // hyperbolic length of an edge (longer at crowded forks)
+const HYP_GAP = 0.4;            // wanted hyperbolic distance between neighbouring siblings
+const HYP_MAX_EDGE = 2.2;       // longest edge, for forks with very many children
+const HYP_FLOOR = 0.6;          // every child gets at least this fraction of an equal share of angle
+const HYP_FAN = 80 * DEG;       // a subtree spreads at most this far either side of straight ahead
 
 export const STANDARD = 'standard', PYTHAGORAS = 'pythagoras', DISKS = 'disks', HYPERBOLIC = 'hyperbolic';
 export const STYLES = [STANDARD, PYTHAGORAS, DISKS, HYPERBOLIC];
@@ -228,27 +232,38 @@ export class Layout {
 // Hyperbolic: like a radial tree in the hyperbolic plane (Lamping & Rao).
 // Every node has its own frame (itself at 0, growing along +x) and a wedge of
 // directions, in that frame, for its children. Children split the wedge by
-// weight and sit HYP_EDGE away along the middle of their share. Seen from a
-// child, its share of the parent's wedge looks wider; that wider wedge is the
-// child's own. Wedges are convex regions of the plane, so subtrees never meet.
+// weight (but no less than HYP_FLOOR of an equal share, so small clades are not
+// squeezed against big ones) and sit along the middle of their share, far
+// enough out (at least HYP_EDGE) that neighbours are about HYP_GAP apart: room
+// grows like sinh(distance), so big polytomies spread out quickly. Seen from a child, its share of the
+// parent's wedge looks wider; the child's own wedge is that, limited to HYP_FAN
+// either side of straight ahead so subtrees grow away from the root. Wedges are
+// convex regions of the plane, so subtrees never meet.
 Layout.prototype.hyperbolic = function (n, lo, hi) {
     this.loc.set(n, Local(C(0, 0), C(1, 0), 0));
     this.ext.set(n, 1);
     if (hidesKids(n)) return;
     const kids = this.ordered(n);
-    const th = this.wedges(kids, hi - lo);
+    let th = this.wedges(kids, hi - lo);
+    const floor = HYP_FLOOR * (hi - lo) / kids.length;
+    th = th.map(t => Math.max(t, floor));
+    const sum = th.reduce((x, y) => x + y, 0);
+    th = th.map(t => t * (hi - lo) / sum);
+    // arc length at distance d across angle t is sinh(d) * t
+    const edge = kids.length < 2 ? HYP_EDGE : clamp(Math.asinh(HYP_GAP / Math.min(...th)), HYP_EDGE, HYP_MAX_EDGE);
     let a = lo;
     kids.forEach((k, i) => {
         const b = a + th[i], mid = (a + b) / 2;
-        const L = mmul(mrot(mid), mtransX(HYP_EDGE));  // child frame -> parent frame
+        const L = mmul(mrot(mid), mtransX(edge));  // child frame -> parent frame
         this.hyp.set(k, L);
         const Li = minv(L);
         const seen = ang => arg(mapply(Li, polar(1, ang)));  // a wedge edge, as seen from the child
         let klo = seen(a + 1e-9), khi = seen(b - 1e-9);
         if (khi <= klo) khi += 2 * PI;
-        // keep the child's wedge pointing away from its parent (never wider than 340 degrees)
-        const half = Math.min((khi - klo) / 2, 170 * DEG), c = (klo + khi) / 2;
-        this.hyperbolic(k, c - half, c + half);
+        // straight ahead (0) is always inside the share; grow within HYP_FAN of it
+        let wlo = Math.max(klo, -HYP_FAN), whi = Math.min(khi, HYP_FAN);
+        if (whi <= wlo) { wlo = -1e-3; whi = 1e-3; }
+        this.hyperbolic(k, wlo, whi);
         a = b;
     });
 };
