@@ -179,8 +179,6 @@ Because the format is plain JSON, files can be generated or edited by scripts an
   </tr>
 </table>
 
-More screenshots are in the [screenshot gallery](screenshot-gallery.md).
-
 ## License
 
 TreeFern is free software, distributed under the terms of the [GNU General Public License, version 3](https://www.gnu.org/licenses/gpl-3.0.html). See [LICENSE](LICENSE) for the full text.
