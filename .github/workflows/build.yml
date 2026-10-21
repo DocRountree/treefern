@@ -40,6 +40,7 @@ jobs:
           Copy-Item build/Release/treefern.exe dist/
           windeployqt --release --no-translations dist/treefern.exe
           Copy-Item samples/*.json dist/  # samples sit right next to treefern.exe
+          Copy-Item LICENSE dist/
           Compress-Archive dist/* treefern-windows.zip
 
       - name: Installer (Windows)
@@ -71,6 +72,7 @@ jobs:
           curl -sSLfO $base/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           curl -sSLfO $base/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy*.AppImage
+          mkdir -p AppDir/usr/share/doc/treefern && cp LICENSE AppDir/usr/share/doc/treefern/
           QMAKE="$QT_ROOT_DIR/bin/qmake" ./linuxdeploy-x86_64.AppImage --appdir AppDir -e build/treefern \
             -d packaging/treefern.desktop -i packaging/treefern.svg --plugin qt --output appimage
           (cd samples && zip -q ../TreeFern-samples.zip *.json)
