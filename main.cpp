@@ -1892,7 +1892,7 @@ public:
         fileMenu->addSeparator();
         fileMenu->addAction(mk("&Quit", {QKeySequence::Quit}, [this] { close(); }));
 
-        aAdd      = mk("Add child (A)", {Qt::Key_A}, [this] { actAdd(); });
+        aAdd      = mk("Add child (A)", {Qt::Key_A, Qt::Key_D}, [this] { actAdd(); });
         aEdit     = mk("Edit (E)", {Qt::Key_E, Qt::Key_R}, [this] { actEdit(); });
         aCollapse = mk("Collapse (C)", {Qt::Key_C}, [this] { actCollapse(); });
         aColor    = mk("Colour… (K)", {Qt::Key_K}, [this] { actColor(); });

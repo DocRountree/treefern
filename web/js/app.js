@@ -137,7 +137,7 @@ function updateHud() {
 
 // ---------------------------------------------------------------- panel
 const ACTIONS = [
-    { id: 'add', label: 'Add child', key: 'A', run: () => actAdd(), ok: n => !!n },
+    { id: 'add', label: 'Add child', key: 'A / D', run: () => actAdd(), ok: n => !!n },
     { id: 'edit', label: 'Edit', key: 'E', run: () => actEdit(), ok: n => !!n },
     { id: 'collapse', label: n => n && n.collapsed ? 'Expand' : 'Collapse', key: 'C', run: () => actCollapse(), ok: n => !!n && n.kids.length > 0 },
     { id: 'color', label: 'Colour…', key: 'K', run: () => actColor(), ok: n => !!n },
@@ -835,7 +835,7 @@ const MENUS = {
         { label: 'Labels over nodes', checked: !view.labelsBeside, run: () => setBeside(false) },
         { label: 'Labels beside nodes', key: 'L', checked: view.labelsBeside, run: () => setBeside(true) },
         { sep: true },
-        { label: 'Dark mode', key: 'D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
+        { label: 'Dark mode', key: 'Shift+D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
         { sep: true },
         { label: 'Fit whole tree', key: 'Home', run: () => view.fitView() },
         { label: 'Zoom in', run: () => view.zoomAt(1.6) },
@@ -1083,7 +1083,7 @@ addEventListener('keydown', e => {
         Home: () => view.fitView(),
         1: () => setStyle(STANDARD), 2: () => setStyle(DISKS),
         l: () => setBeside(!view.labelsBeside),
-        d: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark'),
+        d: e.shiftKey ? () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') : actAdd,  // D: add a daughter
         '/': focusSearch, '?': () => $('helpDlg').showModal(),
         '+': () => tune(l => { l.spread = Math.min(340 * DEG, l.spread + 10 * DEG); }),
         '=': () => tune(l => { l.spread = Math.min(340 * DEG, l.spread + 10 * DEG); }),
