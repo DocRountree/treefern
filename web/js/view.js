@@ -20,6 +20,8 @@ const MIN_PX = 0.6;
 const FIT_MARGIN = 120;
 const CAM_MAX_SCALE = 1e9, CAM_MIN_ROOT_PX = 20, CAM_MAX_UP = 1e9;
 const LONG_PRESS_MS = 500, DOUBLE_TAP_MS = 320;
+// Exports stay within every browser's canvas limits (Safari: 16.7 million pixels).
+const MAX_EXPORT_SIDE = 16384, MAX_EXPORT_PIXELS = 16e6;
 export const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 export const THEMES = {
@@ -33,6 +35,12 @@ const css = ([r, g, b]) => `rgb(${r},${g},${b})`;
 function hsv(h, s, v) {
     const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
     return [f(5) * 255, f(3) * 255, f(1) * 255].map(Math.round);
+}
+function toHsv(hex) {  // "#rrggbb" -> [h (deg), s, v]
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+    const v = Math.max(r, g, b), d = v - Math.min(r, g, b);
+    const h = !d ? 0 : v === r ? ((g - b) / d + 6) % 6 : v === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60, v ? d / v : 0, v];
 }
 // Qt's QColor::darker(factor): divide the HSV value by factor/100.
 function darker([r, g, b], factor) {
@@ -101,6 +109,8 @@ export class TreeView {
         this.height = 200;
         this.insetBottom = 0;
         this.textW = new Map();
+        this.tint = new Map();  // node -> {hs: [h, s], from: depth of the clade that set the colour}
+        this.transparent = false;
         this.pointers = new Map();
         this.lastTap = { t: 0, x: 0, y: 0 };
         this.frameReq = 0;
@@ -129,6 +139,7 @@ export class TreeView {
     relayout(animate = true) {
         this.fromLoc = animate && this.shownLocById.size ? this.shownLocById : null;
         this.lay.compute(this.doc.root);
+        this.computeTints();
         this.camAnim = null;
         this.anim = null;
         this.havePrev = false;
@@ -179,20 +190,52 @@ export class TreeView {
         return z < 4 ? Math.pow(10, z).toFixed(2) + 'x' : `10^${z.toFixed(1)}x`;
     }
 
-    // Render the current view into a PNG blob at `factor` times its CSS size.
-    exportPng(factor = 2) {
+    // Size of an export in CSS px (w, h) and the pixel factor, capped so the
+    // image stays within what every browser can allocate. whole: the whole
+    // tree, fitted, with the long side of the current view; else the view.
+    exportSize(whole, factor) {
+        let w = this.width, h = this.height - this.insetBottom;
+        if (whole) {
+            const b = this.lay.bbox, bw = Math.max(b.x1 - b.x0, 1e-9), bh = Math.max(b.y1 - b.y0, 1e-9), L = Math.max(w, h);
+            [w, h] = bw >= bh ? [L, Math.max(200, L * bh / bw)] : [Math.max(200, L * bw / bh), L];
+        }
+        w = Math.round(w); h = Math.round(h);
+        const f = Math.min(factor, MAX_EXPORT_SIDE / Math.max(w, h), Math.sqrt(MAX_EXPORT_PIXELS / (w * h)));
+        return { w, h, factor: f, pw: Math.round(w * f), ph: Math.round(h * f) };
+    }
+
+    // Clades an export would draw: all laid-out ones for the whole tree, else those on screen.
+    exportCount(whole) { return whole ? this.lay.count() : this.items.length; }
+
+    // Render into ctx at the given CSS size; restores the on-screen view after.
+    renderTo(ctx, w, h, factor, whole, transparent) {
+        const keys = ['ctx', 'dpr', 'width', 'height', 'insetBottom', 'showHint', 'hoverId', 'transparent',
+                      'camAnim', 'items', 'branches', 'labelHits', 'hitSegs'];
+        const saved = keys.map(k => this[k]), cam = { ...this.cam };
+        Object.assign(this, { ctx, dpr: factor, width: w, height: h, insetBottom: 0, showHint: false, hoverId: '', transparent });
+        if (whole) { this.camAnim = null; this.resetCam(); }  // a view export keeps the camera; h leaves out the bottom sheet
+        try { this.render(); }
+        finally {
+            keys.forEach((k, i) => { this[k] = saved[i]; });
+            this.cam = cam;
+            this.draw();
+        }
+    }
+
+    exportPng({ whole = false, factor = 2, transparent = false } = {}) {
+        const { w, h, factor: f, pw, ph } = this.exportSize(whole, factor);
         const c = document.createElement('canvas');
-        c.width = Math.round(this.width * factor);
-        c.height = Math.round(this.height * factor);
-        const saved = [this.ctx, this.dpr, this.showHint, this.hoverId];
-        this.ctx = c.getContext('2d');
-        this.dpr = factor;
-        this.showHint = false;
-        this.hoverId = '';
-        this.render();
-        [this.ctx, this.dpr, this.showHint, this.hoverId] = saved;
-        this.draw();
-        return new Promise(res => c.toBlob(res, 'image/png'));
+        c.width = pw;
+        c.height = ph;
+        this.renderTo(c.getContext('2d'), w, h, f, whole, transparent);
+        return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('the image is too large')), 'image/png'));
+    }
+
+    exportSvg({ whole = false, transparent = false, title = '' } = {}) {
+        const { w, h } = this.exportSize(whole, 1);
+        const svg = new SvgContext(w, h, this.ctx);
+        this.renderTo(svg, w, h, 1, whole, transparent);
+        return new Blob([svg.toString(title)], { type: 'image/svg+xml' });
     }
 
     draw() {
@@ -447,12 +490,34 @@ export class TreeView {
         return hsv(((200 + d * 37) % 360 + 360) % 360, t.sat, Math.min(1, t.val * bright));
     }
 
+    // A clade's colour: its own or an ancestor's chosen hue, with the theme's
+    // brightness and every other level a little darker so nesting stays visible.
+    // Uncoloured clades keep the depth colours.
+    nodeColor(n, d, bright = 1) {
+        const tn = this.tint.get(n);
+        if (!tn) return this.depthColor(d, bright);
+        return hsv(tn.hs[0], tn.hs[1], Math.min(1, this.theme.val * bright) * ((d - tn.from) % 2 ? 0.84 : 1));
+    }
+
+    computeTints() {
+        this.tint = new Map();
+        const r = this.doc.root;
+        if (!r) return;
+        const stack = [[r, null, 0]];
+        while (stack.length) {
+            const [n, inherited, d] = stack.pop();
+            const t = n.color ? { hs: toHsv(n.color).slice(0, 2), from: d } : inherited;
+            if (t) this.tint.set(n, t);
+            for (const k of n.kids) stack.push([k, t, d + 1]);
+        }
+    }
+
     // ---- painting
     render() {
         const ctx = this.ctx, t = this.theme;
         ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-        ctx.fillStyle = css(t.bg);
-        ctx.fillRect(0, 0, this.width, this.height);
+        if (this.transparent) ctx.clearRect(0, 0, this.width, this.height);
+        else { ctx.fillStyle = css(t.bg); ctx.fillRect(0, 0, this.width, this.height); }
         this.labelHits = [];
         this.hitSegs = [];
         if (!this.doc.root) { this.items = []; this.branches = []; return; }
@@ -473,7 +538,7 @@ export class TreeView {
             const bb = R(Math.min(a.x, b.x, ctrl.x) - m, Math.min(a.y, b.y, ctrl.y) - m,
                          Math.max(a.x, b.x, ctrl.x) + m, Math.max(a.y, b.y, ctrl.y) + m);
             if (!hits(view, bb)) continue;
-            const col = this.inCut(br.child) ? darker(this.theme.cut, 140) : this.depthColor(br.depth, 0.7);
+            const col = this.inCut(br.child) ? darker(this.theme.cut, 140) : this.nodeColor(br.child, br.depth, 0.7);
             const N = 12, mid = [], left = [], right = [];
             for (let i = 0; i <= N; ++i) {
                 const tt = i / N, u = 1 - tt;
@@ -509,14 +574,14 @@ export class TreeView {
         const ctx = this.ctx, dk = this.disks(), t = this.theme;
         for (const v of this.items) {
             const cut = this.inCut(v.n);
-            const fill = cut ? darker(t.cut, 160) : this.depthColor(v.depth, dk ? 0.55 : 1);
+            const fill = cut ? darker(t.cut, 160) : this.nodeColor(v.n, v.depth, dk ? 0.55 : 1);
             if (this.covers(v.s, v.r)) { ctx.fillStyle = css(fill); ctx.fillRect(0, 0, this.width, this.height); continue; }
             ctx.beginPath();
             ctx.arc(v.s.x, v.s.y, v.r, 0, 2 * PI);
             ctx.fillStyle = css(fill);
             ctx.fill();
             ctx.lineWidth = clamp(v.r * (dk ? 0.02 : 0.12), 1, 3);
-            ctx.strokeStyle = css(cut ? t.cut : this.depthColor(v.depth, dk ? 1 : 0.65));
+            ctx.strokeStyle = css(cut ? t.cut : this.nodeColor(v.n, v.depth, dk ? 1 : 0.65));
             ctx.stroke();
         }
         const sel = this.doc.find(this.selId), cut = this.doc.find(this.cutId);
@@ -847,7 +912,9 @@ export class TreeView {
         };
         cv.addEventListener('pointerup', end);
         cv.addEventListener('pointercancel', end);
-        cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && this.hoverId) { this.hoverId = ''; this.draw(); } });
+        cv.addEventListener('pointerleave', e => {
+            if (e.pointerType === 'mouse' && this.hoverId) { this.hoverId = ''; this.draw(); this.h.hover?.('', 0, 0); }
+        });
 
         cv.addEventListener('wheel', e => {
             e.preventDefault();
@@ -871,6 +938,65 @@ export class TreeView {
         const h = this.hitTest(p);
         this.canvas.style.cursor = h ? 'pointer' : '';
         const id = h ? h.id : '';
-        if (id !== this.hoverId) { this.hoverId = id; this.draw(); }
+        if (id === this.hoverId) return;
+        this.hoverId = id;
+        this.draw();
+        const r = this.canvas.getBoundingClientRect();
+        this.h.hover?.(id, r.left + p.x, r.top + p.y);
     }
 }
+
+// Enough of CanvasRenderingContext2D for render(), recording SVG instead of
+// pixels. Text is measured with a real canvas context.
+class SvgContext {
+    constructor(w, h, measureCtx) {
+        this.w = w; this.h = h;
+        this.m = measureCtx;
+        this.out = [];
+        this.d = '';
+        this.dash = [];
+        Object.assign(this, { fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, font: '10px sans-serif',
+                              textAlign: 'start', textBaseline: 'alphabetic' });
+    }
+    setTransform() {}
+    setLineDash(d) { this.dash = d; }
+    measureText(s) { this.m.font = this.font; return this.m.measureText(s); }
+    clearRect() {}
+    fillRect(x, y, w, h) { this.out.push(`<rect x="${num(x)}" y="${num(y)}" width="${num(w)}" height="${num(h)}"${this.paint('fill')}/>`); }
+    beginPath() { this.d = ''; }
+    moveTo(x, y) { this.d += `M${num(x)} ${num(y)}`; }
+    lineTo(x, y) { this.d += `L${num(x)} ${num(y)}`; }
+    closePath() { this.d += 'Z'; }
+    arc(x, y, r) {  // render() only draws full circles
+        this.d += `M${num(x + r)} ${num(y)}A${num(r)} ${num(r)} 0 1 0 ${num(x - r)} ${num(y)}A${num(r)} ${num(r)} 0 1 0 ${num(x + r)} ${num(y)}Z`;
+    }
+    roundRect(x, y, w, h, r) {
+        this.d += `M${num(x + r)} ${num(y)}H${num(x + w - r)}A${r} ${r} 0 0 1 ${num(x + w)} ${num(y + r)}V${num(y + h - r)}` +
+                  `A${r} ${r} 0 0 1 ${num(x + w - r)} ${num(y + h)}H${num(x + r)}A${r} ${r} 0 0 1 ${num(x)} ${num(y + h - r)}` +
+                  `V${num(y + r)}A${r} ${r} 0 0 1 ${num(x + r)} ${num(y)}Z`;
+    }
+    fill() { if (this.d) this.out.push(`<path d="${this.d}"${this.paint('fill')}/>`); }
+    stroke() {
+        if (!this.d) return;
+        const dash = this.dash.length ? ` stroke-dasharray="${this.dash.join(' ')}"` : '';
+        this.out.push(`<path d="${this.d}" fill="none"${this.paint('stroke')} stroke-width="${num(this.lineWidth)}"${dash}/>`);
+    }
+    fillText(s, x, y) {
+        const [, size, family] = /^(\S+)\s+(.*)$/.exec(this.font) || [, '12px', 'sans-serif'];
+        const anchor = { center: 'middle', end: 'end', right: 'end' }[this.textAlign] || 'start';
+        const base = this.textBaseline === 'middle' ? ' dominant-baseline="central"' : '';
+        this.out.push(`<text x="${num(x)}" y="${num(y)}" font-size="${size}" font-family="${esc(family)}" text-anchor="${anchor}"${base}${this.paint('fill')}>${esc(s)}</text>`);
+    }
+    // rgba(...) becomes a colour plus an opacity, which every SVG viewer understands.
+    paint(attr) {
+        const c = attr === 'fill' ? this.fillStyle : this.strokeStyle;
+        const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(c);
+        return m ? ` ${attr}="rgb(${m[1]},${m[2]},${m[3]})" ${attr}-opacity="${m[4]}"` : ` ${attr}="${c}"`;
+    }
+    toString(title) {
+        return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${num(this.w)}" height="${num(this.h)}" viewBox="0 0 ${num(this.w)} ${num(this.h)}">\n` +
+               (title ? `<title>${esc(title)}</title>\n` : '') + this.out.join('\n') + '\n</svg>\n';
+    }
+}
+const num = v => +v.toFixed(2);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

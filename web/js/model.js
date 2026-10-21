@@ -1,6 +1,7 @@
 // The cladogram tree, its JSON file format, and undo history.
 // File format (shared with the desktop app):
-//   {"root": id, "nodes": [{id, parent?, name, info, collapsed}, ...]}
+//   {"root": id, "nodes": [{id, parent?, name, info, collapsed, color?}, ...]}
+// color is an optional "#rrggbb" that the clade's subtree inherits.
 
 export function newId() {
     const a = new Uint8Array(5);
@@ -8,9 +9,11 @@ export function newId() {
     return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function makeNode(name, info = '', id = newId(), collapsed = false) {
-    return { id, name, info, collapsed, kids: [], parent: null };
+export function makeNode(name, info = '', id = newId(), collapsed = false, color = '') {
+    return { id, name, info, collapsed, color, kids: [], parent: null };
 }
+
+const readColor = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : '';
 
 export const hidesKids = n => n.collapsed || n.kids.length === 0;
 
@@ -62,7 +65,7 @@ export function fromJson(top) {
         if (!id || byId.has(id)) id = newId();
         byId.set(id, recs.length);
         recs.push({ n: makeNode(typeof o.name === 'string' ? o.name : 'Unnamed', typeof o.info === 'string' ? o.info : '',
-                                id, o.collapsed === true),
+                                id, o.collapsed === true, readColor(o.color)),
                     parent: typeof o.parent === 'string' ? o.parent : '' });
     }
     const rootIdx = byId.get(top.root);
@@ -94,7 +97,8 @@ function fromNested(top) {
         let id = typeof o.id === 'string' ? o.id : '';
         if (!id || seen.has(id)) id = newId();
         seen.add(id);
-        return makeNode(typeof o.name === 'string' ? o.name : 'Unnamed', typeof o.info === 'string' ? o.info : '', id, o.collapsed === true);
+        return makeNode(typeof o.name === 'string' ? o.name : 'Unnamed', typeof o.info === 'string' ? o.info : '', id,
+                        o.collapsed === true, readColor(o.color));
     };
     const root = mk(top), stack = [[top, root]];
     while (stack.length) {
@@ -111,6 +115,7 @@ export function toJson(root) {
         const o = { id: n.id };
         if (n.parent) o.parent = n.parent.id;
         Object.assign(o, { name: n.name, info: n.info, collapsed: n.collapsed });
+        if (n.color) o.color = n.color;
         nodes.push(o);
     });
     return { root: root.id, nodes };
