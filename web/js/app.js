@@ -138,6 +138,7 @@ function updateHud() {
 // ---------------------------------------------------------------- panel
 const ACTIONS = [
     { id: 'add', label: 'Add child', key: 'A / D', run: () => actAdd(), ok: n => !!n },
+    { id: 'sister', label: 'Add sister', key: 'S', run: () => actAdd(true), ok: n => !!n && !!n.parent },
     { id: 'edit', label: 'Edit', key: 'E', run: () => actEdit(), ok: n => !!n },
     { id: 'collapse', label: n => n && n.collapsed ? 'Expand' : 'Collapse', key: 'C', run: () => actCollapse(), ok: n => !!n && n.kids.length > 0 },
     { id: 'color', label: 'Colour…', key: 'K', run: () => actColor(), ok: n => !!n },
@@ -322,10 +323,12 @@ $('editDlg').addEventListener('keydown', e => {
 // after an undo in another tab; re-look it up by id like the desktop app.
 // Adds clades until the user stops: Enter continues with a daughter of the
 // clade just added, Tab with a sister of it. Each clade is its own undo step.
-async function actAdd() {
+// sister: start with a sister of the selection instead of a daughter.
+async function actAdd(sister = false) {
     const n = sel();
     if (!n) return;
-    let parentId = n.id;
+    if (sister && !n.parent) return setStatus('The root clade cannot have sisters', true);
+    let parentId = sister ? n.parent.id : n.id;
     for (;;) {
         let p = doc.find(parentId);
         if (!p) return;
@@ -1071,7 +1074,7 @@ addEventListener('keydown', e => {
     }
     if (typing || e.altKey) return;
     const plain = {
-        a: actAdd, e: actEdit, r: actEdit, c: actCollapse, k: actColor,
+        a: actAdd, s: () => actAdd(true), e: actEdit, r: actEdit, c: actCollapse, k: actColor,
         f: () => { const n = sel(); if (n) view.focusOn(n); },
         x: actCut, v: actPaste, Delete: actDelete, Backspace: actDelete,
         Escape: () => {
