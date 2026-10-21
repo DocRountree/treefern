@@ -36,9 +36,11 @@ You can also [use TreeFern in your browser](https://docrountree.github.io/treefe
 
 ## Features
 
-- **Two layouts**
+- **Four layouts** (Ctrl+1 to Ctrl+4 on the desktop, 1 to 4 on the web), with a smooth morph when switching between them
   - **Standard**: a tapered branching tree in which heavier daughter clades curve away from their mother clade, inspired by the [OneZoom](https://www.onezoom.org/) viewer. Spread, shrink and curl can be adjusted from the keyboard.
+  - **Pythagoras**: the same collision-free branching drawn in the style of a Pythagoras tree, with a square for every clade, joined to its daughters' squares.
   - **Disks**: nested circle packing, with each daughter clade drawn as a disk inside its mother clade.
+  - **Hyperbolic**: the tree laid out in the hyperbolic plane and shown in a Poincaré disk, so the focused clade is large and the rest of the tree stays in view around it. Drag to slide the tree through the disk; focusing a clade glides it to the centre.
 - **Editing**: add daughter clades, rename clades and attach free-form notes to them, collapse or expand subtrees, delete subtrees, and move a subtree to a new mother clade with cut and paste.
 - **Undo and redo** for every edit.
 - **Autosave and live sync**: each change is written to disk atomically, and the file is reloaded automatically if another program modifies it.

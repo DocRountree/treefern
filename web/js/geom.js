@@ -46,3 +46,32 @@ export const lerpLocal = (a, b, t) =>
 
 export const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
 export const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+// ---- Möbius maps of the unit disk, as 2x2 complex matrices {a, b, c, d}:
+// z -> (a z + b) / (c z + d). Used by the hyperbolic (Poincaré disk) view.
+export const conj = a => ({ x: a.x, y: -a.y });
+export const M = (a, b, c, d) => ({ a, b, c, d });
+export const mmul = (p, q) => M(add(mul(p.a, q.a), mul(p.b, q.c)), add(mul(p.a, q.b), mul(p.b, q.d)),
+                                add(mul(p.c, q.a), mul(p.d, q.c)), add(mul(p.c, q.b), mul(p.d, q.d)));
+export const mapply = (m, z) => div(add(mul(m.a, z), m.b), add(mul(m.c, z), m.d));
+export const minv = m => M(m.d, scale(m.b, -1), scale(m.c, -1), m.a);  // for determinant 1
+export const MIDENT = M(C(1), C(0), C(0), C(1));
+// Rotation by phi about the centre.
+export const mrot = phi => M(polar(1, phi / 2), C(0), C(0), polar(1, -phi / 2));
+// Hyperbolic translation along +x by distance d: 0 -> tanh(d/2).
+export const mtransX = d => M(C(Math.cosh(d / 2)), C(Math.sinh(d / 2)), C(Math.sinh(d / 2)), C(Math.cosh(d / 2)));
+// The translation taking point c of the disk to 0.
+export function mtoZero(c) {
+    const k = 1 / Math.sqrt(Math.max(1e-300, 1 - norm(c)));
+    return M(C(k), scale(c, -k), scale(conj(c), -k), C(k));
+}
+// Image of 0 and the derivative there (a local similarity: scale + rotation).
+export const mOrigin = m => div(m.b, m.d);
+export const mDeriv0 = m => div(sub(mul(m.a, m.d), mul(m.b, m.c)), mul(m.d, m.d));
+// Rescale to determinant 1 so long products do not drift.
+export function mnormalize(m) {
+    const det = sub(mul(m.a, m.d), mul(m.b, m.c));
+    const r = Math.sqrt(abs(det)), t = arg(det) / 2;
+    const s = div(C(1), polar(r, t));
+    return M(mul(m.a, s), mul(m.b, s), mul(m.c, s), mul(m.d, s));
+}

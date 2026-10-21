@@ -1,7 +1,7 @@
 // TreeFern for the web: wires the document, the tree view and the page UI.
 import { Doc, fromJson, toJson, makeNode, walk, depth, countDesc, contains } from './model.js';
 import { TreeView, THEMES } from './view.js';
-import { STANDARD, DISKS, DEFAULT_SPREAD, DEFAULT_SHRINK, DEFAULT_CURL } from './layout.js';
+import { STANDARD, STYLES, STYLE_NAMES, branchy, DEFAULT_SPREAD, DEFAULT_SHRINK, DEFAULT_CURL } from './layout.js';
 import { DEG } from './geom.js';
 
 const SAMPLES = [
@@ -96,8 +96,8 @@ function updateHud() {
     const n = doc.root ? view.lay.count() : 0;
     const L = view.lay;
     const cut = doc.find(view.cutId);
-    const parts = [view.disks() ? 'Disks' : 'Standard', 'zoom ' + view.zoomText(), `${n} nodes`];
-    if (!view.disks() && !narrow.matches)
+    const parts = [STYLE_NAMES[L.style], 'zoom ' + view.zoomText(), `${n} nodes`];
+    if (branchy(L.style) && !narrow.matches)
         parts.push(`spread ${Math.round(L.spread / DEG)}°  shrink ${L.shrink.toFixed(2)}  curl ${L.curl.toFixed(2)}`);
     if (cut) parts.push(`cut: ${cut.name} (select a target, then Paste)`);
     if (status) parts.push(status);
@@ -468,16 +468,14 @@ function applyTheme(name) {
 function setStyle(st) {
     if (view.lay.style === st) return;
     prefs.style = st;
-    view.lay.style = st;
-    view.relayout(false);
-    view.fitView();
+    view.setStyle(st);  // morphs from the current layout
     savePrefs();
     refresh();
 }
 function setBeside(on) { prefs.beside = on; view.labelsBeside = on; view.draw(); savePrefs(); }
 function tune(f) {
     f(view.lay);
-    if (!view.disks()) view.relayout(true);
+    if (branchy(view.lay.style)) view.relayout(true);
     updateHud();
 }
 
@@ -516,8 +514,7 @@ const MENUS = {
         { label: 'Find clade…', key: 'Ctrl+F', run: focusSearch },
     ],
     View: () => [
-        { label: 'Standard layout', key: '1', checked: !view.disks(), run: () => setStyle(STANDARD) },
-        { label: 'Disks layout', key: '2', checked: view.disks(), run: () => setStyle(DISKS) },
+        ...STYLES.map((st, i) => ({ label: STYLE_NAMES[st] + ' layout', key: String(i + 1), checked: view.lay.style === st, run: () => setStyle(st) })),
         { sep: true },
         { label: 'Labels over nodes', checked: !view.labelsBeside, run: () => setBeside(false) },
         { label: 'Labels beside nodes', key: 'L', checked: view.labelsBeside, run: () => setBeside(true) },
@@ -525,7 +522,7 @@ const MENUS = {
         { label: 'Dark mode', key: 'D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
         { sep: true },
         { label: 'Fit whole tree', key: 'Home', run: () => view.fitView() },
-        { label: 'Reset branch spread, shrink and curl', disabled: view.disks(),
+        { label: 'Reset branch spread, shrink and curl', disabled: !branchy(view.lay.style),
           run: () => tune(l => { l.spread = DEFAULT_SPREAD; l.shrink = DEFAULT_SHRINK; l.curl = DEFAULT_CURL; }) },
     ],
     Help: () => [
@@ -685,7 +682,7 @@ addEventListener('keydown', e => {
         ArrowUp: () => navigate('daughter'), ArrowDown: () => navigate('mother'),
         ArrowLeft: () => navigate('left'), ArrowRight: () => navigate('right'),
         Home: () => view.fitView(),
-        1: () => setStyle(STANDARD), 2: () => setStyle(DISKS),
+        1: () => setStyle(STYLES[0]), 2: () => setStyle(STYLES[1]), 3: () => setStyle(STYLES[2]), 4: () => setStyle(STYLES[3]),
         l: () => setBeside(!view.labelsBeside),
         d: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark'),
         '/': focusSearch, '?': () => $('helpDlg').showModal(),
@@ -713,7 +710,7 @@ narrow.addEventListener('change', () => { refresh(); });
 // ---------------------------------------------------------------- start
 buildActions();
 buildMenuBar();
-view.lay.style = prefs.style === DISKS ? DISKS : STANDARD;
+view.lay.style = STYLES.includes(prefs.style) ? prefs.style : STANDARD;
 view.labelsBeside = !!prefs.beside;
 applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
 
