@@ -30,7 +30,6 @@ Cladograms are stored as plain JSON files. Every edit is saved immediately, and 
 - **Undo and redo** for every edit.
 - **Autosave and live sync**: each change is written to disk atomically, and the file is reloaded automatically if another program modifies it.
 - **Dynamic labels**: labels too small to read are hidden until you zoom in, and labels reposition themselves to avoid overlapping. Labels can be placed over or beside nodes.
-- **Deep zoom**: the camera re-anchors to nearby clades while zooming, so very large and very deep trees stay precise at any zoom level.
 - **Search and navigation**: find clades by name from the side panel, and move around the tree entirely by keyboard or entirely by mouse.
 - **Export**: save the current view as a PNG image (at twice screen resolution) or as a scalable SVG.
 - **Dark and light themes.**
@@ -49,14 +48,19 @@ Prebuilt packages are attached to each [release](https://github.com/DocRountree/
 
 **Windows:** the installer is not code-signed, so Windows SmartScreen may show "Windows protected your PC". Click **More info**, then **Run anyway**.
 
-**Linux:** make the AppImage executable, then run it:
+**Linux:** make the AppImage executable,
 
 ```sh
 chmod +x TreeFern-x86_64.AppImage
+```
+
+then run it:
+
+```sh
 ./TreeFern-x86_64.AppImage
 ```
 
-macOS packages are not yet available; macOS users can build from source.
+macOS packages are not yet supported; macOS users can build from source.
 
 ## Building from source
 
@@ -88,8 +92,6 @@ cmake --build build -j
 
 The program is a single source file, so downloading just `main.cpp` and `CMakeLists.txt` into one directory and running the last two commands also works.
 
-The executable is written to `build/treefern` (Linux), `build/Release/treefern.exe` (Windows with MSVC) or `build/treefern.app` (macOS).
-
 ## Usage
 
 Start TreeFern from your application menu, by double-clicking the executable, or from a terminal:
@@ -99,73 +101,18 @@ Start TreeFern from your application menu, by double-clicking the executable, or
 ./build/treefern cladogram.json  # open a file, creating it from the sample tree if it does not exist
 ```
 
-On first launch TreeFern offers to open an existing cladogram, create an empty one, or create one from a built-in sample tree. Files can also be opened from **File > Open**, **File > Open Recent**, or by dragging a JSON file onto the window.
-
 Typical workflow:
 
 1. Click a clade to select it. Its name, position in the tree and notes appear in the side panel.
-2. Press **A** to add a daughter clade, or **E** to edit the clade's name and notes.
-3. To move a subtree, select it and press **X**, then select the new mother clade and press **V**.
-4. Press **Ctrl+Z** to undo any mistake.
+2. Press **F** to focus the camera on the clade's node.
+3. Press the **up arrow** key to select the daughter clade, or the **down arrow** to select the mother clade.
+4. Press **A** to add a daughter clade, or **E** to edit the clade's name and notes.
+5. To move a subtree, select it and press **X**, then select the new mother clade and press **V**.
+6. Press **Ctrl+Z** to undo any mistake.
 
 There is no save command: every change is written to the file as soon as it is made. Use **File > Save As** to continue editing under a new file name.
 
 Sample cladograms are in the [`samples`](samples) directory.
-
-## Keyboard and mouse reference
-
-### Mouse
-
-| Action | Effect |
-|---|---|
-| Click | Select a clade |
-| Double-click | Edit a clade |
-| Right-click | Clade context menu |
-| Drag | Pan |
-| Scroll wheel | Zoom (hold Shift to zoom faster) |
-
-### Editing
-
-| Key | Action |
-|---|---|
-| A | Add a daughter clade to the selected clade |
-| E or R | Edit the selected clade's name and notes |
-| C | Collapse or expand the selected clade |
-| Delete or Backspace | Delete the selected clade and its descendants |
-| X or Ctrl+X | Cut the selected subtree |
-| V or Ctrl+V | Paste the cut subtree under the selected clade |
-| Esc | Cancel a pending cut, or clear the selection |
-| Ctrl+Z | Undo |
-| Ctrl+Shift+Z (also Ctrl+Y on Windows) | Redo |
-
-### Navigation and view
-
-| Key | Action |
-|---|---|
-| Up | Go to the heaviest daughter clade |
-| Down | Go to the mother clade |
-| Left / Right | Go to the neighbouring sister clade |
-| F | Focus the view on the selected clade |
-| Home | Fit the whole tree in the view |
-| Ctrl+F | Search clades by name |
-| Ctrl+1 / Ctrl+2 | Standard / Disks layout |
-| L | Toggle labels over or beside nodes |
-| Ctrl+Shift+D | Toggle dark mode |
-| + or = / - | Increase / decrease branch spread (Standard layout) |
-| [ / ] | Decrease / increase branch shrink (Standard layout) |
-| , / . | Curl branches counter-clockwise / clockwise (Standard layout) |
-
-### Files
-
-| Key | Action |
-|---|---|
-| Ctrl+N | New cladogram |
-| Ctrl+O | Open |
-| Ctrl+Shift+S | Save As |
-| Ctrl+E | Export the current view as PNG or SVG |
-| Ctrl+Q (Linux and macOS) | Quit |
-
-On macOS, Ctrl corresponds to the Command key.
 
 ## File format
 
