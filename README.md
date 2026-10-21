@@ -13,12 +13,15 @@
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-Setup.exe)
 [![Download for Linux](https://img.shields.io/badge/Download-Linux-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-x86_64.AppImage)
+[![Open in your browser](https://img.shields.io/badge/Open-in%20your%20browser-3a5ca0?style=for-the-badge)](https://docrountree.github.io/treefern/)
 
 <img width="860" alt="TreeFern showing the standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690">
 
 </div>
 
 TreeFern is written in C++ with Qt 6. Cladograms are stored as plain JSON files: every edit is saved immediately, and changes made to the file by other programs are picked up live.
+
+You can also [use TreeFern in your browser](https://docrountree.github.io/treefern/), on desktop or phone, with no install. The web version opens the same JSON files, includes the sample trees, and supports editing by mouse, keyboard or touch.
 
 ## Contents
 
