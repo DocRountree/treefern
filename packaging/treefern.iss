@@ -16,6 +16,7 @@ AppPublisherURL=https://github.com/DocRountree/treefern
 DefaultDirName={autopf}\TreeFern
 DefaultGroupName=TreeFern
 UninstallDisplayIcon={app}\treefern.exe
+SetupIconFile=treefern.ico
 LicenseFile=..\LICENSE
 OutputDir=..
 OutputBaseFilename=TreeFern-Setup
