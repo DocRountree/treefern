@@ -14,4 +14,5 @@ cp "$src/packaging/treefern.svg" "$out/"
 if [ "$channel" = dev ]; then
   sed -i 's|<head>|<head>\n<meta name="robots" content="noindex">\n<meta name="treefern-channel" content="dev">|' "$out/index.html"
   sed -i 's|<title>TreeFern|<title>TreeFern (development)|' "$out/index.html"
+  sed -i 's|"name": "TreeFern"|"name": "TreeFern (development)"|; s|"short_name": "TreeFern"|"short_name": "TreeFern dev"|' "$out/manifest.webmanifest"
 fi

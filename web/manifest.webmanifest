@@ -1,0 +1,12 @@
+{
+  "name": "TreeFern",
+  "short_name": "TreeFern",
+  "description": "Cladogram and phylogenetic tree editor",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e111a",
+  "theme_color": "#0e111a",
+  "icons": [{ "src": "treefern.svg", "sizes": "any", "type": "image/svg+xml" }],
+  "file_handlers": [{ "action": "./", "accept": { "application/json": [".json"] } }]
+}

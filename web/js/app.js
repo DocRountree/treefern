@@ -10,7 +10,13 @@ const SAMPLES = [
     { file: 'reptiles.json', title: 'Reptiles' },
     { file: 'indo-european.json', title: 'Indo-European languages' },
 ];
-const MAX_SEARCH = 200;
+const MAX_SEARCH = 200, MAX_RECENT = 8;
+const CONFIRM_DELETE_OVER = 30;      // ask before deleting more clades than this
+const MAX_SVG_CLADES = 20000;        // larger SVGs bring most viewers to a halt
+const SLOW_EXPORT_CLADES = 50000;
+const MAX_RECENT_TEXT = 5e6;         // files opened without a handle are kept in the browser up to this size
+const SWATCHES = [['Red', '#e5534b'], ['Orange', '#e8913a'], ['Yellow', '#d9c13b'], ['Green', '#57ab5a'], ['Teal', '#39b5a5'],
+                  ['Blue', '#4f8fe0'], ['Purple', '#9a6fe0'], ['Pink', '#e06fb4'], ['Brown', '#a0704a'], ['Grey', '#8a8f99']];
 // A development build (see build-site.sh) shares the site's origin, so it keeps separate storage.
 const CHANNEL = document.querySelector('meta[name="treefern-channel"]')?.content || '';
 const SESSION_KEY = CHANNEL ? `treefern.${CHANNEL}.session` : 'treefern.session';
@@ -34,6 +40,7 @@ const view = new TreeView($('tree'), doc, {
     edit: id => { select(id); actEdit(); },
     menu: (id, x, y) => { if (id) select(id); showMenu(id ? cladeItems() : canvasItems(), { x, y }); },
     viewChanged: () => updateHud(),
+    hover: (id, x, y) => hover(id, x, y),
     focus: () => { if (document.activeElement !== $('tree')) $('tree').focus({ preventScroll: true }); },
 });
 $('tree').tabIndex = 0;
@@ -53,6 +60,26 @@ function showToast(s) {
     clearTimeout(showToast.timer);
     showToast.timer = setTimeout(() => { t.hidden = true; }, 2600);
 }
+
+// ---------------------------------------------------------------- hover notes
+// A clade's info appears beside the pointer after a short rest on it.
+function hover(id, x, y) {
+    hideTip();
+    const n = doc.find(id);
+    if (n && n.info.trim()) hover.timer = setTimeout(() => showTip(n, x, y), 450);
+}
+function showTip(n, x, y) {
+    const t = $('tip'), b = document.createElement('b');
+    b.textContent = n.name;
+    const info = n.info.trim();
+    t.replaceChildren(b, info.length > 600 ? info.slice(0, 600).trimEnd() + '…' : info);
+    t.hidden = false;
+    const r = t.getBoundingClientRect();
+    t.style.left = Math.max(8, Math.min(x + 14, innerWidth - r.width - 8)) + 'px';
+    t.style.top = (y + 18 + r.height > innerHeight - 8 ? Math.max(8, y - r.height - 10) : y + 18) + 'px';
+}
+function hideTip() { clearTimeout(hover.timer); $('tip').hidden = true; }
+for (const ev of ['pointerdown', 'wheel']) $('tree').addEventListener(ev, hideTip, { passive: true });
 
 doc.onChange = kind => {
     if (kind === 'open') {
@@ -75,8 +102,9 @@ doc.onChange = kind => {
 function saveSession() {
     clearTimeout(sessionTimer);
     sessionTimer = setTimeout(() => {
-        if (doc.root && !store.set(SESSION_KEY, { name: doc.name, json: doc.current }))
+        if (doc.root && !store.set(SESSION_KEY, { name: doc.name, json: doc.current, recentKey }))
             setStatus('Could not keep a copy in this browser; use Save or Download', true);
+        keepRecentText();
     }, 300);
 }
 
@@ -112,6 +140,7 @@ const ACTIONS = [
     { id: 'add', label: 'Add child', key: 'A', run: () => actAdd(), ok: n => !!n },
     { id: 'edit', label: 'Edit', key: 'E', run: () => actEdit(), ok: n => !!n },
     { id: 'collapse', label: n => n && n.collapsed ? 'Expand' : 'Collapse', key: 'C', run: () => actCollapse(), ok: n => !!n && n.kids.length > 0 },
+    { id: 'color', label: 'Colour…', key: 'K', run: () => actColor(), ok: n => !!n },
     { id: 'focus', label: 'Focus', key: 'F', run: () => { const n = sel(); if (n) view.focusOn(n); }, ok: n => !!n },
     { id: 'cut', label: 'Cut', key: 'X', run: () => actCut(), ok: n => !!n && !!n.parent },
     { id: 'paste', label: 'Paste here', key: 'V', run: () => actPaste(), ok: n => { const c = doc.find(view.cutId); return !!n && !!c && !contains(c, n); } },
@@ -144,6 +173,7 @@ function renderPanel() {
         b.disabled = !a.ok(n);
     }
     if (!n) return;
+    renderCrumbs(n);
     $('title').textContent = n.name;
     $('meta').textContent = `Depth: ${depth(n)}\nParent: ${n.parent ? n.parent.name : '(root)'}\n` +
         `Direct subclades: ${n.kids.length}\nTotal descendants: ${countDesc(n)}`;
@@ -162,6 +192,28 @@ function renderPanel() {
     const info = $('info');
     info.textContent = n.info || 'No info yet. Use Edit to add some.';
     info.classList.toggle('none', !n.info);
+}
+
+// The clades above the selection, root first; long trails fold their middle
+// into a "…" that unfolds when clicked.
+let crumbsOpen = '';
+function renderCrumbs(n) {
+    const box = $('crumbs'), path = [];
+    for (let a = n.parent; a; a = a.parent) path.unshift(a);
+    if (crumbsOpen !== n.id) crumbsOpen = '';
+    const shown = crumbsOpen || path.length <= 6 ? path : [path[0], null, ...path.slice(-4)];
+    box.replaceChildren();
+    shown.forEach((a, i) => {
+        if (i) { const s = document.createElement('span'); s.className = 'sep'; s.textContent = '›'; box.append(s); }
+        const b = document.createElement('button');
+        if (a) { b.textContent = a.name; b.title = 'Go to ' + a.name; b.addEventListener('click', () => goTo(a)); }
+        else {
+            b.textContent = '…';
+            b.title = `Show ${path.length - 5} more`;
+            b.addEventListener('click', () => { crumbsOpen = n.id; renderCrumbs(n); });
+        }
+        box.append(b);
+    });
 }
 
 $('upBtn').addEventListener('click', () => { const n = sel(); if (n && n.parent) goTo(n.parent); });
@@ -219,13 +271,20 @@ function navigate(d) {
 }
 
 // ---------------------------------------------------------------- editing
-let dlgResolve = null;
-function openEditDialog({ title, name = '', info = '', withInfo = true }) {
+let dlgResolve = null, dlgRapid = false;
+const EDIT_HINT = 'Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.';
+const RAPID_HINT = 'Enter: add it, then a daughter of it. Tab: add it, then a sister. Ctrl+Enter or Add: add it and stop. Esc: stop.';
+// rapid: adding clades one after another; resolves with next = 'child', 'sister' or 'done'.
+function openEditDialog({ title, name = '', info = '', withInfo = true, rapid = false }) {
     const dlg = $('editDlg');
+    dlgRapid = rapid;
     $('editTitle').textContent = title;
     $('editName').value = name;
     $('editInfo').value = info;
     $('editInfoRow').hidden = !withInfo;
+    $('editHint').textContent = rapid ? RAPID_HINT : EDIT_HINT;
+    $('editSister').hidden = $('editDaughter').hidden = !rapid;
+    $('editOk').textContent = rapid ? 'Add' : 'OK';
     dlg.showModal();
     $('editName').focus();
     $('editName').select();
@@ -236,13 +295,23 @@ $('editForm').addEventListener('submit', e => {
     finishEdit(true);
 });
 $('editCancel').addEventListener('click', () => finishEdit(false));
-function finishEdit(ok) {
+$('editSister').addEventListener('click', () => finishEdit(true, 'sister'));
+$('editDaughter').addEventListener('click', () => finishEdit(true, 'child'));
+$('editName').addEventListener('keydown', e => {
+    if (!dlgRapid || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    if (e.key === 'Enter') { e.preventDefault(); finishEdit(true, 'child'); }
+    else if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); finishEdit(true, 'sister'); }
+});
+function finishEdit(ok, next = 'done') {
     const name = $('editName').value.trim(), info = $('editInfo').value;
-    if (ok && !name) { $('editName').focus(); return; }
+    if (ok && !name) {
+        if (!dlgRapid) { $('editName').focus(); return; }
+        ok = false;  // rapid entry: confirming an empty name stops
+    }
     $('editDlg').close();
     const r = dlgResolve;
     dlgResolve = null;
-    r?.(ok ? { name, info } : null);
+    r?.(ok ? { name, info, next } : null);
 }
 $('editDlg').addEventListener('cancel', e => { e.preventDefault(); finishEdit(false); });
 $('editDlg').addEventListener('keydown', e => {
@@ -251,15 +320,23 @@ $('editDlg').addEventListener('keydown', e => {
 
 // Dialogs give an external change no chance here, but a node may be gone
 // after an undo in another tab; re-look it up by id like the desktop app.
+// Adds clades until the user stops: Enter continues with a daughter of the
+// clade just added, Tab with a sister of it. Each clade is its own undo step.
 async function actAdd() {
-    let n = sel();
+    const n = sel();
     if (!n) return;
-    const id = n.id;
-    const r = await openEditDialog({ title: `New clade under '${n.name}'`, withInfo: true });
-    if (!r || !(n = doc.find(id))) return;
-    const c = doc.addChild(n, r.name, r.info);
-    view.selId = c.id;
-    refresh();
+    let parentId = n.id;
+    for (;;) {
+        let p = doc.find(parentId);
+        if (!p) return;
+        const r = await openEditDialog({ title: `New clade under '${p.name}'`, rapid: true });
+        if (!r || !(p = doc.find(parentId))) return;
+        const c = doc.addChild(p, r.name, r.info);
+        view.selId = c.id;
+        refresh();
+        if (r.next === 'done') return;
+        if (r.next === 'child') parentId = c.id;
+    }
 }
 
 async function actEdit() {
@@ -281,9 +358,14 @@ function actCollapse() {
     doc.commit();
 }
 
-function actDelete() {
-    const n = sel();
+async function actDelete() {
+    let n = sel();
     if (!n) return;
+    if (!n.parent) return setStatus('Cannot delete the root clade', true);
+    const id = n.id, inside = countDesc(n);
+    if (inside + 1 > CONFIRM_DELETE_OVER &&
+        (!await askConfirm(`Delete '${n.name}'?`, `This deletes ${inside + 1} clades: '${n.name}' and the ${inside} inside it. You can undo it with Ctrl+Z.`)
+         || !(n = doc.find(id)))) return;
     const parentId = n.parent ? n.parent.id : '';
     const name = n.name;
     const err = doc.removeSubtree(n);
@@ -291,6 +373,54 @@ function actDelete() {
     view.selId = parentId;
     setStatus(`Deleted '${name}'. Undo with Ctrl+Z or the undo button`);
     refresh();
+}
+
+let confirmResolve = null;
+function askConfirm(title, text, okLabel = 'Delete') {
+    $('confirmTitle').textContent = title;
+    $('confirmText').textContent = text;
+    $('confirmOk').textContent = okLabel;
+    $('confirmDlg').showModal();
+    $('confirmCancel').focus();
+    return new Promise(res => { confirmResolve = res; });
+}
+function finishConfirm(ok) {
+    $('confirmDlg').close();
+    const r = confirmResolve;
+    confirmResolve = null;
+    r?.(ok);
+}
+$('confirmForm').addEventListener('submit', e => { e.preventDefault(); finishConfirm(true); });
+$('confirmCancel').addEventListener('click', () => finishConfirm(false));
+$('confirmDlg').addEventListener('cancel', e => { e.preventDefault(); finishConfirm(false); });
+
+// Colour: a swatch menu by the panel's Colour button (or where the last menu was).
+function actColor() {
+    const n = sel();
+    if (!n) return;
+    const id = n.id;
+    const set = c => {
+        const m = doc.find(id);
+        if (!m || m.color === c) return;
+        m.color = c;
+        doc.commit();
+        setStatus(c ? `Coloured '${m.name}'` : `'${m.name}' uses ${m.parent ? "its mother clade's" : 'the default'} colours`);
+    };
+    const b = $('actions').querySelector('[data-act="color"]'), r = b.getBoundingClientRect();
+    const at = performance.now() - lastMenuRun.t < 400 ? lastMenuRun.at
+             : r.width && r.top < innerHeight ? { x: r.left, y: r.bottom + 4 } : { x: innerWidth / 2 - 110, y: innerHeight / 4 };
+    const items = SWATCHES.map(([name, c]) => ({ label: name, swatch: c, checked: n.color === c, run: () => set(c) }));
+    items.push({ sep: true },
+               { label: 'Custom colour…', run: () => {
+                   const inp = $('colorInput');
+                   inp.style.left = at.x + 'px';
+                   inp.style.top = at.y + 'px';
+                   inp.value = n.color || '#4f8fe0';
+                   inp.onchange = () => set(inp.value.toLowerCase());
+                   try { inp.showPicker(); } catch { inp.click(); }
+               } },
+               { label: n.parent ? 'Same as mother clade' : 'Default colours', checked: !n.color, run: () => set('') });
+    showMenu(items, at);
 }
 
 function actCut() {
@@ -321,6 +451,97 @@ function actPaste() {
 function undo() { if (!doc.undo()) setStatus('Nothing to undo'); else setStatus('Undone'); }
 function redo() { if (!doc.redo()) setStatus('Nothing to redo'); else setStatus('Redone'); }
 
+// ---------------------------------------------------------------- recent files
+// Kept in IndexedDB: a file handle where the browser gives one (Chromium), so
+// reopening edits the file itself; otherwise the file's text, which follows
+// later edits so the entry reopens as last edited.
+const DB_NAME = CHANNEL ? `treefern.${CHANNEL}` : 'treefern';
+const idb = (() => {
+    let db = null;
+    const open = () => db ||= new Promise((res, rej) => {
+        const r = indexedDB.open(DB_NAME, 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('recent', { keyPath: 'key' });
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+    });
+    const run = async (mode, f) => {
+        const d = await open();
+        return new Promise((res, rej) => {
+            const t = d.transaction('recent', mode), req = f(t.objectStore('recent'));
+            t.oncomplete = () => res(req.result);
+            t.onerror = t.onabort = () => rej(t.error);
+        });
+    };
+    return {
+        all: () => run('readonly', st => st.getAll()),
+        put: v => run('readwrite', st => st.put(v)),
+        del: k => run('readwrite', st => st.delete(k)),
+        clear: () => run('readwrite', st => st.clear()),
+    };
+})();
+let recent = [], recentKey = '';  // newest first; recentKey: the entry the open document came from
+
+async function loadRecent() {
+    try { recent = (await idb.all()).sort((a, b) => b.time - a.time); } catch { recent = []; }
+}
+
+async function remember(name, handle, text) {
+    recentKey = '';
+    if (!handle && (text === undefined || text.length > MAX_RECENT_TEXT)) return;
+    try {
+        let key = handle ? '' : 't:' + name;
+        if (handle)
+            for (const e of recent)
+                if (e.handle && await e.handle.isSameEntry(handle).catch(() => false)) { key = e.key; break; }
+        key ||= 'h:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        await idb.put(handle ? { key, name, handle, time: Date.now() } : { key, name, text, time: Date.now() });
+        recentKey = key;
+        await loadRecent();
+        for (const e of recent.slice(MAX_RECENT)) await idb.del(e.key);
+        recent = recent.slice(0, MAX_RECENT);
+    } catch { /* no IndexedDB: no recent list */ }
+}
+
+function keepRecentText() {
+    const e = recent.find(x => x.key === recentKey);
+    if (!e || e.handle || !doc.root) return;
+    const text = jsonText();
+    if (text.length > MAX_RECENT_TEXT) return;
+    e.text = text;
+    idb.put(e).catch(() => {});
+}
+
+async function openRecent(e) {
+    try {
+        if (e.handle) {
+            const opts = { mode: 'readwrite' };
+            if (await e.handle.queryPermission(opts) !== 'granted' && await e.handle.requestPermission(opts) !== 'granted')
+                return setStatus(`No permission to open ${e.name}`, true);
+            const f = await e.handle.getFile();
+            if (loadJsonText(await f.text(), f.name)) {
+                fileHandle = e.handle;
+                await remember(f.name, e.handle);
+                setStatus(`Opened ${f.name}. Edits are saved to the file`);
+            }
+        } else if (loadJsonText(e.text, e.name)) {
+            fileHandle = null;
+            await remember(e.name, null, e.text);
+            setStatus(`Opened ${e.name} as last edited in this browser`);
+        }
+    } catch (err) {
+        setStatus(`Cannot open ${e.name}: ${err.message}. Removed it from the recent list`, true);
+        await idb.del(e.key).catch(() => {});
+        await loadRecent();
+    }
+}
+
+async function clearRecent() {
+    try { await idb.clear(); } catch { /* nothing kept anyway */ }
+    recent = [];
+    recentKey = '';
+    setStatus('Cleared the recent files');
+}
+
 // ---------------------------------------------------------------- files
 function loadJsonText(text, name) {
     let root;
@@ -330,12 +551,14 @@ function loadJsonText(text, name) {
     return true;
 }
 
-async function openSample(s) {
+async function openSample(s, startup = false) {
     try {
         const r = await fetch('samples/' + s.file);
         if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+        if (startup && launched) return;  // a file arrived through "open with" meanwhile
         if (loadJsonText(await r.text(), s.file)) {
             fileHandle = null;
+            recentKey = '';
             setStatus(`Opened the ${s.title} sample`);
         }
     } catch (e) { setStatus(`Cannot load the sample: ${e.message}`, true); }
@@ -348,6 +571,7 @@ async function openFile() {
             const f = await h.getFile();
             if (loadJsonText(await f.text(), f.name)) {
                 fileHandle = h;
+                await remember(f.name, h);
                 setStatus(`Opened ${f.name}. Edits are saved to the file`);
             }
         } catch (e) { if (e.name !== 'AbortError') setStatus('Cannot open the file: ' + e.message, true); }
@@ -361,8 +585,10 @@ $('fileInput').addEventListener('change', async e => {
     if (f) await openPlainFile(f);
 });
 async function openPlainFile(f) {
-    if (loadJsonText(await f.text(), f.name)) {
+    const text = await f.text();
+    if (loadJsonText(text, f.name)) {
         fileHandle = null;
+        await remember(f.name, null, text);
         setStatus(`Opened ${f.name}. Edits are kept in this browser; use Save to download`);
     }
 }
@@ -407,6 +633,7 @@ async function saveAs() {
             if (await writeHandle(h)) {
                 fileHandle = h;
                 doc.name = h.name;
+                await remember(h.name, h);
                 saveSession();
                 refresh();
             }
@@ -417,13 +644,74 @@ async function saveAs() {
     setStatus('Downloaded ' + name);
 }
 
-async function exportPng() {
-    if (!doc.root) return;
-    const blob = await view.exportPng(2);
-    const base = (doc.name || 'cladogram').replace(/\.json$/i, '');
-    download(blob, base + '.png');
-    setStatus(`Exported ${base}.png`);
+// ---------------------------------------------------------------- export
+// The view or the whole tree, as PNG (copied or saved) or SVG. Image sizes are
+// capped in TreeView; SVGs too large for viewers to open are refused here.
+function exportOpts() {
+    const v = name => document.querySelector(`input[name="${name}"]:checked`).value;
+    return { area: v('exArea'), format: v('exFormat'), scale: +v('exScale'), transparent: $('exTransparent').checked };
 }
+function updateExportInfo() {
+    const o = exportOpts(), whole = o.area === 'whole', svg = o.format === 'svg';
+    const n = view.exportCount(whole);
+    $('exScaleRow').disabled = svg;
+    $('exCopy').disabled = svg || !window.ClipboardItem || !navigator.clipboard?.write;
+    let text, ok = true;
+    if (svg && n > MAX_SVG_CLADES) {
+        text = `This would put ${n.toLocaleString()} clades in one SVG; most programs cannot open SVGs that large ` +
+               `(the limit is ${MAX_SVG_CLADES.toLocaleString()}). Collapse some clades, zoom in, or export a PNG.`;
+        ok = false;
+    } else if (svg) {
+        const { w, h } = view.exportSize(whole, 1);
+        text = `${w} × ${h}, ${n.toLocaleString()} clades.`;
+    } else {
+        const { pw, ph, factor } = view.exportSize(whole, o.scale);
+        text = `${pw.toLocaleString()} × ${ph.toLocaleString()} pixels` +
+               (factor < o.scale - 1e-9 ? ', reduced to stay within what browsers can draw.' : '.');
+        if (n > SLOW_EXPORT_CLADES) text += ` Drawing ${n.toLocaleString()} clades may take a few seconds.`;
+    }
+    $('exInfo').textContent = text;
+    $('exSave').disabled = !ok;
+}
+function openExport() {
+    if (!doc.root) return;
+    const o = Object.assign({ area: 'view', format: 'png', scale: 2, transparent: false }, prefs.export || {});
+    for (const [name, val] of [['exArea', o.area], ['exFormat', o.format], ['exScale', String(o.scale)]]) {
+        const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+        if (r) r.checked = true;
+    }
+    $('exTransparent').checked = !!o.transparent;
+    updateExportInfo();
+    $('exportDlg').showModal();
+}
+$('exportForm').addEventListener('change', updateExportInfo);
+$('exCancel').addEventListener('click', () => $('exportDlg').close());
+$('exportForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const o = exportOpts(), whole = o.area === 'whole';
+    prefs.export = o;
+    savePrefs();
+    $('exportDlg').close();
+    const base = (doc.name || 'cladogram').replace(/\.json$/i, '');
+    setStatus('Exporting…');
+    await new Promise(r => setTimeout(r, 30));  // let the dialog close first
+    try {
+        const name = `${base}.${o.format}`;
+        download(o.format === 'svg' ? view.exportSvg({ whole, transparent: o.transparent, title: base })
+                                    : await view.exportPng({ whole, factor: o.scale, transparent: o.transparent }), name);
+        setStatus('Exported ' + name);
+    } catch (err) { setStatus('Cannot export: ' + err.message, true); }
+});
+// The clipboard write starts inside the click (Safari requires it), with the image still rendering.
+$('exCopy').addEventListener('click', () => {
+    const o = exportOpts();
+    prefs.export = o;
+    savePrefs();
+    $('exportDlg').close();
+    const png = view.exportPng({ whole: o.area === 'whole', factor: o.scale, transparent: o.transparent });
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+        .then(() => setStatus('Copied the image to the clipboard'), err => setStatus('Cannot copy the image: ' + err.message, true));
+});
 
 async function newDoc() {
     const r = await openEditDialog({ title: 'New cladogram', name: 'Life', withInfo: false });
@@ -449,11 +737,30 @@ addEventListener('drop', async e => {
     const h = item.getAsFileSystemHandle ? await item.getAsFileSystemHandle().catch(() => null) : null;
     const f = item.getAsFile();
     if (!f) return;
-    if (loadJsonText(await f.text(), f.name)) {
+    const text = await f.text();
+    if (loadJsonText(text, f.name)) {
         fileHandle = h && h.kind === 'file' ? h : null;
+        await remember(f.name, fileHandle, text);
         setStatus(fileHandle ? `Opened ${f.name}. Save writes back to it` : `Opened ${f.name}`);
     }
 });
+
+// "Open with" from the operating system, once TreeFern is installed as an app.
+let launched = false;
+if ('launchQueue' in window)
+    launchQueue.setConsumer(async params => {
+        const h = params.files?.[0];
+        if (!h) return;
+        launched = true;
+        try {
+            const f = await h.getFile();
+            if (loadJsonText(await f.text(), f.name)) {
+                fileHandle = h;
+                await remember(f.name, h);
+                setStatus(`Opened ${f.name}. Edits are saved to the file`);
+            }
+        } catch (e) { setStatus('Cannot open the file: ' + e.message, true); }
+    });
 
 // ---------------------------------------------------------------- view settings
 const prefs = Object.assign({ style: STANDARD, beside: false, theme: matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark' },
@@ -503,12 +810,15 @@ const MENUS = {
     File: () => [
         { label: 'New cladogram…', run: newDoc },
         { label: 'Open file…', key: 'Ctrl+O', run: openFile },
+        ...(recent.length ? [{ section: 'Recent' },
+                             ...recent.map(e => ({ label: e.name, run: () => openRecent(e) })),
+                             { label: 'Clear recent files', run: clearRecent }] : []),
         { section: 'Samples' },
         ...SAMPLES.map(s => ({ label: s.title, run: () => openSample(s) })),
         { sep: true },
         { label: fileHandle ? 'Save' : 'Save / download', key: 'Ctrl+S', run: save, disabled: !doc.root },
         { label: 'Save as…', key: 'Ctrl+Shift+S', run: saveAs, disabled: !doc.root },
-        { label: 'Export view as PNG', key: 'Ctrl+E', run: exportPng, disabled: !doc.root },
+        { label: 'Export image…', key: 'Ctrl+E', run: openExport, disabled: !doc.root },
     ],
     Edit: () => [
         { label: 'Undo', key: 'Ctrl+Z', run: undo, disabled: !doc.undoStack.length },
@@ -528,10 +838,13 @@ const MENUS = {
         { label: 'Dark mode', key: 'D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
         { sep: true },
         { label: 'Fit whole tree', key: 'Home', run: () => view.fitView() },
+        { label: 'Zoom in', run: () => view.zoomAt(1.6) },
+        { label: 'Zoom out', run: () => view.zoomAt(1 / 1.6) },
         { label: 'Reset branch spread, shrink and curl', disabled: view.disks(),
           run: () => tune(l => { l.spread = DEFAULT_SPREAD; l.shrink = DEFAULT_SHRINK; l.curl = DEFAULT_CURL; }) },
     ],
     Help: () => [
+        { label: 'Command palette…', key: 'Ctrl+K', run: openPalette },
         { label: 'Controls and shortcuts', key: '?', run: () => $('helpDlg').showModal() },
         { label: 'TreeFern on GitHub', run: () => window.open('https://github.com/DocRountree/treefern', '_blank', 'noopener') },
         { label: 'Download the desktop app', run: () => window.open('https://github.com/DocRountree/treefern/releases/latest', '_blank', 'noopener') },
@@ -539,6 +852,7 @@ const MENUS = {
 };
 
 let menuOwner = null;
+const lastMenuRun = { t: -1e9, at: { x: 0, y: 0 } };  // so a follow-up menu opens in the same place
 function showMenu(items, at, owner = null) {
     const pop = $('menuPop');
     pop.innerHTML = '';
@@ -554,9 +868,11 @@ function showMenu(items, at, owner = null) {
         ck.textContent = it.checked ? '✓' : '';
         const lb = document.createElement('span');
         lb.textContent = it.label;
-        b.append(ck, lb);
+        b.append(ck);
+        if (it.swatch) { const sw = document.createElement('span'); sw.className = 'swatch'; sw.style.background = it.swatch; b.append(sw); }
+        b.append(lb);
         if (it.key && !coarse.matches) { const k = document.createElement('span'); k.className = 'key'; k.textContent = it.key; b.append(k); }
-        b.addEventListener('click', () => { hideMenu(); it.run(); });
+        b.addEventListener('click', () => { hideMenu(); lastMenuRun.t = performance.now(); lastMenuRun.at = at; it.run(); });
         pop.append(b);
     }
     pop.hidden = false;
@@ -660,8 +976,85 @@ $('search').addEventListener('keydown', e => {
     }
 });
 
+// ---------------------------------------------------------------- command palette
+// Every menu command, found by typing any part of its name.
+let palItems = [], palShown = [], palCur = 0;
+function openPalette() {
+    hideMenu();
+    palItems = [];
+    const seen = new Set();
+    for (const [menu, f] of Object.entries(MENUS)) {
+        let group = menu;
+        for (const it of f()) {
+            if (it.sep) { group = menu; continue; }
+            if (it.section) { group = `${menu} › ${it.section}`; continue; }
+            if (it.run === openPalette || seen.has(it.label)) continue;
+            seen.add(it.label);
+            palItems.push({ ...it, group });
+        }
+    }
+    $('paletteInput').value = '';
+    runPalette();
+    $('paletteDlg').showModal();
+    $('paletteInput').focus();
+}
+function runPalette() {
+    const words = $('paletteInput').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const scored = [];
+    palItems.forEach((it, i) => {
+        const label = it.label.toLowerCase(), hay = label + ' ' + it.group.toLowerCase();
+        if (!words.every(w => hay.includes(w))) return;
+        const q = words.join(' '), at = label.indexOf(q);
+        const rank = !q ? 0 : at === 0 ? 0 : at > 0 && !/[\p{L}\p{N}]/u.test(label[at - 1]) ? 1 : at > 0 ? 2 : 3;
+        scored.push({ it, key: [it.disabled ? 1 : 0, rank, i] });
+    });
+    scored.sort((a, b) => a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2]);
+    const ul = $('paletteList');
+    ul.replaceChildren();
+    palShown = [];
+    for (const { it } of scored) {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        if (it.key) { const k = document.createElement('span'); k.className = 'key'; k.textContent = it.key; li.append(k); }
+        li.append((it.checked ? '✓ ' : '') + it.label);
+        const g = document.createElement('span');
+        g.className = 'grp';
+        g.textContent = it.group;
+        li.append(g);
+        if (it.disabled) li.classList.add('off');
+        else { li.addEventListener('click', () => runPaletteItem(it)); }
+        palShown.push({ li, it });
+        ul.append(li);
+    }
+    if (!palShown.length) { const li = document.createElement('li'); li.className = 'inert'; li.textContent = '(no matching commands)'; ul.append(li); }
+    palCur = palShown.findIndex(p => !p.it.disabled);
+    markPalette();
+}
+function markPalette() {
+    palShown.forEach((p, i) => p.li.classList.toggle('cur', i === palCur));
+    palShown[palCur]?.li.scrollIntoView({ block: 'nearest' });
+}
+function runPaletteItem(it) {
+    $('paletteDlg').close();
+    lastMenuRun.t = -1e9;
+    it.run();
+}
+$('paletteInput').addEventListener('input', runPalette);
+$('paletteInput').addEventListener('keydown', e => {
+    const step = d => {
+        for (let i = palCur + d; i >= 0 && i < palShown.length; i += d) if (!palShown[i].it.disabled) { palCur = i; break; }
+        markPalette();
+    };
+    if (e.key === 'ArrowDown') { step(1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { step(-1); e.preventDefault(); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (palShown[palCur] && !palShown[palCur].it.disabled) runPaletteItem(palShown[palCur].it); }
+});
+$('paletteForm').addEventListener('submit', e => e.preventDefault());
+$('paletteDlg').addEventListener('click', e => { if (e.target === $('paletteDlg')) $('paletteDlg').close(); });  // backdrop
+
 // ---------------------------------------------------------------- keyboard
 addEventListener('keydown', e => {
+    hideTip();
     if (document.querySelector('dialog[open]')) return;
     const t = e.target, typing = t.closest && t.closest('input, textarea, [contenteditable]');
     const mod = e.ctrlKey || e.metaKey, k = e.key;
@@ -670,7 +1063,7 @@ addEventListener('keydown', e => {
         const lk = k.toLowerCase();
         const run = {
             z: e.shiftKey ? redo : undo, y: redo,
-            f: focusSearch, o: openFile, e: exportPng,
+            f: focusSearch, o: openFile, e: openExport, k: openPalette,
             s: e.shiftKey ? saveAs : save,
         }[lk];
         if (run && !(typing && (lk === 'z' || lk === 'y'))) { e.preventDefault(); run(); }
@@ -678,7 +1071,7 @@ addEventListener('keydown', e => {
     }
     if (typing || e.altKey) return;
     const plain = {
-        a: actAdd, e: actEdit, r: actEdit, c: actCollapse,
+        a: actAdd, e: actEdit, r: actEdit, c: actCollapse, k: actColor,
         f: () => { const n = sel(); if (n) view.focusOn(n); },
         x: actCut, v: actPaste, Delete: actDelete, Backspace: actDelete,
         Escape: () => {
@@ -733,8 +1126,10 @@ applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
     const sample = SAMPLES.find(s => s.file.replace(/\.json$/, '') === wanted);
     const session = store.get(SESSION_KEY);
     if (sample) await openSample(sample);
-    else if (session && session.json && loadJsonText(JSON.stringify(session.json), session.name || 'cladogram.json'))
+    else if (session && session.json && loadJsonText(JSON.stringify(session.json), session.name || 'cladogram.json')) {
+        recentKey = session.recentKey || '';
         setStatus('Restored your last session');
-    else await openSample(SAMPLES[0]);
+    } else if (!launched) await openSample(SAMPLES[0], true);
     refresh();
+    await loadRecent();
 })();
