@@ -38,7 +38,6 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 
 [Icons]
 Name: "{group}\TreeFern"; Filename: "{app}\treefern.exe"
-Name: "{group}\Sample cladograms"; Filename: "{app}\samples"
 Name: "{autodesktop}\TreeFern"; Filename: "{app}\treefern.exe"; Tasks: desktopicon
 
 [Registry]
