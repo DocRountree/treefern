@@ -11,7 +11,10 @@ const SAMPLES = [
     { file: 'indo-european.json', title: 'Indo-European languages' },
 ];
 const MAX_SEARCH = 200;
-const SESSION_KEY = 'treefern.session', PREFS_KEY = 'treefern.prefs';
+// A development build (see build-site.sh) shares the site's origin, so it keeps separate storage.
+const CHANNEL = document.querySelector('meta[name="treefern-channel"]')?.content || '';
+const SESSION_KEY = CHANNEL ? `treefern.${CHANNEL}.session` : 'treefern.session';
+const PREFS_KEY = CHANNEL ? `treefern.${CHANNEL}.prefs` : 'treefern.prefs';
 const $ = id => document.getElementById(id);
 const narrow = matchMedia('(max-width: 760px)');
 const coarse = matchMedia('(pointer: coarse)');
@@ -85,7 +88,7 @@ function refresh() {
     $('undoBtn').disabled = !doc.undoStack.length;
     $('redoBtn').disabled = !doc.redoStack.length;
     $('docName').textContent = doc.name;
-    document.title = (doc.name ? doc.name + ' - ' : '') + 'TreeFern';
+    document.title = (doc.name ? doc.name + ' - ' : '') + 'TreeFern' + (CHANNEL ? ` (${CHANNEL})` : '');
     $('hint').textContent = view.selId || !doc.root ? '' :
         'Click a node to select · wheel to zoom · drag to pan · double-click to edit · right-click for menu · ? for help';
     view.draw();
@@ -710,6 +713,14 @@ narrow.addEventListener('change', () => { refresh(); });
 // ---------------------------------------------------------------- start
 buildActions();
 buildMenuBar();
+if (CHANNEL) {
+    const b = document.createElement('a');
+    b.className = 'channel';
+    b.href = '../';
+    b.textContent = CHANNEL;
+    b.title = 'Development build. Go to the stable version';
+    document.querySelector('.brand').after(b);
+}
 view.lay.style = STYLES.includes(prefs.style) ? prefs.style : STANDARD;
 view.labelsBeside = !!prefs.beside;
 applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
