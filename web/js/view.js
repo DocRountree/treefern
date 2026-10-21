@@ -4,7 +4,7 @@ import {
     PI, C, add, sub, mul, scale, abs, norm, arg, polar, remainder, clamp, Local, Frame,
     compose, uncompose, finiteFrame, lerpZ, lerpLocal, easeOutCubic, easeInOutCubic,
 } from './geom.js';
-import { Layout, STANDARD, DISKS, STD_NODE, STD_WIDTH } from './layout.js';
+import { Layout, STANDARD, DISKS, CIRC, STD_NODE, STD_WIDTH, isClado } from './layout.js';
 import { hidesKids, depth as nodeDepth, contains, countDesc } from './model.js';
 
 const ANIM_MS = 380;            // relayout animation; camera flights take twice as long
@@ -20,6 +20,16 @@ const MIN_PX = 0.6;
 const FIT_MARGIN = 120;
 const CAM_MAX_SCALE = 1e9, CAM_MIN_ROOT_PX = 20, CAM_MAX_UP = 1e9;
 const LONG_PRESS_MS = 500, DOUBLE_TAP_MS = 320;
+// cladograms
+const CLADO_LINE = 1.6;          // branch width, px
+const CLADO_TIP_R = 2.5, CLADO_NODE_R = 2;
+const CLADO_TIP_FONT = 0.78;     // tip label height, as a fraction of the tip spacing on screen
+const CLADO_MIN_FONT = 7, CLADO_MAX_FONT = 15;
+const CLADO_FOCUS_MIN = 24;      // focusing a clade: at least this many px between tips
+const CLADO_MARGIN = 300;        // px: keep subtrees this far off screen for their labels
+const CHAR_EM = 0.55;
+const MAX_CLADE_TRIES = 3000;    // clades tried for a label per frame, biggest first
+const CLADO_MIN_BRANCH = 12;     // px: shorter branches get no clade label            // average character width, for sizing label room before measuring
 // Exports stay within every browser's canvas limits (Safari: 16.7 million pixels).
 const MAX_EXPORT_SIDE = 16384, MAX_EXPORT_PIXELS = 16e6;
 export const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
@@ -80,6 +90,58 @@ function anchoredRect(w, h, px, py, ux, uy) {
     return rectWH(Math.round(l), Math.round(t), w, h);
 }
 
+// Finds whether a rect touches any (padded) branch piece accepted by want(),
+// with a uniform grid over the pieces. Every rect a caller tests lies in
+// nearView, so clamping to it loses nothing.
+function segFinder(segs, nearView) {
+    const CELL = 64, grid = new Map();
+    const forCells = (r, f) => {
+        if (!hits(r, nearView)) return;
+        const c = R(Math.max(r.x0, nearView.x0), Math.max(r.y0, nearView.y0), Math.min(r.x1, nearView.x1), Math.min(r.y1, nearView.y1));
+        for (let x = Math.floor(c.x0 / CELL); x <= Math.floor(c.x1 / CELL); ++x)
+            for (let y = Math.floor(c.y0 / CELL); y <= Math.floor(c.y1 / CELL); ++y) f(x * 100003 + y);
+    };
+    segs.forEach((s, i) => forCells(s.box, k => { let v = grid.get(k); if (!v) grid.set(k, v = []); v.push(i); }));
+    const stamp = new Int32Array(segs.length).fill(-1);
+    let query = 0;
+    return (r, want) => {
+        ++query;
+        let hit = false;
+        forCells(r, k => {
+            if (hit) return;
+            const v = grid.get(k);
+            if (!v) return;
+            for (const i of v) {
+                if (stamp[i] === query) continue;
+                stamp[i] = query;
+                const s = segs[i];
+                if (!hits(s.box, r) || !want(s)) continue;
+                if (clipLine(inflate(r, s.pad), s.a, s.b)) { hit = true; return; }
+            }
+        });
+        return hit;
+    };
+}
+
+// Points along the arc of radius r round c from angle a0 to a1 (the shorter
+// way), limited to the angles at which the view can be seen from c, so a huge
+// arc on a zoomed-in tree is still drawn smoothly where it shows.
+function arcPoints(c, r, a0, a1, view) {
+    let lo = 0, hi = remainder(a1 - a0, 2 * PI);
+    if (hi < 0) [lo, hi] = [hi, 0];
+    if (!has(view, c)) {
+        if (!hits(view, R(c.x - r, c.y - r, c.x + r, c.y + r))) return [];
+        const rel = [C(view.x0, view.y0), C(view.x1, view.y0), C(view.x0, view.y1), C(view.x1, view.y1)]
+            .map(q => remainder(arg(sub(q, c)) - a0, 2 * PI));
+        lo = Math.max(lo, Math.min(...rel));
+        hi = Math.min(hi, Math.max(...rel));
+        if (lo > hi) return [];
+    }
+    const n = clamp(Math.ceil(r * (hi - lo) / 3), 1, 256), pts = [];
+    for (let i = 0; i <= n; ++i) pts.push(add(c, polar(r, a0 + lo + (hi - lo) * i / n)));
+    return pts;
+}
+
 export class TreeView {
     constructor(canvas, doc, handlers) {
         this.canvas = canvas;
@@ -121,6 +183,7 @@ export class TreeView {
 
     // ---- public API
     disks() { return this.lay.style === DISKS; }
+    clado() { return isClado(this.lay.style); }
 
     resize() {
         const r = this.canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -160,8 +223,8 @@ export class TreeView {
         if (!n || !this.lay.loc.has(n)) return;
         let mag = Math.min(this.width, this.height) * 0.42;
         if (!this.disks()) {
-            const f = this.screenFrame(n);
-            mag = Math.min(Math.max(f ? abs(f.z) : 120, 120), mag / this.lay.extent(n));
+            const f = this.screenFrame(n), lo = this.clado() ? CLADO_FOCUS_MIN / this.lay.tipSpacing : 120;
+            mag = Math.min(Math.max(f ? abs(f.z) : lo, lo), mag / this.lay.extent(n));
         }
         this.flyTo(n, Frame(this.centre(), polar(mag, this.absAngle(n))));
     }
@@ -267,8 +330,21 @@ export class TreeView {
         const b = this.lay.bbox;
         const bw = Math.max(b.x1 - b.x0, 2), bh = Math.max(b.y1 - b.y0, 2);
         const margin = Math.min(FIT_MARGIN, Math.min(this.width, this.height) * 0.15);
-        return Math.min(Math.max(100, this.width - margin) / bw, Math.max(100, this.height - this.insetBottom - margin) / bh);
+        const fit = (lw, lh) => Math.min(Math.max(100, this.width - margin - lw) / bw,
+                                         Math.max(100, this.height - this.insetBottom - margin - lh) / bh);
+        if (!this.clado()) return fit(0, 0);
+        // Leave room for the tip labels: right of a rectangular tree, all round a
+        // circular one. Their size depends on the scale, so settle it in two passes.
+        let s = fit(0, 0);
+        for (let i = 0; i < 2; ++i) {
+            const px = this.tipFont(s), room = px >= CLADO_MIN_FONT ? px * CHAR_EM * this.lay.maxTipChars + 10 : 0;
+            s = this.lay.style === CIRC ? fit(2 * room, 2 * room) : fit(room, 0);
+        }
+        return s;
     }
+
+    // Tip label size at scale s (px per unit); below CLADO_MIN_FONT tips go unlabelled.
+    tipFont(s) { return Math.min(CLADO_MAX_FONT, Math.floor(s * this.lay.tipSpacing * CLADO_TIP_FONT)); }
 
     resetCam() {
         this.camAnim = null;
@@ -437,6 +513,9 @@ export class TreeView {
     // ---- visible items
     makeItem(n, f, d) {
         const s = abs(f.z), leaf = hidesKids(n);
+        if (this.clado())  // branchPx: the length of the branch into it
+            return { n, s: f.o, r: leaf ? CLADO_TIP_R : CLADO_NODE_R, lenPx: s, angle: 0, depth: d,
+                     branchPx: n.parent ? s * (this.lay.reach.get(n) ?? 0) : Infinity };
         const r = this.disks() ? s : leaf ? Math.max(3, s * STD_NODE) : Math.max(3.5, s * STD_WIDTH * 0.65);
         let len = s;
         if (!this.disks() && leaf && n.parent) {
@@ -451,7 +530,7 @@ export class TreeView {
         this.branches = [];
         const A = this.anchorNode();
         if (!A || !this.lay.loc.has(A)) return;
-        const margin = this.disks() ? 0 : 100, minPx = this.disks() ? MIN_PX : 0;
+        const margin = this.disks() ? 0 : this.clado() ? CLADO_MARGIN : 100, minPx = this.disks() ? MIN_PX : 0;
         const visible = (n, f) => {
             const Rr = abs(f.z) * this.lay.extent(n);
             return Rr >= minPx && f.o.x + Rr > -margin && f.o.x - Rr < this.width + margin &&
@@ -530,6 +609,7 @@ export class TreeView {
     drawBranches() {
         const segs = [];
         if (this.disks()) return segs;
+        if (this.clado()) return this.drawCladoBranches();
         const ctx = this.ctx, view = R(-60, -60, this.width + 60, this.height + 60);
         for (const br of this.branches) {
             const a = br.pf.o, b = br.cf.o, ps = abs(br.pf.z);
@@ -574,6 +654,13 @@ export class TreeView {
         const ctx = this.ctx, dk = this.disks(), t = this.theme;
         for (const v of this.items) {
             const cut = this.inCut(v.n);
+            if (this.clado()) {
+                ctx.beginPath();
+                ctx.arc(v.s.x, v.s.y, v.r, 0, 2 * PI);
+                ctx.fillStyle = css(this.lineColor(v.n, v.depth));
+                ctx.fill();
+                continue;
+            }
             const fill = cut ? darker(t.cut, 160) : this.nodeColor(v.n, v.depth, dk ? 0.55 : 1);
             if (this.covers(v.s, v.r)) { ctx.fillStyle = css(fill); ctx.fillRect(0, 0, this.width, this.height); continue; }
             ctx.beginPath();
@@ -645,6 +732,7 @@ export class TreeView {
 
     // Greedy placement, selection first, then well-sized clades (see the desktop app).
     drawLabels(segs) {
+        if (this.clado()) return this.drawCladoLabels(segs);
         const ctx = this.ctx, t = this.theme, dk = this.disks(), beside = this.labelsBeside;
         const sel = this.doc.find(this.selId), cutN = this.doc.find(this.cutId), hov = this.doc.find(this.hoverId);
         const padX = 5, padY = 2;
@@ -653,34 +741,7 @@ export class TreeView {
         const nearView = inflate(view, 120);
         const items = this.items;
 
-        const CELL = 64, grid = new Map();
-        const forCells = (r, f) => {
-            if (!hits(r, nearView)) return;
-            const c = R(Math.max(r.x0, nearView.x0), Math.max(r.y0, nearView.y0), Math.min(r.x1, nearView.x1), Math.min(r.y1, nearView.y1));
-            for (let x = Math.floor(c.x0 / CELL); x <= Math.floor(c.x1 / CELL); ++x)
-                for (let y = Math.floor(c.y0 / CELL); y <= Math.floor(c.y1 / CELL); ++y) f(x * 100003 + y);
-        };
-        segs.forEach((s, i) => forCells(s.box, k => { let v = grid.get(k); if (!v) grid.set(k, v = []); v.push(i); }));
-        const stamp = new Int32Array(segs.length).fill(-1);
-        let query = 0;
-        const anySeg = (r, want) => {
-            ++query;
-            let hit = false;
-            forCells(r, k => {
-                if (hit) return;
-                const v = grid.get(k);
-                if (!v) return;
-                for (const i of v) {
-                    if (stamp[i] === query) continue;
-                    stamp[i] = query;
-                    const s = segs[i];
-                    if (!hits(s.box, r) || !want(s)) continue;
-                    if (clipLine(inflate(r, s.pad), s.a, s.b)) { hit = true; return; }
-                }
-            });
-            return hit;
-        };
-
+        const anySeg = segFinder(segs, nearView);
         const nodeRects = dk ? [] : items.map(v => R(v.s.x - v.r - 2, v.s.y - v.r - 2, v.s.x + v.r + 2, v.s.y + v.r + 2));
         const placed = [];
         const blocked = (r, own) => {
@@ -796,11 +857,204 @@ export class TreeView {
         }
     }
 
+    // ---- cladograms
+    // Uncoloured branches in the text colour, as in print; coloured clades in their colour.
+    lineColor(n, d) {
+        if (this.inCut(n)) return this.theme.cut;
+        return this.tint.has(n) ? this.nodeColor(n, d, 0.9) : this.theme.fg;
+    }
+
+    // The root's position on screen: a circular tree's centre.
+    cladoCentre() {
+        const f = this.screenFrame(this.doc.root);
+        return f ? f.o : null;
+    }
+
+    // Right-angled branches: along the parent's line to the daughter's level,
+    // then across to it. Rectangular: a vertical then a horizontal segment.
+    // Circular: an arc round the root at the parent's radius, then a radial line.
+    drawCladoBranches() {
+        const ctx = this.ctx, segs = [], circ = this.lay.style === CIRC;
+        const view = R(-60, -60, this.width + 60, this.height + 60);
+        const c = circ ? this.cladoCentre() : null;
+        if (circ && !c) return segs;
+        ctx.lineWidth = CLADO_LINE;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        const piece = (pts, br) => {
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            for (const q of pts) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+            if (pts.length < 2 || !hits(view, R(x0, y0, x1, y1))) return;
+            ctx.beginPath();
+            pts.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y));
+            ctx.strokeStyle = css(this.lineColor(br.child, br.depth));
+            ctx.stroke();
+            const pad = CLADO_LINE / 2 + 1;
+            for (let i = 0; i + 1 < pts.length; ++i) {
+                const a = pts[i], b = pts[i + 1];
+                this.hitSegs.push({ a, b, hw: CLADO_LINE / 2 + 1, n: br.child });
+                segs.push({ a, b, pad, box: inflate(R(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y)), pad),
+                            p: br.child.parent, c: br.child });
+            }
+        };
+        for (const br of this.branches) {
+            const P = br.pf.o, Q = br.cf.o;
+            if (circ) {
+                const rp = abs(sub(P, c)), aq = arg(sub(Q, c));
+                const corner = add(c, polar(rp, aq));
+                if (rp > 0.5) piece(arcPoints(c, rp, arg(sub(P, c)), aq, view), br);
+                piece([corner, Q], br);
+            } else {
+                const corner = add(P, mul(br.pf.z, C(0, this.sloc(br.child).o.y)));
+                piece([P, corner, Q], br);
+            }
+        }
+        return segs;
+    }
+
+    // Tip labels run outward from the tips: horizontal beside a rectangular
+    // tree, radial round a circular one (turned over on the left half so they
+    // read left to right). They are sized to the tip spacing, so they cannot
+    // overlap each other, and left out when too small to read. Clade labels
+    // are placed greedily, biggest clades first, along the branch into the
+    // clade and clear of every line, dot and label already placed; a circular
+    // tree keeps them inside the circle of tips.
+    drawCladoLabels(segs) {
+        const ctx = this.ctx, t = this.theme, circ = this.lay.style === CIRC;
+        const sel = this.doc.find(this.selId), cutN = this.doc.find(this.cutId), hov = this.doc.find(this.hoverId);
+        const c = this.cladoCentre();
+        if (!c) return;
+        const s = abs(this.cam.f.z), tipPx = this.tipFont(s);
+        const view = R(0, 0, this.width, this.height), inner = R(4, 4, this.width - 4, this.height - 4);
+        const nearView = inflate(view, 120);
+        const text = n => (n === cutN ? '✂ ' : '') + (n.name || '?') + (n.collapsed && n.kids.length ? ` [+${countDesc(n)}]` : '');
+        const tips = [], placed = [];
+        for (const v of this.items) {
+            if (!hidesKids(v.n)) continue;
+            const force = v.n === sel || v.n === hov;
+            let px = tipPx;
+            if (px < CLADO_MIN_FONT) { if (!force) continue; px = 11; }
+            const font = `${px}px ${FONT}`, str = text(v.n), w = this.measure(font, str) + 4, h = Math.round(px * 1.25);
+            const a = circ ? arg(sub(v.s, c)) : 0, o = add(v.s, polar(v.r + 4, a));
+            const flip = circ && Math.cos(a) < 0;
+            const far = add(o, polar(w, a));
+            const box = R(Math.min(o.x, far.x) - h / 2, Math.min(o.y, far.y) - h / 2, Math.max(o.x, far.x) + h / 2, Math.max(o.y, far.y) + h / 2);
+            if (!hits(box, view)) continue;
+            if (!circ) placed.push(box);
+            tips.push({ n: v.n, o, a, flip, w, h, str, font, force, box });
+        }
+
+        // clade labels; node dots join the grid of obstacles as zero-length pieces
+        const items = this.items;
+        const obstacles = segs.slice();
+        for (const v of items)
+            if (has(nearView, v.s)) obstacles.push({ a: v.s, b: v.s, pad: v.r + 2, box: inflate(R(v.s.x, v.s.y, v.s.x, v.s.y), v.r + 2) });
+        const anySeg = segFinder(obstacles, nearView);
+        const tipLimit = this.lay.tipR * s - 2;  // circular: clade labels stay inside the tips
+        const blocked = r => {
+            if (!inside(inner, r)) return true;
+            if (circ && [C(r.x0, r.y0), C(r.x1, r.y0), C(r.x0, r.y1), C(r.x1, r.y1)].some(q => abs(sub(q, c)) > tipLimit)) return true;
+            const g = inflate(r, LABEL_GAP);
+            if (placed.some(q => hits(q, g))) return true;
+            return anySeg(r, () => true);
+        };
+        const cladeFont = `${clamp(Math.floor(s * this.lay.tipSpacing * 0.8), 10, 13)}px ${FONT}`;
+        const lineH = Math.round(parseInt(cladeFont) * 1.25);
+        const makeLabel = (v, force) => {
+            const words = text(v.n).split(/\s+/).filter(Boolean);
+            const opts = this.wrapOptions(words, cladeFont).slice(0, 3);
+            // the branch into the clade: from the corner on the parent's line to the node
+            let K = v.s;
+            if (v.n.parent) {
+                const pf = uncompose(Frame(v.s, this.cam.f.z), this.sloc(v.n));
+                K = circ ? add(c, polar(abs(sub(pf.o, c)), arg(sub(v.s, c)))) : C(pf.o.x, v.s.y);
+            }
+            let u = sub(v.s, K);
+            const len = abs(u);
+            u = len > 1e-6 ? scale(u, 1 / len) : circ ? polar(1, arg(sub(v.s, c))) : C(1, 0);
+            const nrm = C(u.y, -u.x);  // to the left of the branch: above a rectangular one
+            const cs = [];
+            opts.forEach((o, k) => {
+                const w = Math.ceil(o.width) + 10, h = lineH * o.lines.length + 4;
+                const off = (Math.abs(nrm.x) * w + Math.abs(nrm.y) * h) / 2 + 3;  // clears the branch line
+                // centres along the branch: on it when it is long enough, else ending at
+                // the node, starting at the parent's line, or just past the node
+                const along = len > w + 8 ? [0.5, 0.75, 0.25, 1, 0].map(f => [clamp(len * f, w / 2 + 4, len - w / 2 - 4), Math.abs(f - 0.5)])
+                                          : [[len / 2, 0.4], [len - w / 2 - 4, 0.6], [w / 2 + 4, 0.8], [len + w / 2 + 4, 1]];
+                for (const [side, sc] of [[1, 0], [-1, 0.3]])
+                    for (const [d, ac] of along) {
+                        const q = add(add(K, scale(u, d)), scale(nrm, side * off));
+                        cs.push({ cost: sc + ac + 0.12 * k, r: rectWH(Math.round(q.x - w / 2), Math.round(q.y - h / 2), w, h), k });
+                    }
+            });
+            cs.sort((a, b) => a.cost - b.cost);
+            for (const cd of cs) if (!blocked(cd.r)) return { box: cd.r, lines: opts[cd.k].lines, n: v.n, forced: false };
+            return force ? { box: cs[0].r, lines: opts[cs[0].k].lines, n: v.n, forced: true } : null;
+        };
+        const cands = [];
+        items.forEach((v, i) => { if (!hidesKids(v.n) && (v.n === sel || v.n === hov || v.branchPx >= CLADO_MIN_BRANCH)) cands.push(i); });
+        const prio = v => [v.n === sel ? 0 : 1, -this.lay.weight(v.n), v.depth];
+        cands.sort((a, b) => { const x = prio(items[a]), y = prio(items[b]); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; });
+        const clades = [];
+        for (const i of cands.slice(0, MAX_CLADE_TRIES)) {
+            if (clades.length >= MAX_LABELS) break;
+            const l = makeLabel(items[i], items[i].n === sel || items[i].n === hov);
+            if (l) { placed.push(l.box); clades.push(l); }
+        }
+
+        // paint
+        ctx.textBaseline = 'middle';
+        for (const l of tips) {
+            const isSel = l.n === sel, isHov = l.n === hov;
+            ctx.save();
+            ctx.translate(l.o.x, l.o.y);
+            ctx.rotate(l.flip ? l.a + PI : l.a);
+            const x0 = l.flip ? -l.w : 0;
+            if (isSel || isHov) {
+                ctx.beginPath();
+                ctx.roundRect(x0 - 2, -l.h / 2, l.w + 4, l.h, 4);
+                ctx.fillStyle = t.labelBgHover;
+                ctx.fill();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = css(isSel ? t.accent : t.dim);
+                ctx.stroke();
+            }
+            ctx.font = l.font;
+            ctx.textAlign = l.flip ? 'right' : 'left';
+            ctx.fillStyle = css(isSel ? t.accent : this.inCut(l.n) ? t.cut : t.fg);
+            ctx.fillText(l.str, l.flip ? -2 : 2, 0.5);
+            ctx.restore();
+            this.labelHits.push([l.box, l.n.id, { o: l.o, a: l.flip ? l.a + PI : l.a, x0: x0 - 2, x1: x0 + l.w + 2, hh: l.h / 2 }]);
+        }
+        ctx.textAlign = 'center';
+        ctx.font = cladeFont;
+        for (const l of clades) {
+            const b = l.box, isSel = l.n === sel, isHov = l.n === hov;
+            ctx.beginPath();
+            ctx.roundRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 4);
+            ctx.fillStyle = isHov || l.forced ? t.labelBgHover : t.labelBg;
+            ctx.fill();
+            if (isSel || isHov) { ctx.lineWidth = 1; ctx.strokeStyle = css(isSel ? t.accent : t.dim); ctx.stroke(); }
+            ctx.fillStyle = css(isSel ? t.accent : this.inCut(l.n) ? t.cut : t.fg);
+            const cy = (b.y0 + b.y1) / 2, top = cy - (l.lines.length - 1) * lineH / 2;
+            l.lines.forEach((str, i) => ctx.fillText(str, (b.x0 + b.x1) / 2, top + i * lineH + 0.5));
+            this.labelHits.push([b, l.n.id]);
+        }
+    }
+
     // ---- hit testing
     hitTest(p, slop = 5) {
         const label = () => {
-            for (let i = this.labelHits.length - 1; i >= 0; --i)
-                if (has(this.labelHits[i][0], p)) { const n = this.doc.find(this.labelHits[i][1]); if (n) return n; }
+            for (let i = this.labelHits.length - 1; i >= 0; --i) {
+                const [box, id, rot] = this.labelHits[i];
+                if (!has(box, p)) continue;
+                if (rot) {  // a rotated tip label: test in its own frame
+                    const q = mul(sub(p, rot.o), polar(1, -rot.a));
+                    if (q.x < rot.x0 || q.x > rot.x1 || Math.abs(q.y) > rot.hh) continue;
+                }
+                const n = this.doc.find(id);
+                if (n) return n;
+            }
             return null;
         };
         let best = null;
@@ -955,10 +1209,16 @@ class SvgContext {
         this.out = [];
         this.d = '';
         this.dash = [];
+        this.tf = '';      // SVG transform for what is drawn next; save() and restore() stack it
+        this.saved = [];
         Object.assign(this, { fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, font: '10px sans-serif',
                               textAlign: 'start', textBaseline: 'alphabetic' });
     }
     setTransform() {}
+    save() { this.saved.push([this.tf, this.font, this.textAlign, this.textBaseline, this.fillStyle, this.strokeStyle, this.lineWidth]); }
+    restore() { [this.tf, this.font, this.textAlign, this.textBaseline, this.fillStyle, this.strokeStyle, this.lineWidth] = this.saved.pop(); }
+    translate(x, y) { this.tf += ` translate(${num(x)} ${num(y)})`; }
+    rotate(a) { this.tf += ` rotate(${num(a * 180 / PI)})`; }
     setLineDash(d) { this.dash = d; }
     measureText(s) { this.m.font = this.font; return this.m.measureText(s); }
     clearRect() {}
@@ -979,7 +1239,7 @@ class SvgContext {
     stroke() {
         if (!this.d) return;
         const dash = this.dash.length ? ` stroke-dasharray="${this.dash.join(' ')}"` : '';
-        this.out.push(`<path d="${this.d}" fill="none"${this.paint('stroke')} stroke-width="${num(this.lineWidth)}"${dash}/>`);
+        this.out.push(`<path d="${this.d}" fill="none"${this.paint('stroke')} stroke-width="${num(this.lineWidth)}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`);
     }
     fillText(s, x, y) {
         const [, size, family] = /^(\S+)\s+(.*)$/.exec(this.font) || [, '12px', 'sans-serif'];
@@ -989,9 +1249,10 @@ class SvgContext {
     }
     // rgba(...) becomes a colour plus an opacity, which every SVG viewer understands.
     paint(attr) {
+        const tf = this.tf ? ` transform="${this.tf.trim()}"` : '';
         const c = attr === 'fill' ? this.fillStyle : this.strokeStyle;
         const m = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(c);
-        return m ? ` ${attr}="rgb(${m[1]},${m[2]},${m[3]})" ${attr}-opacity="${m[4]}"` : ` ${attr}="${c}"`;
+        return (m ? ` ${attr}="rgb(${m[1]},${m[2]},${m[3]})" ${attr}-opacity="${m[4]}"` : ` ${attr}="${c}"`) + tf;
     }
     toString(title) {
         return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${num(this.w)}" height="${num(this.h)}" viewBox="0 0 ${num(this.w)} ${num(this.h)}">\n` +

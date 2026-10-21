@@ -1,7 +1,7 @@
 // Tree layout, ported from the desktop app. Every node gets a frame *relative
 // to its parent* (origin offset + complex scale/rotation). Children are ordered
 // lightest -> heaviest, so the heaviest clade is always the last branch.
-import { PI, DEG, C, scale, abs, arg, polar, clamp, Local, Frame, compose } from './geom.js';
+import { PI, DEG, C, sub, scale, abs, arg, polar, clamp, Local, Frame, compose } from './geom.js';
 import { hidesKids } from './model.js';
 
 export const DEFAULT_SPREAD = 120 * DEG, DEFAULT_SHRINK = 0.68, DEFAULT_CURL = 0.35;
@@ -19,7 +19,15 @@ const STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w_max)^this
 const STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
 const STD_CLEARANCE = 0.2;      // 3+ forks: min distance between sibling subtrees, in fork units
 
-export const STANDARD = 'standard', DISKS = 'disks';
+// rectangular and circular cladograms
+const CLADO_NODE = 0.3;         // node footprint, in leaf spacings
+const CLADO_MIN_STEP = 1.5;     // min distance between levels, in leaf spacings
+const RECT_ASPECT = 0.6;        // rectangular: aim for width = this * height
+
+export const STANDARD = 'standard', DISKS = 'disks', RECT = 'rectangular', CIRC = 'circular';
+export const STYLES = [STANDARD, DISKS, RECT, CIRC];
+export const STYLE_NAMES = { [STANDARD]: 'Standard', [DISKS]: 'Disks', [RECT]: 'Rectangular', [CIRC]: 'Circular' };
+export const isClado = st => st === RECT || st === CIRC;
 
 export class Layout {
     constructor() {
@@ -32,21 +40,29 @@ export class Layout {
         this.size = new Map();  // node + all descendants (ignores collapse)
         this.leaves = new Map();
         this.bbox = { x0: 0, y0: 0, x1: 0, y1: 0 };
+        // cladograms: tips sit at x = tipX (rectangular) or radius tipR around the
+        // root (circular), tipSpacing apart; maxTipChars sizes the room for their labels
+        this.tipX = this.tipR = 0;
+        this.tipSpacing = 1;
+        this.maxTipChars = 0;
+        this.reach = new Map();  // cladograms: length of the across part of the branch into a node, where its label goes
     }
 
     count() { return this.loc.size; }
     extent(n) { return this.ext.get(n) ?? 1; }
     weight(n) { return this.size.get(n) ?? 1; }
-    own(n) { return this.style === DISKS ? 1 : hidesKids(n) ? STD_NODE : STD_WIDTH; }
+    own(n) { return this.style === DISKS ? 1 : isClado(this.style) ? CLADO_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH; }
 
     compute(root) {
-        this.loc.clear(); this.ext.clear(); this.size.clear(); this.leaves.clear();
+        this.loc.clear(); this.ext.clear(); this.size.clear(); this.leaves.clear(); this.reach.clear();
         this.bbox = { x0: 0, y0: 0, x1: 0, y1: 0 };
         if (!root) return;
         this.weigh(root);
         if (this.style === STANDARD) {
             this.loc.set(root, Local(C(0, 0), C(0, -1), 0));  // grows upwards
             this.standard(root);
+        } else if (isClado(this.style)) {
+            this.cladogram(root);
         } else {
             this.loc.set(root, Local());
             this.disks(root);
@@ -129,6 +145,50 @@ export class Layout {
             this.disks(k);
             a += th[i];
         });
+    }
+
+    // Cladograms as drawn in papers. Tips are evenly spaced, one leaf spacing
+    // apart, in display order (so the tree is ladderised) and aligned: a node
+    // sits as many levels in from the tips as its tallest subtree is deep, and
+    // halfway between its first and last daughters. Rectangular: tips in a
+    // column on the right. Circular: tips on a circle round the root, from 12
+    // o'clock clockwise. Every frame has unit scale and no rotation, so the
+    // tree is drawn in one coordinate system and frames are just offsets.
+    cladogram(root) {
+        const pos = new Map(), height = new Map();
+        let tips = 0, chars = 0;
+        const visit = n => {
+            if (hidesKids(n)) {
+                height.set(n, 0);
+                pos.set(n, tips++);
+                chars = Math.max(chars, n.name.length + (n.collapsed ? 8 : 0));
+                return;
+            }
+            const kids = this.ordered(n);
+            let h = 0;
+            for (const k of kids) { visit(k); h = Math.max(h, height.get(k) + 1); }
+            height.set(n, h);
+            pos.set(n, (pos.get(kids[0]) + pos.get(kids.at(-1))) / 2);
+        };
+        visit(root);
+        const H = height.get(root), at = new Map();
+        this.maxTipChars = Math.min(chars, 40);
+        if (this.style === RECT) {
+            const step = H ? Math.max(CLADO_MIN_STEP, RECT_ASPECT * tips / H) : 1;
+            this.tipX = H * step;
+            this.tipSpacing = 1;
+            for (const [n, y] of pos) at.set(n, C((H - height.get(n)) * step, y));
+        } else {
+            this.tipR = Math.max(CLADO_MIN_STEP * H, tips / (2 * PI));
+            this.tipSpacing = 2 * PI * this.tipR / Math.max(tips, 1);
+            const step = H ? this.tipR / H : 0;
+            for (const [n, i] of pos) at.set(n, polar((H - height.get(n)) * step, -PI / 2 + i * this.tipSpacing / Math.max(this.tipR, 1e-9)));
+        }
+        for (const [n, p] of at) {
+            const q = n.parent && at.get(n.parent);
+            this.loc.set(n, Local(q ? sub(p, q) : p, C(1, 0), 0));
+            if (q) this.reach.set(n, this.style === RECT ? p.x - q.x : abs(p) - abs(q));
+        }
     }
 
     // Standard: a node's frame has its origin at its fork, +x along its growth
