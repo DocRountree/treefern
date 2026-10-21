@@ -39,16 +39,11 @@ You can also [use TreeFern in your browser](https://docrountree.github.io/treefe
   - **Standard**: a tapered branching tree in which heavier daughter clades curve away from their mother clade, inspired by the [OneZoom](https://www.onezoom.org/) viewer. Spread, shrink and curl can be adjusted from the keyboard.
   - **Disks**: nested circle packing, with each daughter clade drawn as a disk inside its mother clade.
 - **Editing**: add daughter clades, rename clades and attach free-form notes to them, collapse or expand subtrees, delete subtrees, and move a subtree to a new mother clade with cut and paste.
-- **Rapid entry**: when adding clades, Enter adds the clade and starts a daughter of it, and Tab adds it and starts a sister, so a whole branch can be typed in one go.
-- **Clade colours**: give a clade a colour and everything inside it takes the same colour, unless it has its own.
-- **Hover notes**: resting the pointer on a clade shows its notes.
-- **Command palette**: Ctrl+K finds any command by typing part of its name.
-- **Safe deletes**: deleting more than 30 clades at once asks first.
-- **Undo and redo** for every edit.
 - **Autosave and live sync**: each change is written to disk atomically, and the file is reloaded automatically if another program modifies it.
 - **Dynamic labels**: labels too small to read are hidden until you zoom in, and labels reposition themselves to avoid overlapping. Labels can be placed over or beside nodes.
 - **Search and navigation**: find clades by name from the side panel, follow the trail of mother clades above the selection, and move around the tree entirely by keyboard or entirely by mouse.
 - **Export**: save the current view or the whole tree as a PNG image (at 1x, 2x or 4x resolution) or a scalable SVG, optionally with a transparent background, or copy it to the clipboard. Image sizes are capped to what memory allows, and SVGs of more than 20,000 clades are refused because most programs cannot open them.
+- **Command palette**: Ctrl+K finds any command by typing part of its name.
 - **Dark and light themes.**
 - **Remembered preferences**: layout, label placement, theme and recently opened files persist between sessions.
 
