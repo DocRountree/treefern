@@ -31,7 +31,6 @@ You can also [use TreeFern in your browser](https://docrountree.github.io/treefe
 - [Usage](#usage)
 - [File format](#file-format)
 - [Screenshots](#screenshots)
-- [Contributing](#contributing)
 - [License](#license)
 
 ## Features
