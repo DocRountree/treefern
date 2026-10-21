@@ -1892,7 +1892,8 @@ public:
         fileMenu->addSeparator();
         fileMenu->addAction(mk("&Quit", {QKeySequence::Quit}, [this] { close(); }));
 
-        aAdd      = mk("Add child (A)", {Qt::Key_A}, [this] { actAdd(); });
+        aAdd      = mk("Add child (A)", {Qt::Key_A, Qt::Key_D}, [this] { actAdd(); });
+        aSister   = mk("Add sister (S)", {Qt::Key_S}, [this] { actAdd(true); });
         aEdit     = mk("Edit (E)", {Qt::Key_E, Qt::Key_R}, [this] { actEdit(); });
         aCollapse = mk("Collapse (C)", {Qt::Key_C}, [this] { actCollapse(); });
         aColor    = mk("Colour… (K)", {Qt::Key_K}, [this] { actColor(); });
@@ -1963,7 +1964,7 @@ public:
         viewMenu->addSeparator();
         viewMenu->addAction(mk("Fit view", {Qt::Key_Home}, [this] { canvas->fitView(); }));
 
-        panel = new InfoPanel(&model, {aAdd, aEdit, aCollapse, aColor, aFocus, aCut, aPaste, aDelete});
+        panel = new InfoPanel(&model, {aAdd, aSister, aEdit, aCollapse, aColor, aFocus, aCut, aPaste, aDelete});
         auto dock = new QDockWidget("Clade", this);
         dock->setWidget(panel);
         dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -2036,7 +2037,7 @@ private:
     InfoPanel* panel = nullptr;
     QLabel* hud = new QLabel;
     QMenu* recentMenu = nullptr;
-    QAction *aAdd, *aEdit, *aCollapse, *aColor, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs, *aExport;
+    QAction *aAdd, *aSister, *aEdit, *aCollapse, *aColor, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs, *aExport;
     QAction *aLabelsOver, *aLabelsBeside, *aDark, *aPalette = nullptr;
     std::vector<QAction*> styleActs;  // indexed by Layout::Style
 
@@ -2044,7 +2045,7 @@ private:
     void select(const QString& id) { canvas->selId = id; refresh(); }
 
     void fillCladeMenu(QMenu* m, QAction* extra = nullptr) {
-        m->addActions({aAdd, aEdit, aCollapse, aColor, aFocus});
+        m->addActions({aAdd, aSister, aEdit, aCollapse, aColor, aFocus});
         if (extra) m->addAction(extra);
         m->addSeparator();
         m->addActions({aCut, aPaste});
@@ -2327,6 +2328,7 @@ private:
         aCollapse->setEnabled(s && !s->kids.empty());
         aCollapse->setText(s && s->collapsed ? "Expand (C)" : "Collapse (C)");
         aDelete->setEnabled(s && s->parent);
+        aSister->setEnabled(s && s->parent);
         aCut->setEnabled(s && s->parent);
         aPaste->setEnabled(s && cut && !cut->contains(s));
         aSaveAs->setEnabled(model.isOpen());
@@ -2503,11 +2505,12 @@ private:
         return NewClade{nameEdit->text().trimmed(), infoEdit->toPlainText(), next};
     }
 
-    // Adds clades until the user stops; each is its own undo step.
-    void actAdd() {
+    // Adds clades until the user stops; each is its own undo step. sister:
+    // start with a sister of the selection instead of a daughter.
+    void actAdd(bool sister = false) {
         Node* n = sel();
-        if (!n) return;
-        QString parentId = n->id;
+        if (!n || (sister && !n->parent)) return;
+        QString parentId = sister ? n->parent->id : n->id;
         for (;;) {
             Node* p = model.find(parentId);
             if (!p) return;

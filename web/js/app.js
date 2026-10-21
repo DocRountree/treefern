@@ -137,7 +137,8 @@ function updateHud() {
 
 // ---------------------------------------------------------------- panel
 const ACTIONS = [
-    { id: 'add', label: 'Add child', key: 'A', run: () => actAdd(), ok: n => !!n },
+    { id: 'add', label: 'Add child', key: 'A / D', run: () => actAdd(), ok: n => !!n },
+    { id: 'sister', label: 'Add sister', key: 'S', run: () => actAdd(true), ok: n => !!n && !!n.parent },
     { id: 'edit', label: 'Edit', key: 'E', run: () => actEdit(), ok: n => !!n },
     { id: 'collapse', label: n => n && n.collapsed ? 'Expand' : 'Collapse', key: 'C', run: () => actCollapse(), ok: n => !!n && n.kids.length > 0 },
     { id: 'color', label: 'Colour…', key: 'K', run: () => actColor(), ok: n => !!n },
@@ -322,10 +323,12 @@ $('editDlg').addEventListener('keydown', e => {
 // after an undo in another tab; re-look it up by id like the desktop app.
 // Adds clades until the user stops: Enter continues with a daughter of the
 // clade just added, Tab with a sister of it. Each clade is its own undo step.
-async function actAdd() {
+// sister: start with a sister of the selection instead of a daughter.
+async function actAdd(sister = false) {
     const n = sel();
     if (!n) return;
-    let parentId = n.id;
+    if (sister && !n.parent) return setStatus('The root clade cannot have sisters', true);
+    let parentId = sister ? n.parent.id : n.id;
     for (;;) {
         let p = doc.find(parentId);
         if (!p) return;
@@ -835,7 +838,7 @@ const MENUS = {
         { label: 'Labels over nodes', checked: !view.labelsBeside, run: () => setBeside(false) },
         { label: 'Labels beside nodes', key: 'L', checked: view.labelsBeside, run: () => setBeside(true) },
         { sep: true },
-        { label: 'Dark mode', key: 'D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
+        { label: 'Dark mode', key: 'Shift+D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
         { sep: true },
         { label: 'Fit whole tree', key: 'Home', run: () => view.fitView() },
         { label: 'Zoom in', run: () => view.zoomAt(1.6) },
@@ -1071,7 +1074,7 @@ addEventListener('keydown', e => {
     }
     if (typing || e.altKey) return;
     const plain = {
-        a: actAdd, e: actEdit, r: actEdit, c: actCollapse, k: actColor,
+        a: actAdd, s: () => actAdd(true), e: actEdit, r: actEdit, c: actCollapse, k: actColor,
         f: () => { const n = sel(); if (n) view.focusOn(n); },
         x: actCut, v: actPaste, Delete: actDelete, Backspace: actDelete,
         Escape: () => {
@@ -1083,7 +1086,7 @@ addEventListener('keydown', e => {
         Home: () => view.fitView(),
         1: () => setStyle(STANDARD), 2: () => setStyle(DISKS),
         l: () => setBeside(!view.labelsBeside),
-        d: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark'),
+        d: e.shiftKey ? () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') : actAdd,  // D: add a daughter
         '/': focusSearch, '?': () => $('helpDlg').showModal(),
         '+': () => tune(l => { l.spread = Math.min(340 * DEG, l.spread + 10 * DEG); }),
         '=': () => tune(l => { l.spread = Math.min(340 * DEG, l.spread + 10 * DEG); }),
