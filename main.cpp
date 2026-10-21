@@ -23,6 +23,10 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#ifdef Q_OS_UNIX
+#include <sys/resource.h>
+#include <unistd.h>
+#endif
 
 // ------------------------------------------------------------- config ---
 constexpr double PI = 3.14159265358979323846, DEG = PI / 180;
@@ -2211,7 +2215,24 @@ private:
     }
 };
 
+// Layout and painting recurse once per tree level, so an 8 MB stack overflows
+// around depth 10-30k. Re-exec once with a larger limit (reserved lazily).
+static void ensureBigStack(char** argv) {
+#ifdef Q_OS_UNIX
+    const rlim_t want = rlim_t(1) << 30;  // 1 GiB
+    rlimit rl;
+    if (getenv("TREEFERN_STACK") || getrlimit(RLIMIT_STACK, &rl) || rl.rlim_cur == RLIM_INFINITY || rl.rlim_cur >= want)
+        return;
+    rl.rlim_cur = rl.rlim_max == RLIM_INFINITY ? want : std::min(want, rl.rlim_max);
+    if (setrlimit(RLIMIT_STACK, &rl)) return;
+    setenv("TREEFERN_STACK", "1", 1);
+    execv("/proc/self/exe", argv);  // Linux; elsewhere fall back to argv[0]
+    execvp(argv[0], argv);          // on failure, carry on with the old limit
+#endif
+}
+
 int main(int argc, char** argv) {
+    ensureBigStack(argv);
     QApplication app(argc, argv);
     QCoreApplication::setOrganizationName("TreeFern");
     QCoreApplication::setApplicationName("TreeFern");
