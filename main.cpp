@@ -15,7 +15,8 @@
 //    a child or the parent while zooming; all other frames are derived from it,
 //    so coordinates stay in pixel range and zoom depth is effectively unlimited.
 //
-// File format: {"root": id, "nodes": [{id, parent?, name, info, collapsed}, …]}
+// File format: {"root": id, "nodes": [{id, parent?, name, info, collapsed, color?}, …]}
+// color is an optional "#rrggbb" that the clade's subtree inherits.
 
 #include <QSvgGenerator>
 #include <QtWidgets>
@@ -39,6 +40,12 @@ constexpr double DEFAULT_SPREAD = 120 * DEG, DEFAULT_SHRINK = 0.68;
 constexpr double ZOOM_STEP = 1.15, FAST_ZOOM_STEP = 2.0;
 constexpr int ANIM_MS = 380;  // relayout animation; camera flights take twice as long
 constexpr int MAX_LABELS = 400, MAX_RECENT = 10, MAX_SEARCH = 200;
+constexpr int CONFIRM_DELETE_OVER = 30;  // ask before deleting more clades than this
+// export
+constexpr int MAX_EXPORT_SIDE = 16384;          // px
+constexpr double MAX_EXPORT_PIXELS = 40e6;      // about 160 MB of image memory
+constexpr int MAX_SVG_CLADES = 20000;           // larger SVGs bring most viewers to a halt
+constexpr int SLOW_EXPORT_CLADES = 50000;
 // labels
 constexpr double LABEL_MIN_SCREEN_LEN = 35;  // disks: smaller discs get no label
 constexpr double LABEL_GAP = 2;              // min spacing between label boxes
@@ -119,6 +126,7 @@ static void applyPalette(const Theme& t) {
 struct Node {
     QString id, name, info;
     bool collapsed = false;
+    QString color;  // "#rrggbb" or empty: inherit
     std::vector<std::unique_ptr<Node>> kids;
     Node* parent = nullptr;
 
@@ -328,6 +336,11 @@ private:
         if (root_) root_->walk([this](Node* n) { index_[n->id] = n; });
     }
 
+    static QString readColor(const QString& c) {
+        static const QRegularExpression re("^#[0-9a-fA-F]{6}$");
+        return re.match(c).hasMatch() ? c.toLower() : QString();
+    }
+
     static std::unique_ptr<Node> detach(Node* n) {
         auto& v = n->parent->kids;
         auto it = std::find_if(v.begin(), v.end(), [n](auto& p) { return p.get() == n; });
@@ -352,7 +365,8 @@ private:
             byId[id] = recs.size();
             recs.push_back({std::unique_ptr<Node>(new Node{id, o.value("name").toString("Unnamed"),
                                                            o.value("info").toString(),
-                                                           o.value("collapsed").toBool(false)}),
+                                                           o.value("collapsed").toBool(false),
+                                                           readColor(o.value("color").toString())}),
                             o.value("parent").toString()});
         }
         const QString rootId = top.value("root").toString();
@@ -395,6 +409,7 @@ private:
             stack.pop_back();
             QJsonObject o{{"id", n->id}, {"name", n->name}, {"info", n->info}, {"collapsed", n->collapsed}};
             if (n->parent) o["parent"] = n->parent->id;
+            if (!n->color.isEmpty()) o["color"] = n->color;
             nodes.append(o);
             for (auto it = n->kids.rbegin(); it != n->kids.rend(); ++it) stack.push_back(it->get());
         }
@@ -854,7 +869,6 @@ public:
 
     Layout lay;  // target layout; what is drawn (shownLoc) animates towards it
     QString selId, cutId;
-    bool exporting = false;  // hides the usage hint
     LabelMode labelMode = LabelMode::Over;
 
     explicit Canvas(Model* m) : model(m) {
@@ -891,6 +905,7 @@ public:
     void relayout(bool animate = true) {
         fromLoc_ = animate ? shownLocById_ : QHash<QString, Local>();
         lay.compute(model->root());
+        computeTints();
         anim.stop();
         havePrev_ = false;
         shownLoc.clear();  // keys may dangle after a reload
@@ -902,7 +917,7 @@ public:
 
     void focusOn(const Node* n) {
         if (!n || !lay.loc.contains(n)) return;
-        double mag = std::min(width(), height()) * 0.42;
+        double mag = std::min(vw(), vh()) * 0.42;
         if (!disks()) {
             const auto f = screenFrame(n);
             mag = std::min(std::max(f ? std::abs(f->z) : 120.0, 120.0), mag / lay.extent(n));
@@ -914,8 +929,8 @@ public:
         if (!n || !lay.loc.contains(n)) return;
         const auto f = screenFrame(n);
         if (!f) return focusOn(n);
-        const double s = std::abs(f->z), lo = std::min(width(), height());
-        const bool inside = QRectF(rect()).adjusted(60, 60, -60, -60).contains(qpt(f->o));
+        const double s = std::abs(f->z), lo = std::min(vw(), vh());
+        const bool inside = vrect().adjusted(60, 60, -60, -60).contains(qpt(f->o));
         if (!inside || (disks() ? s < 30 || s > lo * 0.6 : s < 15)) focusOn(n);
     }
 
@@ -934,6 +949,40 @@ public:
         return z < 4 ? QString::number(std::pow(10.0, z), 'f', 2) + "x" : QString("10^%1x").arg(z, 0, 'f', 1);
     }
 
+    // Exports: the size in logical px of the view or the whole tree (fitted,
+    // with the view's long side), and the pixel factor, capped so the image
+    // can be allocated.
+    struct ExportSize { int w, h; double factor; int pw, ph; };
+    ExportSize exportSize(bool whole, double factor) const {
+        double w = width(), h = height();
+        if (whole) {
+            const double bw = std::max(lay.bbox.width(), 1e-9), bh = std::max(lay.bbox.height(), 1e-9), L = std::max(w, h);
+            std::tie(w, h) = bw >= bh ? std::pair(L, std::max(200.0, L * bh / bw)) : std::pair(std::max(200.0, L * bw / bh), L);
+        }
+        const int iw = int(std::lround(w)), ih = int(std::lround(h));
+        const double f = std::min({factor, MAX_EXPORT_SIDE / double(std::max(iw, ih)), std::sqrt(MAX_EXPORT_PIXELS / (double(iw) * ih))});
+        return {iw, ih, f, int(std::lround(iw * f)), int(std::lround(ih * f))};
+    }
+    // Clades an export would draw: every laid-out one for the whole tree, else those on screen.
+    int exportCount(bool whole) const { return whole ? lay.count() : int(items_.size()); }
+
+    // Paint at logical size w x h into p (which the caller scales), then
+    // restore the on-screen view.
+    void renderTo(QPainter& p, int w, int h, bool whole, bool transparent) {
+        const Cam savedCam = cam;
+        const QString savedHover = std::exchange(hoverId, QString());
+        vp_ = QSize(w, h);
+        exporting_ = true;
+        transparent_ = transparent;
+        if (whole) resetCam();
+        paint(p);
+        vp_ = QSize();
+        exporting_ = transparent_ = false;
+        cam = savedCam;
+        hoverId = savedHover;
+        update();  // items_ and hit areas are rebuilt by the next paint
+    }
+
 signals:
     void clicked(const QString& id);
     void doubleClicked(const QString& id);
@@ -941,9 +990,30 @@ signals:
     void viewChanged();
 
 protected:
-    void paintEvent(QPaintEvent*) override;
+    void paintEvent(QPaintEvent*) override {
+        QPainter p(this);
+        paint(p);
+    }
+
+    // A clade's info appears as a tooltip while the pointer rests on it.
+    bool event(QEvent* e) override {
+        if (e->type() != QEvent::ToolTip) return QWidget::event(e);
+        const auto he = static_cast<QHelpEvent*>(e);
+        const Node* n = hitTest(he->pos());
+        if (!n || n->info.trimmed().isEmpty()) {
+            QToolTip::hideText();
+            e->ignore();
+            return true;
+        }
+        QString info = n->info.trimmed();
+        if (info.size() > 600) info = info.left(600).trimmed() + "…";
+        QToolTip::showText(he->globalPos(), QString("<b>%1</b><br>%2").arg(n->name.toHtmlEscaped(),
+                           info.toHtmlEscaped().replace('\n', "<br>")), this);
+        return true;
+    }
 
     void mousePressEvent(QMouseEvent* e) override {
+        QToolTip::hideText();
         pressPos = lastPos = e->position();
         dragBtn = e->button();
         moved = false;
@@ -976,6 +1046,7 @@ protected:
         double notches = e->angleDelta().y() / 120.0;
         if (notches == 0 && fast) notches = e->angleDelta().x() / 120.0;  // some platforms turn Shift+wheel horizontal
         if (notches == 0) return;
+        QToolTip::hideText();
         following = false;
         zoomBy(std::pow(fast ? FAST_ZOOM_STEP : ZOOM_STEP, notches), e->position());
         update();
@@ -999,6 +1070,9 @@ private:
 
     Model* model;
     Cam cam;
+    QSize vp_;  // set while rendering an export: the viewport size used instead of the widget's
+    bool exporting_ = false, transparent_ = false;
+    QHash<const Node*, std::pair<QColor, int>> tint_;  // chosen colour and the depth of the clade that set it
     QHash<const Node*, Local> shownLoc;  // frames as drawn now
     // animation state is keyed by id: node pointers may have been freed by a reload
     QVariantAnimation anim, camAnim;
@@ -1017,7 +1091,35 @@ private:
     std::vector<std::pair<QRectF, QString>> labelHits;
 
     void viewUpdated() { update(); emit viewChanged(); }
-    C centre() const { return C(width() / 2.0, height() / 2.0); }
+    int vw() const { return vp_.isValid() ? vp_.width() : width(); }
+    int vh() const { return vp_.isValid() ? vp_.height() : height(); }
+    QRectF vrect() const { return QRectF(0, 0, vw(), vh()); }
+
+    void computeTints() {
+        tint_.clear();
+        if (!model->root()) return;
+        struct Step { const Node* n; std::optional<std::pair<QColor, int>> t; int depth; };
+        std::vector<Step> stack{{model->root(), std::nullopt, 0}};
+        while (!stack.empty()) {
+            auto [n, t, d] = stack.back();
+            stack.pop_back();
+            if (!n->color.isEmpty()) t = std::pair(QColor(n->color), d);
+            if (t) tint_.insert(n, *t);
+            for (auto& k : n->kids) stack.push_back({k.get(), t, d + 1});
+        }
+    }
+
+    // A clade's colour: its own or an ancestor's chosen hue at the theme's
+    // brightness, every other level a little darker so nesting stays visible.
+    // Uncoloured clades keep the depth colours.
+    QColor nodeColor(const Node* n, int d, double bright) const {
+        const auto it = tint_.constFind(n);
+        if (it == tint_.cend()) return depthColor(d, bright);
+        const QColor& c = it->first;
+        return QColor::fromHsvF(std::max(0.0f, c.hsvHueF()), c.hsvSaturationF(),
+                                std::min(1.0, T.val * bright) * ((d - it->second) % 2 ? 0.84 : 1.0));
+    }
+    C centre() const { return C(vw() / 2.0, vh() / 2.0); }
     const Node* anchorNode() const { return model->find(cam.anchor); }
     bool inCut(const Node* n) const { const Node* c = model->find(cutId); return c && c->contains(n); }
 
@@ -1034,14 +1136,14 @@ private:
     }
 
     bool covers(C c, double r) const {  // the circle contains the whole widget
-        for (QPointF q : {QPointF(0, 0), QPointF(width(), 0), QPointF(0, height()), QPointF(width(), height())})
+        for (QPointF q : {QPointF(0, 0), QPointF(vw(), 0), QPointF(0, vh()), QPointF(vw(), vh())})
             if (std::norm(cpx(q) - c) > r * r) return false;
         return true;
     }
 
     double fitScale() const {
         const double bw = std::max(lay.bbox.width(), 2.0), bh = std::max(lay.bbox.height(), 2.0);
-        return std::min(std::max(100.0, width() - FIT_MARGIN) / bw, std::max(100.0, height() - FIT_MARGIN) / bh);
+        return std::min(std::max(100.0, vw() - FIT_MARGIN) / bw, std::max(100.0, vh() - FIT_MARGIN) / bh);
     }
 
     void resetCam() {
@@ -1094,7 +1196,7 @@ private:
         if (camAnim.state() == QAbstractAnimation::Running) return;
         const Node* a = anchorNode();
         if (!a) return;
-        const double lo = std::max(1, std::min(width(), height())), hi = std::max(width(), height());
+        const double lo = std::max(1, std::min(vw(), vh())), hi = std::max(vw(), vh());
         for (int guard = 0; guard < 100000; ++guard) {
             const double R = std::abs(cam.f.z) * lay.extent(a);
             if (a->parent && R < lo * 0.25) {
@@ -1193,7 +1295,7 @@ private:
         const double err = std::remainder(want - std::arg(cam.f.z), 2 * PI);
         if (std::abs(err) < 1e-12) return;
         C pivot = centre();
-        if (const auto s = screenFrame(model->find(selId)); s && QRectF(rect()).contains(qpt(s->o))) pivot = s->o;
+        if (const auto s = screenFrame(model->find(selId)); s && vrect().contains(qpt(s->o))) pivot = s->o;
         const C rot = std::polar(1.0, err);
         cam.f = {pivot + rot * (cam.f.o - pivot), rot * cam.f.z};
     }
@@ -1219,8 +1321,8 @@ private:
         const double margin = disks() ? 0 : 100, minPx = disks() ? MIN_PX : 0.0;
         auto visible = [&](const Node* n, const Frame& f) {
             const double R = std::abs(f.z) * lay.extent(n);
-            return R >= minPx && f.o.real() + R > -margin && f.o.real() - R < width() + margin &&
-                   f.o.imag() + R > -margin && f.o.imag() - R < height() + margin;
+            return R >= minPx && f.o.real() + R > -margin && f.o.real() - R < vw() + margin &&
+                   f.o.imag() + R > -margin && f.o.imag() - R < vh() + margin;
         };
         // n plus all visible subtrees below it, except the one rooted at `skip`
         std::function<void(const Node*, const Frame&, int, const Node*)> down =
@@ -1253,7 +1355,11 @@ private:
     void updateHover(QPointF pos) {
         const Node* h = hitTest(pos);
         h ? setCursor(Qt::PointingHandCursor) : unsetCursor();
-        if (const QString id = h ? h->id : QString(); id != hoverId) { hoverId = id; update(); }
+        if (const QString id = h ? h->id : QString(); id != hoverId) {
+            hoverId = id;
+            QToolTip::hideText();
+            update();
+        }
     }
 
     // Disks: labels, then the smallest disc under the cursor. Standard: a node
@@ -1291,27 +1397,27 @@ private:
         return best;
     }
 
+    void paint(QPainter& p);
     std::vector<Seg> drawBranches(QPainter& p);
     void drawNodes(QPainter& p);
     void drawLabels(QPainter& p, const std::vector<Seg>& segs);
 };
 
-void Canvas::paintEvent(QPaintEvent*) {
-    QPainter p(this);
+void Canvas::paint(QPainter& p) {
     p.setRenderHint(QPainter::Antialiasing);
-    p.fillRect(rect(), T.bg);
+    if (!transparent_) p.fillRect(vrect(), T.bg);
     labelHits.clear();
     hitSegs_.clear();
     if (!model->isOpen()) {
         items_.clear();
         branches_.clear();
         p.setPen(T.dim);
-        p.drawText(rect(), Qt::AlignCenter, "No file open — use File ▸ Open or File ▸ New");
+        p.drawText(vrect(), Qt::AlignCenter, "No file open — use File ▸ Open or File ▸ New");
         return;
     }
     computeItems();
     const auto segs = drawBranches(p); drawNodes(p); drawLabels(p, segs);
-    if (selId.isEmpty() && !exporting) {
+    if (selId.isEmpty() && !exporting_) {
         p.setFont(font());
         p.setPen(T.dim);
         p.drawText(10, 20, "Click a node to select · wheel zoom (Shift = fast) · drag pan · "
@@ -1324,7 +1430,7 @@ void Canvas::paintEvent(QPaintEvent*) {
 std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
     std::vector<Seg> segs;
     if (disks()) return segs;
-    const QRectF view = QRectF(rect()).adjusted(-60, -60, 60, 60);
+    const QRectF view = vrect().adjusted(-60, -60, 60, 60);
     for (const Branch& br : branches_) {
         const QPointF a = qpt(br.pf.o), b = qpt(br.cf.o);
         const double ps = std::abs(br.pf.z);
@@ -1332,7 +1438,7 @@ std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
         const double m = std::max(wa, wb);
         const QPointF ctrl = a + qpt(br.pf.z / ps) * (QLineF(a, b).length() * STD_CURVE);
         if (!view.intersects(QPolygonF({a, b, ctrl}).boundingRect().adjusted(-m, -m, m, m))) continue;
-        const QColor col = inCut(br.child) ? T.cut.darker(140) : depthColor(br.depth, 0.7);
+        const QColor col = inCut(br.child) ? T.cut.darker(140) : nodeColor(br.child, br.depth, 0.7);
         const auto mid = drawTaper(p, a, ctrl, b, wa, wb, col, view);
         const double n = double(mid.size() - 1);
         for (size_t i = 0; i + 1 < mid.size(); ++i) {
@@ -1353,9 +1459,9 @@ void Canvas::drawNodes(QPainter& p) {
     const bool dk = disks();
     for (const Item& v : items_) {
         const bool cut = inCut(v.n);
-        const QColor fill = cut ? T.cut.darker(160) : depthColor(v.depth, dk ? 0.55 : 1.0);
-        if (covers(cpx(v.s), v.r)) { p.fillRect(rect(), fill); continue; }  // fills the view: skip the huge ellipse
-        p.setPen(QPen(cut ? T.cut : depthColor(v.depth, dk ? 1.0 : 0.65), std::clamp(v.r * (dk ? 0.02 : 0.12), 1.0, 3.0)));
+        const QColor fill = cut ? T.cut.darker(160) : nodeColor(v.n, v.depth, dk ? 0.55 : 1.0);
+        if (covers(cpx(v.s), v.r)) { p.fillRect(vrect(), fill); continue; }  // fills the view: skip the huge ellipse
+        p.setPen(QPen(cut ? T.cut : nodeColor(v.n, v.depth, dk ? 1.0 : 0.65), std::clamp(v.r * (dk ? 0.02 : 0.12), 1.0, 3.0)));
         p.setBrush(fill);
         p.drawEllipse(v.s, v.r, v.r);
     }
@@ -1379,7 +1485,7 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
     const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
     constexpr double padX = 5, padY = 2;
     static const double OFFS[] = {0, .45, -.45, .9, -.9, 1.4, -1.4, 2.0, -2.0, 2.5, -2.5, PI};
-    const QRectF view = QRectF(rect()), inner = view.adjusted(4, 4, -4, -4);
+    const QRectF view = vrect(), inner = view.adjusted(4, 4, -4, -4);
     const QRectF nearView = view.adjusted(-120, -120, 120, 120);
 
     // Uniform grid over branch pieces. Every rect a strict test can see lies in
@@ -1453,7 +1559,7 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
                 rr = std::min(v.r * 0.1, 12.0) + 2;
                 if (v.r > 200 && c.y() < 24 && v.s.y() + v.r > 80) {
                     c.setY(std::clamp(24.0, v.s.y() - v.r + 24.0, v.s.y()));
-                    c.setX(std::clamp(c.x(), 80.0, width() - 80.0));
+                    c.setX(std::clamp(c.x(), 80.0, vw() - 80.0));
                 }
             }
             if (!force && !nearView.contains(c)) return std::nullopt;
@@ -1513,7 +1619,7 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
         if (v.n == sel || v.branchPx >= minLen) cands.push_back(i);
     }
     auto priority = [&](const Item& v) {
-        const bool giantOffCenter = v.lenPx > std::max(width(), height()) * 1.2;
+        const bool giantOffCenter = v.lenPx > std::max(vw(), vh()) * 1.2;
         return std::make_tuple(v.n != sel, giantOffCenter, -lay.weight(v.n), v.depth, -v.lenPx);
     };
     std::sort(cands.begin(), cands.end(), [&](int a, int b) { return priority(items_[a]) < priority(items_[b]); });
@@ -1566,6 +1672,8 @@ public:
         f.setBold(true);
         title->setFont(f);
         title->setWordWrap(true);
+        crumbs->setWordWrap(true);
+        crumbs->setTextFormat(Qt::RichText);
         meta->setWordWrap(true);
         meta->setTextInteractionFlags(Qt::TextSelectableByMouse);
         kids->setMaximumHeight(160);
@@ -1583,6 +1691,7 @@ public:
         }
         auto nv = new QVBoxLayout(nodeBox);
         nv->setContentsMargins(0, 6, 0, 0);
+        nv->addWidget(crumbs);
         nv->addWidget(title);
         nv->addWidget(meta);
         nv->addLayout(grid);
@@ -1602,6 +1711,11 @@ public:
         connect(kids, &QListWidget::itemClicked, this,
                 [this](QListWidgetItem* it) { emit selectRequested(it->data(Qt::UserRole).toString()); });
         connect(up, &QPushButton::clicked, this, [this] { emit selectRequested(upId); });
+        connect(crumbs, &QLabel::linkActivated, this, [this](const QString& link) {
+            if (link != "more") return emit selectRequested(link);
+            crumbsOpen = shownId;
+            if (const Node* n = model->find(shownId)) setCrumbs(n);
+        });
         restyle();
         clearNode();
     }
@@ -1611,6 +1725,7 @@ public:
         meta->setStyleSheet(colorCss(T.dim));
         empty->setStyleSheet(colorCss(T.dim));
         up->setStyleSheet("text-align:left; " + colorCss(T.link));
+        if (const Node* n = model->find(shownId); n && nodeBox->isVisible()) setCrumbs(n);
     }
 
     void focusSearch() { search->setFocus(); search->selectAll(); }
@@ -1619,6 +1734,8 @@ public:
     void setNode(const Node* n) {
         empty->hide();
         nodeBox->show();
+        shownId = n->id;
+        setCrumbs(n);
         title->setText(n->name);
         meta->setText(QString("Depth: %1\nParent: %2\nDirect subclades: %3\nTotal descendants: %4\nID: %5")
                           .arg(n->depth()).arg(n->parent ? n->parent->name : "— (root)")
@@ -1629,6 +1746,27 @@ public:
         up->setVisible(n->parent);
         if (n->parent) up->setText("‹ up to " + n->parent->name);
         info->setPlainText(n->info);
+    }
+
+    // The clades above n, root first; a long trail folds its middle into a "…"
+    // link that unfolds it.
+    void setCrumbs(const Node* n) {
+        std::vector<const Node*> path;
+        for (const Node* a = n->parent; a; a = a->parent) path.insert(path.begin(), a);
+        if (crumbsOpen != n->id) crumbsOpen.clear();
+        const bool fold = crumbsOpen.isEmpty() && path.size() > 6;
+        const QString link = QString("<a href=\"%1\" style=\"color:%2; text-decoration:none\">%3</a>");
+        QStringList parts;
+        for (size_t i = 0; i < path.size(); ++i) {
+            if (fold && i == 1) {
+                parts << link.arg("more", T.link.name(), "…");
+                i = path.size() - 5;
+                continue;
+            }
+            parts << link.arg(path[i]->id, T.link.name(), path[i]->name.toHtmlEscaped());
+        }
+        crumbs->setText(parts.join(QString(" <span style=\"%1\">›</span> ").arg(colorCss(T.dim))));
+        crumbs->setVisible(!path.empty());
     }
 
     // Case-insensitive substring match, ranked exact > prefix > word start > anywhere,
@@ -1695,18 +1833,33 @@ private:
     QLineEdit* search = new QLineEdit;
     QListWidget* results = new QListWidget;
     QWidget* nodeBox = new QWidget;
+    QLabel* crumbs = new QLabel;
     QLabel* title = new QLabel;
     QLabel* meta = new QLabel;
     QLabel* empty = new QLabel("No clade selected — click a node, or search above.");
     QListWidget* kids = new QListWidget;
     QPushButton* up = new QPushButton;
     QTextBrowser* info = new QTextBrowser;
-    QString upId;
+    QString upId, shownId, crumbsOpen;  // crumbsOpen: the clade whose trail is unfolded
 
     void choose(QListWidgetItem* it) {
         if (!it) return;
         if (const QString id = it->data(Qt::UserRole).toString(); !id.isEmpty()) emit searchChosen(id);
     }
+};
+
+// Lets a dialog handle keys in a child widget before the widget does
+// (Tab, Enter, arrows). The handler returns true to consume the key.
+class KeyHook : public QObject {
+public:
+    explicit KeyHook(std::function<bool(QKeyEvent*)> f) : f_(std::move(f)) {}
+protected:
+    bool eventFilter(QObject* o, QEvent* e) override {
+        if (e->type() == QEvent::KeyPress && f_(static_cast<QKeyEvent*>(e))) return true;
+        return QObject::eventFilter(o, e);
+    }
+private:
+    std::function<bool(QKeyEvent*)> f_;
 };
 
 // -------------------------------------------------------- main window ---
@@ -1735,13 +1888,14 @@ public:
         recentMenu = fileMenu->addMenu("Open &Recent");
         connect(recentMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildRecentMenu);
         fileMenu->addAction(aSaveAs = mk("Save &As…", {QKeySequence("Ctrl+Shift+S")}, [this] { fileSaveAs(); }));
-        fileMenu->addAction(aExport = mk("&Export view…", {QKeySequence("Ctrl+E")}, [this] { fileExport(); }));
+        fileMenu->addAction(aExport = mk("&Export image…", {QKeySequence("Ctrl+E")}, [this] { fileExport(); }));
         fileMenu->addSeparator();
         fileMenu->addAction(mk("&Quit", {QKeySequence::Quit}, [this] { close(); }));
 
         aAdd      = mk("Add child (A)", {Qt::Key_A}, [this] { actAdd(); });
         aEdit     = mk("Edit (E)", {Qt::Key_E, Qt::Key_R}, [this] { actEdit(); });
         aCollapse = mk("Collapse (C)", {Qt::Key_C}, [this] { actCollapse(); });
+        aColor    = mk("Colour… (K)", {Qt::Key_K}, [this] { actColor(); });
         aFocus    = mk("Focus (F)", {Qt::Key_F}, [this] { if (auto n = sel()) canvas->focusOn(n); });
         aDelete   = mk("Delete (Del)", {Qt::Key_Delete, Qt::Key_Backspace}, [this] { actDelete(); });
         aCut      = mk("Cut subtree (X)", {Qt::Key_X, QKeySequence::Cut}, [this] { actCut(); });
@@ -1771,6 +1925,8 @@ public:
         QMenu* editMenu = menuBar()->addMenu("&Edit");
         editMenu->addAction(mk("&Undo", {QKeySequence::Undo}, [this] { undoRedo(model.undo()); }));
         editMenu->addAction(mk("&Redo", {QKeySequence::Redo, QKeySequence("Ctrl+Shift+Z")}, [this] { undoRedo(model.redo()); }));
+        editMenu->addSeparator();
+        editMenu->addAction(aPalette = mk("Command &palette…", {QKeySequence("Ctrl+K")}, [this] { openPalette(); }));
 
         QMenu* cladeMenu = menuBar()->addMenu("&Clade");
         fillCladeMenu(cladeMenu, aFind);
@@ -1807,7 +1963,7 @@ public:
         viewMenu->addSeparator();
         viewMenu->addAction(mk("Fit view", {Qt::Key_Home}, [this] { canvas->fitView(); }));
 
-        panel = new InfoPanel(&model, {aAdd, aEdit, aCollapse, aFocus, aCut, aPaste, aDelete});
+        panel = new InfoPanel(&model, {aAdd, aEdit, aCollapse, aColor, aFocus, aCut, aPaste, aDelete});
         auto dock = new QDockWidget("Clade", this);
         dock->setWidget(panel);
         dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
@@ -1880,15 +2036,15 @@ private:
     InfoPanel* panel = nullptr;
     QLabel* hud = new QLabel;
     QMenu* recentMenu = nullptr;
-    QAction *aAdd, *aEdit, *aCollapse, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs, *aExport;
-    QAction *aLabelsOver, *aLabelsBeside, *aDark;
+    QAction *aAdd, *aEdit, *aCollapse, *aColor, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs, *aExport;
+    QAction *aLabelsOver, *aLabelsBeside, *aDark, *aPalette = nullptr;
     std::vector<QAction*> styleActs;  // indexed by Layout::Style
 
     Node* sel() const { return model.find(canvas->selId); }
     void select(const QString& id) { canvas->selId = id; refresh(); }
 
     void fillCladeMenu(QMenu* m, QAction* extra = nullptr) {
-        m->addActions({aAdd, aEdit, aCollapse, aFocus});
+        m->addActions({aAdd, aEdit, aCollapse, aColor, aFocus});
         if (extra) m->addAction(extra);
         m->addSeparator();
         m->addActions({aCut, aPaste});
@@ -2018,36 +2174,117 @@ private:
         switched(model.create(p, std::move(tree)), "Cannot create file");
     }
 
-    // Export the current view as PNG (at 2x resolution) or SVG, chosen by extension.
+    // Export the view or the whole tree as PNG (saved or copied) or SVG. Image
+    // sizes are capped by Canvas::exportSize; SVGs too large to open are refused.
     void fileExport() {
         if (!model.isOpen()) return;
+        QSettings st;
+        QDialog dlg(this);
+        dlg.setWindowTitle("Export image");
+        auto group = [&](const char* title, QStringList labels, int checked) {
+            auto box = new QGroupBox(title);
+            auto row = new QHBoxLayout(box);
+            auto g = new QButtonGroup(box);
+            for (int i = 0; i < labels.size(); ++i) {
+                auto b = new QRadioButton(labels[i]);
+                g->addButton(b, i);
+                row->addWidget(b);
+            }
+            row->addStretch();
+            g->button(std::clamp(checked, 0, int(labels.size()) - 1))->setChecked(true);
+            return std::pair(box, g);
+        };
+        const auto [areaBox, area] = group("Area", {"Current view", "Whole tree"}, st.value("export/whole", false).toBool());
+        const auto [formatBox, format] = group("Format", {"PNG", "SVG"}, st.value("export/svg", false).toBool());
+        const auto [scaleBox, scale] = group("Resolution", {"1x", "2x", "4x"}, st.value("export/scale", 1).toInt());
+        auto transparent = new QCheckBox("Transparent background");
+        transparent->setChecked(st.value("export/transparent", false).toBool());
+        auto info = new QLabel;
+        info->setWordWrap(true);
+        info->setStyleSheet(colorCss(T.dim));
+        auto buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
+        QPushButton* save = buttons->addButton("Save…", QDialogButtonBox::AcceptRole);
+        QPushButton* copy = buttons->addButton("Copy to clipboard", QDialogButtonBox::ActionRole);
+        save->setDefault(true);
+        auto v = new QVBoxLayout(&dlg);
+        for (QWidget* w : std::initializer_list<QWidget*>{areaBox, formatBox, scaleBox, transparent, info, buttons}) v->addWidget(w);
+
+        const double factors[] = {1, 2, 4};
+        auto showInfo = [&] {
+            const bool whole = area->checkedId() == 1, svg = format->checkedId() == 1;
+            const int n = canvas->exportCount(whole);
+            scaleBox->setEnabled(!svg);
+            copy->setEnabled(!svg);
+            QString text;
+            bool ok = true;
+            if (svg && n > MAX_SVG_CLADES) {
+                text = QString("This would put %L1 clades in one SVG; most programs cannot open SVGs that large (the limit "
+                               "is %L2). Collapse some clades, zoom in, or export a PNG.").arg(n).arg(MAX_SVG_CLADES);
+                ok = false;
+            } else if (svg) {
+                const auto e = canvas->exportSize(whole, 1);
+                text = QString("%1 × %2, %L3 clades.").arg(e.w).arg(e.h).arg(n);
+            } else {
+                const double want = factors[scale->checkedId()];
+                const auto e = canvas->exportSize(whole, want);
+                text = QString("%L1 × %L2 pixels%3").arg(e.pw).arg(e.ph)
+                           .arg(e.factor < want - 1e-9 ? ", reduced to keep the image within memory." : ".");
+                if (n > SLOW_EXPORT_CLADES) text += QString(" Drawing %L1 clades may take a few seconds.").arg(n);
+            }
+            info->setText(text);
+            save->setEnabled(ok);
+        };
+        for (QButtonGroup* g : {area, format, scale}) connect(g, &QButtonGroup::idClicked, &dlg, showInfo);
+        connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        bool toClipboard = false;
+        connect(copy, &QPushButton::clicked, &dlg, [&] { toClipboard = true; dlg.accept(); });
+        showInfo();
+        if (dlg.exec() != QDialog::Accepted || !model.isOpen()) return;
+
+        const bool whole = area->checkedId() == 1, svg = format->checkedId() == 1 && !toClipboard;
+        const double factor = factors[scale->checkedId()];
+        st.setValue("export/whole", whole);
+        st.setValue("export/svg", format->checkedId() == 1);
+        st.setValue("export/scale", scale->checkedId());
+        st.setValue("export/transparent", transparent->isChecked());
+
         const QString base = QFileInfo(model.path).completeBaseName();
-        QString filter = "PNG image (*.png)";
-        QString p = QFileDialog::getSaveFileName(this, "Export view", startDir() + "/" + base + ".png",
-                                                 "PNG image (*.png);;SVG image (*.svg)", &filter);
-        if (p.isEmpty()) return;
-        const bool svg = filter.startsWith("SVG");
-        if (QFileInfo(p).suffix().isEmpty()) p += svg ? ".svg" : ".png";
-        canvas->exporting = true;
-        bool ok;
-        if (p.endsWith(".svg", Qt::CaseInsensitive)) {
+        QString p;
+        if (!toClipboard) {
+            p = QFileDialog::getSaveFileName(this, "Export image", startDir() + "/" + base + (svg ? ".svg" : ".png"),
+                                             svg ? "SVG image (*.svg)" : "PNG image (*.png)");
+            if (p.isEmpty()) return;
+            if (QFileInfo(p).suffix().isEmpty()) p += svg ? ".svg" : ".png";
+        }
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        bool ok = false;
+        if (svg) {
+            const auto e = canvas->exportSize(whole, 1);
             QSvgGenerator gen;
             gen.setFileName(p);
-            gen.setSize(canvas->size());
-            gen.setViewBox(canvas->rect());
+            gen.setSize(QSize(e.w, e.h));
+            gen.setViewBox(QRect(0, 0, e.w, e.h));
             gen.setTitle(base);
             QPainter painter;
-            ok = painter.begin(&gen);
-            if (ok) canvas->render(&painter);
+            if ((ok = painter.begin(&gen))) canvas->renderTo(painter, e.w, e.h, whole, transparent->isChecked());
             ok = painter.end() && ok;
         } else {
-            QImage img(canvas->size() * 2, QImage::Format_ARGB32);
-            img.setDevicePixelRatio(2);
-            canvas->render(&img);
-            ok = img.save(p);
+            const auto e = canvas->exportSize(whole, factor);
+            QImage img(e.pw, e.ph, QImage::Format_ARGB32_Premultiplied);
+            if (!img.isNull()) {
+                img.fill(Qt::transparent);
+                img.setDevicePixelRatio(e.factor);
+                QPainter painter(&img);
+                canvas->renderTo(painter, e.w, e.h, whole, transparent->isChecked());
+                painter.end();
+                if (toClipboard) QGuiApplication::clipboard()->setImage(img);
+                ok = toClipboard || img.save(p);
+            }
         }
-        canvas->exporting = false;
-        model.status = ok ? "Exported " + p : "Cannot write " + p;
+        QApplication::restoreOverrideCursor();
+        model.status = !ok ? (p.isEmpty() ? QString("Cannot make the image") : "Cannot write " + p)
+                     : toClipboard ? QString("Copied the image to the clipboard") : "Exported " + p;
         updateHud();
     }
 
@@ -2086,7 +2323,7 @@ private:
         if (!s) canvas->selId.clear();
         Node* cut = model.find(canvas->cutId);
         s ? panel->setNode(s) : panel->clearNode();
-        for (auto a : {aAdd, aEdit, aFocus}) a->setEnabled(s);
+        for (auto a : {aAdd, aEdit, aColor, aFocus}) a->setEnabled(s);
         aCollapse->setEnabled(s && !s->kids.empty());
         aCollapse->setText(s && s->collapsed ? "Expand (C)" : "Collapse (C)");
         aDelete->setEnabled(s && s->parent);
@@ -2118,20 +2355,217 @@ private:
         updateHud();
     }
 
+    // ---- command palette: every menu command, found by typing any part of its name
+    void openPalette() {
+        rebuildRecentMenu();
+        struct Cmd { QAction* a; QString label, group; };
+        std::vector<Cmd> cmds;
+        QSet<QAction*> seen;
+        std::function<void(QMenu*, const QString&)> collect = [&](QMenu* m, const QString& group) {
+            QString sub = group;
+            for (QAction* a : m->actions()) {
+                if (a->isSeparator()) {
+                    if (!a->text().isEmpty()) sub = group + " › " + a->text();  // a section
+                    continue;
+                }
+                const QString text = QString(a->text()).remove('&');
+                if (a->menu()) collect(a->menu(), group + " › " + text);
+                else if (!text.isEmpty() && a != aPalette && !seen.contains(a)) {
+                    seen.insert(a);
+                    cmds.push_back({a, text, sub});
+                }
+            }
+        };
+        for (QAction* top : menuBar()->actions())
+            if (top->menu()) collect(top->menu(), QString(top->text()).remove('&'));
+
+        QDialog dlg(this);
+        dlg.setWindowTitle("Command palette");
+        dlg.resize(560, 420);
+        auto input = new QLineEdit;
+        input->setPlaceholderText("Type a command…");
+        auto list = new QTreeWidget;
+        list->setColumnCount(3);
+        list->setHeaderHidden(true);
+        list->setRootIsDecorated(false);
+        list->setFocusPolicy(Qt::NoFocus);
+        auto v = new QVBoxLayout(&dlg);
+        v->addWidget(input);
+        v->addWidget(list, 1);
+
+        QAction* chosen = nullptr;
+        auto fill = [&] {
+            list->clear();
+            const QStringList words = input->text().trimmed().toLower().split(' ', Qt::SkipEmptyParts);
+            const QString q = words.join(' ');
+            struct Hit { std::tuple<bool, int, size_t> key; const Cmd* c; };
+            std::vector<Hit> hits;
+            for (size_t i = 0; i < cmds.size(); ++i) {
+                const QString label = cmds[i].label.toLower(), hay = label + ' ' + cmds[i].group.toLower();
+                if (!std::all_of(words.begin(), words.end(), [&](const QString& w) { return hay.contains(w); })) continue;
+                const int at = q.isEmpty() ? 0 : int(label.indexOf(q));
+                const int rank = at == 0 ? 0 : at > 0 && !label[at - 1].isLetterOrNumber() ? 1 : at > 0 ? 2 : 3;
+                hits.push_back({{!cmds[i].a->isEnabled(), rank, i}, &cmds[i]});
+            }
+            std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.key < b.key; });
+            for (const Hit& h : hits) {
+                auto it = new QTreeWidgetItem(list, {(h.c->a->isChecked() ? "✓ " : "") + h.c->label, h.c->group,
+                                                     h.c->a->shortcut().toString(QKeySequence::NativeText)});
+                it->setData(0, Qt::UserRole, QVariant::fromValue(static_cast<QObject*>(h.c->a)));
+                it->setForeground(1, T.dim);
+                it->setForeground(2, T.dim);
+                if (!h.c->a->isEnabled()) it->setDisabled(true);
+            }
+            for (int c = 0; c < 3; ++c) list->resizeColumnToContents(c);
+            for (int i = 0; i < list->topLevelItemCount(); ++i)
+                if (!list->topLevelItem(i)->isDisabled()) { list->setCurrentItem(list->topLevelItem(i)); break; }
+        };
+        auto choose = [&](QTreeWidgetItem* it) {
+            if (!it || it->isDisabled()) return;
+            chosen = qobject_cast<QAction*>(it->data(0, Qt::UserRole).value<QObject*>());
+            dlg.accept();
+        };
+        // Up/Down move through the list while typing; Enter runs the command.
+        KeyHook hook([&](QKeyEvent* e) {
+            const int k = e->key();
+            if (k == Qt::Key_Return || k == Qt::Key_Enter) { choose(list->currentItem()); return true; }
+            if (k != Qt::Key_Up && k != Qt::Key_Down) return false;
+            QTreeWidgetItem* it = list->currentItem();
+            do it = it ? (k == Qt::Key_Down ? list->itemBelow(it) : list->itemAbove(it)) : list->topLevelItem(0);
+            while (it && it->isDisabled());
+            if (it) list->setCurrentItem(it);
+            return true;
+        });
+        input->installEventFilter(&hook);
+        connect(input, &QLineEdit::textChanged, &dlg, fill);
+        connect(list, &QTreeWidget::itemActivated, &dlg, [&](QTreeWidgetItem* it) { choose(it); });
+        connect(list, &QTreeWidget::itemClicked, &dlg, [&](QTreeWidgetItem* it) { choose(it); });
+        fill();
+        input->setFocus();
+        if (dlg.exec() == QDialog::Accepted && chosen) chosen->trigger();
+    }
+
     // ---- clade actions
     // Dialogs run a nested event loop during which an external reload may
     // replace the tree, so nodes are re-looked-up by id afterwards.
+
+    enum class Next { Done, Daughter, Sister };
+    struct NewClade { QString name, info; Next next; };
+
+    // Name (and info) of one new clade. Enter in the name: add it, then a
+    // daughter of it; Tab: add it, then a sister; Ctrl+Enter or Add: add and stop.
+    // An empty name, Esc or Cancel stops.
+    std::optional<NewClade> askNewClade(const QString& parentName) {
+        QDialog dlg(this);
+        dlg.setWindowTitle("New clade");
+        dlg.resize(560, 380);
+        auto nameEdit = new QLineEdit;
+        auto infoEdit = new QPlainTextEdit;
+        infoEdit->setPlaceholderText("(no info)");
+        auto hint = new QLabel("Enter: add it, then a daughter of it   ·   Tab: add it, then a sister   ·   "
+                               "Ctrl+Enter or Add: add it and stop   ·   Esc: stop");
+        hint->setWordWrap(true);
+        hint->setStyleSheet(colorCss(T.dim));
+        auto buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
+        QPushButton* sister = buttons->addButton("Add, then a sister", QDialogButtonBox::ActionRole);
+        QPushButton* daughter = buttons->addButton("Add, then a daughter", QDialogButtonBox::ActionRole);
+        QPushButton* add = buttons->addButton("Add", QDialogButtonBox::AcceptRole);
+        for (QPushButton* b : {sister, daughter, add}) b->setAutoDefault(false);
+        auto form = new QVBoxLayout(&dlg);
+        form->addWidget(new QLabel(QString("New clade under '%1':").arg(parentName)));
+        form->addWidget(nameEdit);
+        form->addSpacing(6);
+        form->addWidget(new QLabel("Info:"));
+        form->addWidget(infoEdit, 1);
+        form->addWidget(hint);
+        form->addWidget(buttons);
+
+        Next next = Next::Done;
+        auto finish = [&](Next n) {
+            next = n;
+            nameEdit->text().trimmed().isEmpty() ? dlg.reject() : dlg.accept();
+        };
+        KeyHook hook([&](QKeyEvent* e) {
+            if (e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) return false;
+            if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) { finish(Next::Daughter); return true; }
+            if (e->key() == Qt::Key_Tab) { finish(Next::Sister); return true; }
+            return false;
+        });
+        nameEdit->installEventFilter(&hook);
+        connect(sister, &QPushButton::clicked, &dlg, [&] { finish(Next::Sister); });
+        connect(daughter, &QPushButton::clicked, &dlg, [&] { finish(Next::Daughter); });
+        connect(add, &QPushButton::clicked, &dlg, [&] { finish(Next::Done); });
+        connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        for (auto seq : {QKeySequence("Ctrl+Return"), QKeySequence("Ctrl+Enter")})
+            connect(new QShortcut(seq, &dlg), &QShortcut::activated, &dlg, [&] { finish(Next::Done); });
+        nameEdit->setFocus();
+        if (dlg.exec() != QDialog::Accepted) return std::nullopt;
+        return NewClade{nameEdit->text().trimmed(), infoEdit->toPlainText(), next};
+    }
+
+    // Adds clades until the user stops; each is its own undo step.
     void actAdd() {
         Node* n = sel();
         if (!n) return;
+        QString parentId = n->id;
+        for (;;) {
+            Node* p = model.find(parentId);
+            if (!p) return;
+            const auto r = askNewClade(p->name);
+            if (!r || !(p = model.find(parentId))) return;
+            Node* c = p->addChild(Node::make(r->name, r->info));
+            p->collapsed = false;
+            canvas->selId = c->id;
+            model.commit();
+            if (r->next == Next::Done) return;
+            if (r->next == Next::Daughter) parentId = c->id;
+        }
+    }
+
+    // A swatch menu by the cursor (over the tree) or the panel's Colour button.
+    void actColor() {
+        Node* n = sel();
+        if (!n) return;
         const QString id = n->id;
-        bool ok;
-        const QString name = QInputDialog::getText(this, "New clade", QString("New clade under '%1':").arg(n->name),
-                                                   QLineEdit::Normal, {}, &ok).trimmed();
-        if (!ok || name.isEmpty() || !(n = model.find(id))) return;
-        canvas->selId = n->addChild(Node::make(name))->id;
-        n->collapsed = false;
-        model.commit();
+        auto set = [this, id](const QString& c) {
+            Node* m = model.find(id);
+            if (!m || m->color == c) return;
+            m->color = c;
+            model.status = c.isEmpty() ? QString("'%1' uses %2 colours").arg(m->name, m->parent ? "its mother clade's" : "the default")
+                                       : QString("Coloured '%1'").arg(m->name);
+            model.commit();
+        };
+        static const std::pair<const char*, const char*> SWATCHES[] = {
+            {"Red", "#e5534b"}, {"Orange", "#e8913a"}, {"Yellow", "#d9c13b"}, {"Green", "#57ab5a"}, {"Teal", "#39b5a5"},
+            {"Blue", "#4f8fe0"}, {"Purple", "#9a6fe0"}, {"Pink", "#e06fb4"}, {"Brown", "#a0704a"}, {"Grey", "#8a8f99"}};
+        QMenu m;
+        for (const auto& [name, hex] : SWATCHES) {
+            QPixmap px(14, 14);
+            px.fill(Qt::transparent);
+            QPainter pp(&px);
+            pp.setRenderHint(QPainter::Antialiasing);
+            pp.setPen(T.dim);
+            pp.setBrush(QColor(hex));
+            pp.drawEllipse(QRectF(0.5, 0.5, 13, 13));
+            pp.end();
+            QAction* a = m.addAction(QIcon(px), name, this, [set, h = QString(hex)] { set(h); });
+            a->setCheckable(true);
+            a->setChecked(n->color == hex);
+        }
+        m.addSeparator();
+        m.addAction("Custom colour…", this, [this, set, id] {
+            const Node* cur = model.find(id);
+            const QColor c = QColorDialog::getColor(QColor(cur && !cur->color.isEmpty() ? cur->color : "#4f8fe0"), this, "Clade colour");
+            if (c.isValid()) set(c.name());
+        });
+        QAction* inherit = m.addAction(n->parent ? "Same as mother clade" : "Default colours", this, [set] { set({}); });
+        inherit->setCheckable(true);
+        inherit->setChecked(n->color.isEmpty());
+        QPoint at = QCursor::pos();
+        if (!canvas->underMouse())
+            for (auto b : panel->findChildren<QToolButton*>())
+                if (b->defaultAction() == aColor && b->isVisible()) at = b->mapToGlobal(b->rect().bottomLeft());
+        m.exec(at);
     }
 
     void actEdit() {
@@ -2185,6 +2619,17 @@ private:
     void actDelete() {
         Node* n = sel();
         if (!n) return;
+        if (const int inside = n->countDesc(); n->parent && inside + 1 > CONFIRM_DELETE_OVER) {
+            const QString id = n->id;
+            QMessageBox box(QMessageBox::Warning, "Delete clades", QString("Delete '%1'?").arg(n->name),
+                            QMessageBox::Cancel, this);
+            box.setInformativeText(QString("This deletes %1 clades: '%2' and the %3 inside it. You can undo it with Ctrl+Z.")
+                                       .arg(inside + 1).arg(n->name).arg(inside));
+            QPushButton* del = box.addButton("Delete", QMessageBox::DestructiveRole);
+            box.setDefaultButton(QMessageBox::Cancel);
+            box.exec();
+            if (box.clickedButton() != del || !(n = model.find(id))) return;
+        }
         const QString parentId = n->parent ? n->parent->id : QString();
         const QString err = model.removeSubtree(n);
         if (err.isEmpty()) canvas->selId = parentId;

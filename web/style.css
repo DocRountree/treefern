@@ -129,6 +129,11 @@ button { cursor: pointer; }
 .results li.cur, .results li:hover { background: var(--btn); }
 .results li.inert { cursor: default; color: var(--dim); background: none; }
 .empty { color: var(--dim); }
+.crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; font-size: 12px; color: var(--dim); margin-top: 2px; }
+.crumbs:empty { display: none; }
+.crumbs button { background: none; border: 0; padding: 1px 2px; color: var(--link); border-radius: 4px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.crumbs button:hover { background: var(--btn); }
+.crumbs .sep { opacity: .7; }
 #details h2 { margin: 2px 0 8px; color: var(--accent); font-size: 20px; line-height: 1.25; overflow-wrap: anywhere; }
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .actions button {
@@ -163,6 +168,9 @@ button { cursor: pointer; }
 .menu-pop button:hover:not(:disabled), .menu-pop button:focus-visible { background: var(--btn); outline: none; }
 .menu-pop button:disabled { opacity: .4; cursor: default; }
 .menu-pop .check { width: 14px; color: var(--accent); }
+/* rendered (not display:none) so browsers will open its picker, anchored where the colour menu was */
+.color-input { position: fixed; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.menu-pop .swatch { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
 .menu-pop .key { margin-left: auto; color: var(--dim); font-size: 12px; padding-left: 16px; }
 .menu-pop .danger { color: var(--danger); }
 
@@ -171,6 +179,15 @@ button { cursor: pointer; }
   padding: 8px 14px; border-radius: 8px; background: var(--chrome-2); border: 1px solid var(--line);
   box-shadow: var(--shadow); max-width: calc(100vw - 32px);
 }
+
+/* hover note */
+.tip {
+  position: fixed; z-index: 25; max-width: min(360px, calc(100vw - 24px)); max-height: 40vh; overflow: hidden;
+  padding: 8px 10px; border-radius: 8px; pointer-events: none;
+  background: var(--chrome-2); border: 1px solid var(--line); box-shadow: var(--shadow);
+  font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.tip b { display: block; color: var(--accent); margin-bottom: 2px; }
 
 /* ---- dialogs */
 dialog {
@@ -192,6 +209,19 @@ dialog input:focus, dialog textarea:focus { border-color: var(--link); }
 .dlg-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 .dlg-buttons button { padding: 8px 16px; border-radius: 8px; border: 0; background: var(--btn); }
 .dlg-buttons button.primary { background: #3a5ca0; color: #fff; }
+.dlg-buttons button.danger-btn { background: #b8403f; }
+.dlg-buttons button:disabled { opacity: .45; cursor: default; }
+.confirm-text { margin: 0; }
+.choice { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.choice legend { color: var(--dim); font-size: 13px; padding: 0; margin-bottom: 4px; width: 100%; }
+dialog .choice label, dialog .check-row { flex-direction: row; align-items: center; gap: 6px; color: var(--fg); font-size: 14px; }
+dialog input[type="radio"], dialog input[type="checkbox"] { padding: 0; margin: 0; accent-color: #3a5ca0; }
+.palette { width: min(600px, calc(100vw - 24px)); margin-top: 12vh; }
+.palette form { padding: 10px; gap: 6px; }
+.palette-list { max-height: min(420px, 60vh); margin: 0; border: 0; padding: 0; background: none; }
+.palette-list .key { float: right; color: var(--dim); font-size: 12px; margin-left: 12px; }
+.palette-list .grp { color: var(--dim); font-size: 12px; margin-left: 8px; }
+.palette-list li.off { opacity: .45; }
 .help { width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 32px); }
 .help h3 { margin: 10px 0 2px; font-size: 14px; }
 .help p { margin: 0; }
