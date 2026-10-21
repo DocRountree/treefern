@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TreeFern - cladogram and phylogenetic tree editor</title>
+<meta name="description" content="TreeFern is a free, open-source cladogram and phylogenetic tree editor. Open a sample tree of life or your own JSON file, then browse, zoom and edit it in your browser, on desktop or phone.">
+<meta name="theme-color" content="#0e111a">
+<meta property="og:title" content="TreeFern - cladogram and phylogenetic tree editor">
+<meta property="og:description" content="Browse, zoom and edit cladograms in your browser. Free and open source.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://docrountree.github.io/treefern/social-preview.png">
+<meta property="og:url" content="https://docrountree.github.io/treefern/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://docrountree.github.io/treefern/">
+<link rel="icon" href="treefern.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="https://github.com/DocRountree/treefern" target="_blank" rel="noopener" title="TreeFern on GitHub">
+    <img src="treefern.svg" alt="" width="28" height="28"><span>TreeFern</span>
+  </a>
+  <span id="docName" class="doc-name" title="Current cladogram"></span>
+  <nav class="menus" id="menus"></nav>
+  <div class="bar-actions">
+    <button class="icon-btn" id="undoBtn" title="Undo (Ctrl+Z)" aria-label="Undo">
+      <svg viewBox="0 0 24 24"><path d="M9 7H4V2M4.5 7A8 8 0 1 1 4 13"/></svg>
+    </button>
+    <button class="icon-btn" id="redoBtn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+      <svg viewBox="0 0 24 24"><path d="M15 7h5V2M19.5 7A8 8 0 1 0 20 13"/></svg>
+    </button>
+    <button class="icon-btn" id="fitBtn" title="Fit the whole tree (Home)" aria-label="Fit view">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+    <button class="icon-btn" id="menuBtn" title="Menu" aria-label="Menu">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="stage">
+  <canvas id="tree" aria-label="Cladogram view"></canvas>
+  <div id="hint" class="hint"></div>
+  <div id="hud" class="hud"></div>
+  <div class="zoom-btns">
+    <button class="icon-btn" id="zoomIn" aria-label="Zoom in" title="Zoom in">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="icon-btn" id="zoomOut" aria-label="Zoom out" title="Zoom out">
+      <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
+    </button>
+  </div>
+  <div id="dropZone" class="drop-zone" hidden>Drop a cladogram .json file to open it</div>
+</main>
+
+<aside id="panel" class="panel">
+  <button id="sheetHandle" class="sheet-handle" aria-label="Expand or collapse the clade panel"><span></span></button>
+  <div class="search">
+    <input id="search" type="search" placeholder="Search clades by name  (Ctrl+F)" autocomplete="off" spellcheck="false">
+    <ul id="results" class="results" hidden></ul>
+  </div>
+  <div id="empty" class="empty">No clade selected. Tap or click a node, or search above.</div>
+  <section id="details" hidden>
+    <h2 id="title"></h2>
+    <div class="actions" id="actions"></div>
+    <div class="more">
+      <p id="meta" class="meta"></p>
+      <button id="upBtn" class="link-btn"></button>
+      <h3>Subclades</h3>
+      <ul id="kids" class="kids"></ul>
+      <h3>Info</h3>
+      <div id="info" class="info"></div>
+    </div>
+  </section>
+</aside>
+
+<div id="menuPop" class="menu-pop" hidden role="menu"></div>
+<div id="toast" class="toast" hidden></div>
+
+<dialog id="editDlg">
+  <form method="dialog" id="editForm">
+    <h2 id="editTitle">Edit clade</h2>
+    <label>Name <input id="editName" required autocomplete="off"></label>
+    <label id="editInfoRow">Info <textarea id="editInfo" rows="7" placeholder="(no info)"></textarea></label>
+    <p class="dlg-hint">Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.</p>
+    <div class="dlg-buttons">
+      <button type="button" id="editCancel">Cancel</button>
+      <button value="ok" class="primary" id="editOk">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="helpDlg" class="help">
+  <form method="dialog">
+    <h2>Using TreeFern</h2>
+    <p>TreeFern opens cladograms stored as JSON files. Try one of the samples from the menu, or open your own file. Your edits are kept in this browser; use <b>Save</b> or <b>Download</b> to write a .json file.</p>
+    <h3>Touch</h3>
+    <table>
+      <tr><td>Tap</td><td>Select a clade</td></tr>
+      <tr><td>Double-tap</td><td>Edit a clade</td></tr>
+      <tr><td>Long-press</td><td>Clade menu</td></tr>
+      <tr><td>Drag / pinch</td><td>Pan / zoom</td></tr>
+      <tr><td>Panel buttons</td><td>Add, edit, collapse, cut, paste, delete</td></tr>
+    </table>
+    <h3>Mouse</h3>
+    <table>
+      <tr><td>Click / double-click</td><td>Select / edit a clade</td></tr>
+      <tr><td>Right-click</td><td>Clade menu</td></tr>
+      <tr><td>Drag / wheel</td><td>Pan / zoom (Shift: faster)</td></tr>
+    </table>
+    <h3>Keyboard</h3>
+    <table>
+      <tr><td>A</td><td>Add a daughter clade</td></tr>
+      <tr><td>E or R</td><td>Edit name and info</td></tr>
+      <tr><td>C</td><td>Collapse or expand</td></tr>
+      <tr><td>Delete / Backspace</td><td>Delete the clade and its descendants</td></tr>
+      <tr><td>X, then V</td><td>Cut a subtree, paste it under the selected clade</td></tr>
+      <tr><td>Esc</td><td>Cancel a cut, or clear the selection</td></tr>
+      <tr><td>Ctrl+Z / Ctrl+Shift+Z</td><td>Undo / redo (also Ctrl+Y)</td></tr>
+      <tr><td>Arrow keys</td><td>Up: heaviest daughter. Down: mother. Left/Right: sisters</td></tr>
+      <tr><td>F / Home</td><td>Focus on the clade / fit the whole tree</td></tr>
+      <tr><td>Ctrl+F</td><td>Search</td></tr>
+      <tr><td>1 / 2</td><td>Standard / Disks layout</td></tr>
+      <tr><td>L / D</td><td>Labels over or beside nodes / dark mode</td></tr>
+      <tr><td>+ - [ ] , .</td><td>Spread, shrink and curl (Standard layout)</td></tr>
+      <tr><td>Ctrl+O / Ctrl+S</td><td>Open / save a file</td></tr>
+    </table>
+    <p class="dlg-hint">TreeFern is free software under the GNU GPL v3. Desktop versions for Windows and Linux are on <a href="https://github.com/DocRountree/treefern/releases/latest" target="_blank" rel="noopener">GitHub</a>.</p>
+    <div class="dlg-buttons"><button class="primary">Close</button></div>
+  </form>
+</dialog>
+
+<input type="file" id="fileInput" accept=".json,application/json" hidden>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

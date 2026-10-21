@@ -1,0 +1,42 @@
+name: Web app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'samples/**'
+      - 'packaging/treefern.svg'
+      - 'docs/social-preview.png'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble site
+        run: |
+          mkdir _site
+          cp -r web/. _site/
+          cp -r samples _site/
+          cp packaging/treefern.svg docs/social-preview.png _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+      - id: deployment
+        uses: actions/deploy-pages@v4
