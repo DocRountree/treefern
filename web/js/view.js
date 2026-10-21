@@ -3,9 +3,8 @@
 import {
     PI, C, add, sub, mul, scale, abs, norm, arg, polar, remainder, clamp, Local, Frame,
     compose, uncompose, finiteFrame, lerpZ, lerpLocal, easeOutCubic, easeInOutCubic,
-    mmul, mapply, minv, mrot, mtoZero, mOrigin, mDeriv0, mnormalize,
 } from './geom.js';
-import { Layout, DISKS, PYTHAGORAS, HYPERBOLIC, STD_NODE, STD_WIDTH, PY_W, HYP_EDGE, branchy } from './layout.js';
+import { Layout, STANDARD, DISKS, STD_NODE, STD_WIDTH } from './layout.js';
 import { hidesKids, depth as nodeDepth, contains, countDesc } from './model.js';
 
 const ANIM_MS = 380;            // relayout animation; camera flights take twice as long
@@ -21,9 +20,6 @@ const MIN_PX = 0.6;
 const FIT_MARGIN = 120;
 const CAM_MAX_SCALE = 1e9, CAM_MIN_ROOT_PX = 20, CAM_MAX_UP = 1e9;
 const LONG_PRESS_MS = 500, DOUBLE_TAP_MS = 320;
-const MORPH_MS = 900;            // switching between layouts
-const HYP_MIN_PX = 0.35;         // hyperbolic: cull subtrees whose nodes are smaller than this
-const HYP_UNIT = Math.tanh(HYP_EDGE / 2);  // Euclidean length of an edge at the disk centre
 export const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 
 export const THEMES = {
@@ -76,34 +72,6 @@ function anchoredRect(w, h, px, py, ux, uy) {
     return rectWH(Math.round(l), Math.round(t), w, h);
 }
 
-// Outline of a tapered quadratic branch a -> b (control c), widths wa -> wb.
-function taper(a, c, b, wa, wb, N = 12) {
-    const left = [], right = [];
-    for (let i = 0; i <= N; ++i) {
-        const t = i / N, u = 1 - t;
-        const p = { x: a.x * u * u + c.x * 2 * u * t + b.x * t * t, y: a.y * u * u + c.y * 2 * u * t + b.y * t * t };
-        let tx = (c.x - a.x) * 2 * u + (b.x - c.x) * 2 * t, ty = (c.y - a.y) * 2 * u + (b.y - c.y) * 2 * t;
-        let len = Math.hypot(tx, ty);
-        if (len < 1e-9) { tx = b.x - a.x; ty = b.y - a.y; len = Math.max(1e-9, Math.hypot(tx, ty)); }
-        const w = (wa + (wb - wa) * t) / 2;
-        left.push({ x: p.x - ty / len * w, y: p.y + tx / len * w });
-        right.push({ x: p.x + ty / len * w, y: p.y - tx / len * w });
-    }
-    return left.concat(right.reverse());
-}
-
-const mixPt = (a, b, t) => C(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
-
-// Andrew's monotone chain.
-function convexHull(pts) {
-    const p = [...pts].sort((a, b) => a.x - b.x || a.y - b.y);
-    const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-    const lo = [], hi = [];
-    for (const q of p) { while (lo.length >= 2 && cross(lo.at(-2), lo.at(-1), q) <= 0) lo.pop(); lo.push(q); }
-    for (const q of p.reverse()) { while (hi.length >= 2 && cross(hi.at(-2), hi.at(-1), q) <= 0) hi.pop(); hi.push(q); }
-    return lo.slice(0, -1).concat(hi.slice(0, -1));
-}
-
 export class TreeView {
     constructor(canvas, doc, handlers) {
         this.canvas = canvas;
@@ -118,11 +86,6 @@ export class TreeView {
         this.hoverId = '';
         this.showHint = true;
         this.cam = { anchor: '', f: Frame(C(0, 0), C(300, 0)) };
-        // hyperbolic camera: the anchor node's frame -> the unit disk (a Möbius map),
-        // and the disk's radius and centre on screen
-        this.hcam = { anchor: '', A: mrot(-PI / 2), R: 100 };  // the disk stays centred: see hD()
-        this.hAnim = null;     // hyperbolic flight {start, A0, q, turn}
-        this.morph = null;     // layout morph {start, from, to}
         this.shownLoc = new Map();
         this.shownLocById = new Map();
         this.fromLoc = null;
@@ -148,29 +111,6 @@ export class TreeView {
 
     // ---- public API
     disks() { return this.lay.style === DISKS; }
-    hyp() { return this.lay.style === HYPERBOLIC; }
-    py() { return this.lay.style === PYTHAGORAS; }
-
-    // Switch layout, morphing every visible node from where it is now.
-    setStyle(st) {
-        if (st === this.lay.style) return;
-        const from = this.doc.root && this.items.length ? this.snapshot() : null;
-        this.lay.style = st;
-        this.lay.compute(this.doc.root);
-        this.anim = this.camAnim = this.hAnim = null;
-        this.following = false;
-        this.fromLoc = null;
-        this.shownLoc = new Map();
-        this.shownLocById = new Map();
-        this.resetCam();
-        const n = this.doc.find(this.selId);  // keep the selection in view
-        if (n && this.lay.loc.has(n)) {
-            const f = this.screenFrame(n);
-            if (!f || !has(R(40, 40, this.width - 40, this.height - this.insetBottom - 40), f.o) || abs(f.z) < 12) this.focusNow(n);
-        }
-        if (from) this.startMorph(from);
-        else this.viewUpdated();
-    }
 
     resize() {
         const r = this.canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -181,25 +121,12 @@ export class TreeView {
         this.canvas.width = Math.round(w * dpr);
         this.canvas.height = Math.round(h * dpr);
         this.dpr = dpr;
-        if (!first) {  // keep the view centred
-            this.cam.f.o = add(this.cam.f.o, sub(this.centre(), oc));
-        }
+        if (!first) this.cam.f.o = add(this.cam.f.o, sub(this.centre(), oc));  // keep the view centred
         this.draw();
     }
 
     // Recompute the layout and animate from what is on screen now.
     relayout(animate = true) {
-        if (this.hyp()) {  // edits morph in screen space
-            const from = animate && this.items.length ? this.snapshot() : null;
-            this.lay.compute(this.doc.root);
-            this.anim = this.camAnim = null;
-            this.shownLoc = new Map();
-            this.shownLocById = new Map();
-            this.hFixAnchor();
-            if (from) this.startMorph(from, ANIM_MS * 1.4);
-            else this.draw();
-            return;
-        }
         this.fromLoc = animate && this.shownLocById.size ? this.shownLocById : null;
         this.lay.compute(this.doc.root);
         this.camAnim = null;
@@ -220,7 +147,6 @@ export class TreeView {
 
     focusOn(n) {
         if (!n || !this.lay.loc.has(n)) return;
-        if (this.hyp()) return this.hFocus(n);
         let mag = Math.min(this.width, this.height) * 0.42;
         if (!this.disks()) {
             const f = this.screenFrame(n);
@@ -246,7 +172,6 @@ export class TreeView {
 
     // Zoom relative to the fitted view, accumulated in log space to survive extreme depths.
     zoomText() {
-        if (this.hyp()) return (this.hcam.R / this.hDefaultR()).toFixed(2) + 'x';
         const a = this.anchorNode();
         if (!a) return '-';
         let z = Math.log10(abs(this.cam.f.z) / this.fitScale());
@@ -303,7 +228,6 @@ export class TreeView {
     }
 
     resetCam() {
-        if (this.hyp()) return this.hReset();
         this.camAnim = null;
         const r = this.doc.root;
         if (!r || !this.lay.loc.has(r)) return;
@@ -326,7 +250,6 @@ export class TreeView {
     }
 
     screenFrame(n) {
-        if (this.hyp()) { const m = this.hMatrix(n); return m ? this.hFrame(m) : null; }
         const a = this.anchorNode();
         if (!a || !n || !this.lay.loc.has(n)) return null;
         let l = a;
@@ -341,14 +264,13 @@ export class TreeView {
 
     stemFrom(n, f) {
         if (n.parent) return uncompose(f, this.sloc(n));
-        if (branchy(this.lay.style)) return Frame(sub(f.o, f.z), f.z);
+        if (this.lay.style === STANDARD) return Frame(sub(f.o, f.z), f.z);
         return null;
     }
 
     // Move the anchor up while its subtree is small on screen, and down into the
     // child under the view centre while that child is big.
     reanchor() {
-        if (this.hyp()) return this.hReanchor();
         if (this.camAnim) return;
         let a = this.anchorNode();
         if (!a) return;
@@ -389,25 +311,13 @@ export class TreeView {
         this.viewUpdated();
     }
 
-    // Pan by d; `at` is where the pointer is now (hyperbolic pans need both ends).
-    panBy(d, at = null) {
-        if (this.hyp()) {
-            const to = at || add(this.centre(), d);
-            this.hAnim = null;
-            return this.hPan(sub(to, d), to);
-        }
+    panBy(d) {
         this.camAnim = null;
         this.cam.f = Frame(add(this.cam.f.o, d), this.cam.f.z);
         this.reanchor();
     }
 
     zoomBy(f, p) {
-        if (this.hyp()) {
-            // the disk stays centred and grows about its centre; drag slides the tree in it
-            const d = this.hDefaultR();
-            this.hcam.R = clamp(this.hcam.R * f, d * 0.6, d * 4);
-            return;
-        }
         this.camAnim = null;
         const s = abs(this.cam.f.z);
         if (s * f > CAM_MAX_SCALE) f = CAM_MAX_SCALE / s;
@@ -445,7 +355,7 @@ export class TreeView {
 
     // The view never rotates: counter-rotate the camera after a relayout.
     levelCamera() {
-        if (this.camAnim || this.hyp()) return;
+        if (this.camAnim) return;
         const a = this.anchorNode();
         if (!a) return;
         let want = 0;
@@ -475,20 +385,7 @@ export class TreeView {
                 if (t >= 1) { this.camAnim = null; this.reanchor(); }
                 this.viewUpdated();
             }
-            if (this.hAnim) {
-                const { start, A0, q, turn } = this.hAnim;
-                const t = Math.min(1, (now - start) / (2 * ANIM_MS)), e = easeInOutCubic(t);
-                const r = abs(q);
-                const c = r < 1e-12 ? C(0) : scale(q, Math.tanh(e * Math.atanh(Math.min(r, 1 - 1e-15))) / r);
-                this.hcam.A = mnormalize(mmul(mrot(turn * e), mmul(mtoZero(c), A0)));
-                if (t >= 1) { this.hAnim = null; this.hReanchor(); }
-                this.viewUpdated();
-            }
-            if (this.morph) {
-                if (now - this.morph.start >= this.morph.ms) this.morph = null;
-                this.viewUpdated();
-            }
-            if (this.anim || this.camAnim || this.hAnim || this.morph) requestAnimationFrame(step);
+            if (this.anim || this.camAnim) requestAnimationFrame(step);
             else this.looping = false;
         };
         requestAnimationFrame(step);
@@ -497,20 +394,18 @@ export class TreeView {
     // ---- visible items
     makeItem(n, f, d) {
         const s = abs(f.z), leaf = hidesKids(n);
-        const r = this.disks() ? s : this.py() ? Math.max(3, s * PY_W)
-                : leaf ? Math.max(3, s * STD_NODE) : Math.max(3.5, s * STD_WIDTH * 0.65);
+        const r = this.disks() ? s : leaf ? Math.max(3, s * STD_NODE) : Math.max(3.5, s * STD_WIDTH * 0.65);
         let len = s;
-        if (branchy(this.lay.style) && leaf && n.parent) {
+        if (!this.disks() && leaf && n.parent) {
             const L = this.sloc(n);
             if (abs(L.z) > 0) len = s / abs(L.z) * abs(L.o);
         }
-        return { n, f, s: f.o, r, lenPx: s, angle: arg(f.z) + this.sloc(n).dir, depth: d, branchPx: len };
+        return { n, s: f.o, r, lenPx: s, angle: arg(f.z) + this.sloc(n).dir, depth: d, branchPx: len };
     }
 
     computeItems() {
         this.items = [];
         this.branches = [];
-        if (this.hyp()) return this.hComputeItems();
         const A = this.anchorNode();
         if (!A || !this.lay.loc.has(A)) return;
         const margin = this.disks() ? 0 : 100, minPx = this.disks() ? MIN_PX : 0;
@@ -561,25 +456,10 @@ export class TreeView {
         this.labelHits = [];
         this.hitSegs = [];
         if (!this.doc.root) { this.items = []; this.branches = []; return; }
-        if (this.morph) return this.renderMorph();
         this.computeItems();
-        if (this.hyp()) this.drawDisk(1);
-        const segs = this.py() ? this.drawBlocks() : this.drawBranches();
+        const segs = this.drawBranches();
         this.drawNodes();
         this.drawLabels(segs);
-    }
-
-    drawDisk(alpha) {
-        const ctx = this.ctx, r = this.hcam.R, D = this.hD(), dark = this.theme.dark;
-        ctx.globalAlpha = alpha;
-        ctx.beginPath();
-        ctx.arc(D.x, D.y, r, 0, 2 * PI);
-        ctx.fillStyle = dark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.025)';
-        ctx.fill();
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = dark ? 'rgba(130,140,160,0.35)' : 'rgba(105,113,130,0.35)';
-        ctx.stroke();
-        ctx.globalAlpha = 1;
     }
 
     drawBranches() {
@@ -589,7 +469,7 @@ export class TreeView {
         for (const br of this.branches) {
             const a = br.pf.o, b = br.cf.o, ps = abs(br.pf.z);
             const wa = Math.max(1, ps * STD_WIDTH), wb = Math.max(1, abs(br.cf.z) * STD_WIDTH), m = Math.max(wa, wb);
-            const ctrl = br.ctrl || add(a, scale(br.pf.z, Math.hypot(b.x - a.x, b.y - a.y) * STD_CURVE / ps));
+            const ctrl = add(a, scale(br.pf.z, Math.hypot(b.x - a.x, b.y - a.y) * STD_CURVE / ps));
             const bb = R(Math.min(a.x, b.x, ctrl.x) - m, Math.min(a.y, b.y, ctrl.y) - m,
                          Math.max(a.x, b.x, ctrl.x) + m, Math.max(a.y, b.y, ctrl.y) + m);
             if (!hits(view, bb)) continue;
@@ -627,7 +507,7 @@ export class TreeView {
 
     drawNodes() {
         const ctx = this.ctx, dk = this.disks(), t = this.theme;
-        for (const v of this.py() ? [] : this.items) {
+        for (const v of this.items) {
             const cut = this.inCut(v.n);
             const fill = cut ? darker(t.cut, 160) : this.depthColor(v.depth, dk ? 0.55 : 1);
             if (this.covers(v.s, v.r)) { ctx.fillStyle = css(fill); ctx.fillRect(0, 0, this.width, this.height); continue; }
@@ -699,8 +579,8 @@ export class TreeView {
     }
 
     // Greedy placement, selection first, then well-sized clades (see the desktop app).
-    drawLabels(segs, dk = this.disks()) {
-        const ctx = this.ctx, t = this.theme, beside = this.labelsBeside;
+    drawLabels(segs) {
+        const ctx = this.ctx, t = this.theme, dk = this.disks(), beside = this.labelsBeside;
         const sel = this.doc.find(this.selId), cutN = this.doc.find(this.cutId), hov = this.doc.find(this.hoverId);
         const padX = 5, padY = 2;
         const OFFS = [0, .45, -.45, .9, -.9, 1.4, -1.4, 2.0, -2.0, 2.5, -2.5, PI];
@@ -851,277 +731,6 @@ export class TreeView {
         }
     }
 
-    // ---- pythagoras: every clade is a square ending at its fork; the convex
-    // hull of a square's top edge and its children's bottom edges joins them
-    // (the "triangle" of a Pythagoras tree, for any number of children). All of
-    // it stays inside the circles the layout reserves, so subtrees never meet.
-    drawBlocks() {
-        const ctx = this.ctx, segs = [], view = R(-60, -60, this.width + 60, this.height + 60);
-        const fill = (pts, col) => {
-            ctx.beginPath();
-            pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-            ctx.closePath();
-            ctx.fillStyle = css(col);
-            ctx.fill();
-        };
-        const colour = (n, d, b) => this.inCut(n) ? darker(this.theme.cut, 140) : this.depthColor(d, b);
-        // square of item v: top edge centred on its fork, facing its growth direction
-        const sq = new Map();
-        for (const v of this.items) {
-            const half = Math.max(0.6, PY_W * abs(v.f.z)), u = scale(v.f.z, 1 / abs(v.f.z));
-            const nrm = scale(C(-u.y, u.x), half), base = sub(v.s, scale(u, 2 * half));
-            sq.set(v.n, { v, half, top: [add(v.s, nrm), sub(v.s, nrm)], bottom: [sub(base, nrm), add(base, nrm)], base });
-        }
-        for (const v of this.items) {  // joints first, so squares sit on top of them
-            const me = sq.get(v.n);
-            if (hidesKids(v.n)) continue;
-            // children in angular order share the top edge in proportion to their size
-            const kids = this.lay.ordered(v.n).map(k => sq.get(k)).filter(Boolean);
-            const total = kids.reduce((t, c) => t + c.half, 0);
-            let acc = 0;
-            for (const c of kids) {
-                const p0 = mixPt(me.top[1], me.top[0], acc / total);
-                acc += c.half;
-                const p1 = mixPt(me.top[1], me.top[0], acc / total);
-                fill([p0, p1, c.bottom[1], c.bottom[0]], colour(c.v.n, c.v.depth, 0.62));
-            }
-        }
-        for (const { v, half, top, bottom, base } of sq.values()) {
-            const bb = R(Math.min(v.s.x, base.x) - half, Math.min(v.s.y, base.y) - half, Math.max(v.s.x, base.x) + half, Math.max(v.s.y, base.y) + half);
-            if (!hits(view, bb)) continue;
-            fill([top[0], top[1], bottom[0], bottom[1]], colour(v.n, v.depth, 0.9));
-            this.hitSegs.push({ a: base, b: v.s, hw: half, n: v.n });
-            segs.push({ a: base, b: v.s, pad: half + 1, box: inflate(bb, 1), p: v.n.parent, c: v.n });
-        }
-        return segs;
-    }
-
-    // ---- hyperbolic camera (Poincaré disk). Node frames are reached from the
-    // anchor through the tree by Möbius maps, like the Euclidean camera, so
-    // precision does not depend on how deep the anchor is.
-    hD() { return this.centre(); }  // the disk's centre on screen
-    hDefaultR() { return Math.max(40, Math.min(this.width, this.height - this.insetBottom) * 0.46); }
-    hReset() {
-        this.hAnim = null;
-        const r = this.doc.root;
-        this.hcam = { anchor: r ? r.id : '', A: mrot(-PI / 2), R: this.hDefaultR() };
-    }
-    hFixAnchor() {
-        let a = this.doc.find(this.hcam.anchor);
-        if (!a || !this.doc.root) return this.hReset();
-        while (!this.lay.loc.has(a) && a.parent) a = a.parent;  // climb out of collapsed clades
-        this.hcam.anchor = a.id;
-    }
-    hMatrix(n) {
-        const a = this.doc.find(this.hcam.anchor);
-        if (!a || !n || !this.lay.loc.has(n) || !this.lay.loc.has(a)) return null;
-        let l = a;
-        while (!contains(l, n)) l = l.parent;
-        let m = this.hcam.A;
-        for (let x = a; x !== l; x = x.parent) m = mmul(m, minv(this.lay.hyp.get(x)));
-        const path = [];
-        for (let x = n; x !== l; x = x.parent) path.push(x);
-        for (let i = path.length - 1; i >= 0; --i) m = mmul(m, this.lay.hyp.get(path[i]));
-        return mnormalize(m);
-    }
-    hFrame(m) {
-        return Frame(add(this.hD(), scale(mOrigin(m), this.hcam.R)), scale(mDeriv0(m), this.hcam.R * HYP_UNIT));
-    }
-    // Control point making the drawn branch follow the geodesic (a circle arc).
-    hCtrl(pm, L, a, b) {
-        // the hyperbolic midpoint of the edge (edges differ in length): distance d/2 is tanh(d/4)
-        const c = mOrigin(L), r = abs(c), mid = r > 0 ? scale(c, Math.tanh(Math.atanh(r) / 2) / r) : c;
-        const m = add(this.hD(), scale(mapply(pm, mid), this.hcam.R));
-        return sub(scale(m, 2), scale(add(a, b), 0.5));
-    }
-    hComputeItems() {
-        const A = this.doc.find(this.hcam.anchor);
-        if (!A || !this.lay.loc.has(A)) return;
-        const down = (n, m, d, skip) => {
-            const f = this.hFrame(m);
-            if (!finiteFrame(f) || abs(f.z) < HYP_MIN_PX) return;
-            this.items.push(this.makeItem(n, f, d));
-            if (hidesKids(n)) return;
-            for (const k of n.kids) {
-                if (k === skip) continue;
-                const L = this.lay.hyp.get(k), mk = mnormalize(mmul(m, L)), cf = this.hFrame(mk);
-                if (!finiteFrame(cf) || abs(cf.z) < HYP_MIN_PX) continue;
-                this.branches.push({ child: k, pf: f, cf, depth: d, ctrl: this.hCtrl(m, L, f.o, cf.o) });
-                down(k, mk, d + 1, null);
-            }
-        };
-        let d = nodeDepth(A), m = this.hcam.A;
-        down(A, m, d, null);
-        for (let c = A; c.parent; c = c.parent, --d) {
-            const L = this.lay.hyp.get(c), pm = mnormalize(mmul(m, minv(L)));
-            const pf = this.hFrame(pm), cf = this.hFrame(m);
-            if (finiteFrame(pf) && finiteFrame(cf) && abs(cf.z) >= HYP_MIN_PX)
-                this.branches.push({ child: c, pf, cf, depth: d - 1, ctrl: this.hCtrl(pm, L, pf.o, cf.o) });
-            down(c.parent, pm, d - 1, c);
-            m = pm;
-        }
-        this.items.sort((a, b) => a.depth - b.depth);
-    }
-    // Slide the plane so the point under `from` follows the pointer to `to`.
-    hPan(from, to) {
-        const r = this.hcam.R, D = this.hD();
-        const disk = p => { const u = scale(sub(p, D), 1 / r), k = abs(u); return k > 0.97 ? scale(u, 0.97 / k) : u; };
-        const u0 = disk(from), u1 = disk(to);
-        this.hcam.A = mnormalize(mmul(mmul(minv(mtoZero(u1)), mtoZero(u0)), this.hcam.A));
-        this.hReanchor();
-    }
-    // Keep the anchor at the node nearest the centre of the disk.
-    hReanchor() {
-        let a = this.doc.find(this.hcam.anchor);
-        if (!a || !this.lay.loc.has(a)) return;
-        let A = this.hcam.A;
-        for (let guard = 0; guard < 10000; ++guard) {
-            let best = null, bestM = null, bw = abs(mOrigin(A)) - 1e-9;
-            const consider = (n, m) => { const w = abs(mOrigin(m)); if (w < bw) { bw = w; best = n; bestM = m; } };
-            if (a.parent) consider(a.parent, mmul(A, minv(this.lay.hyp.get(a))));
-            if (!hidesKids(a)) for (const k of a.kids) consider(k, mmul(A, this.lay.hyp.get(k)));
-            if (!best) break;
-            a = best;
-            A = mnormalize(bestM);
-        }
-        this.hcam.anchor = a.id;
-        this.hcam.A = A;
-    }
-    // Glide n to the centre along the geodesic, turning it to grow upwards.
-    hFocus(n) {
-        const m = this.hMatrix(n);
-        if (!m) return;
-        const q = mOrigin(m), end = mmul(mtoZero(q), m);
-        const turn = remainder(-PI / 2 - arg(mDeriv0(end)), 2 * PI);
-        this.hAnim = { start: performance.now(), A0: this.hcam.A, q, turn };
-        this.loop();
-    }
-
-    // Jump straight to the view focusOn would fly to.
-    focusNow(n) {
-        if (!n || !this.lay.loc.has(n)) return;
-        if (this.hyp()) {
-            this.hcam = { anchor: n.id, A: mrot(-PI / 2), R: this.hDefaultR() };
-            return;
-        }
-        let mag = Math.min(this.width, this.height) * 0.42;
-        if (!this.disks()) {
-            const f = this.screenFrame(n);
-            mag = Math.min(Math.max(f ? abs(f.z) : 120, 120), mag / this.lay.extent(n));
-        }
-        this.camAnim = null;
-        this.cam.anchor = n.id;
-        this.cam.f = Frame(this.centre(), polar(mag, this.absAngle(n)));
-        this.reanchor();
-    }
-
-    // ---- morphing between layouts, in screen space. A snapshot records, for
-    // every visible node, its frame, node size and the branch into it as drawn.
-    snapshot() {
-        const st = this.lay.style, snap = new Map();
-        snap.hyp = st === HYPERBOLIC;
-        const bw = (st === PYTHAGORAS) ? 2 * PY_W : STD_WIDTH;
-        for (const v of this.items)
-            snap.set(v.n.id, {
-                n: v.n, parent: v.n.parent ? v.n.parent.id : '', o: v.s, z: v.f.z, r: v.r, lenPx: v.lenPx, angle: v.angle,
-                depth: v.depth, branchPx: v.branchPx, nodeA: st === PYTHAGORAS ? 0 : 1, fillB: st === DISKS ? 0.55 : 1,
-                lineB: st === DISKS ? 1 : 0.65, inc: null,
-            });
-        for (const br of this.branches) {
-            const it = snap.get(br.child.id);
-            if (!it) continue;
-            const a = br.pf.o, b = br.cf.o;
-            const ctrl = st === PYTHAGORAS ? scale(add(a, b), 0.5)
-                       : br.ctrl || add(a, scale(br.pf.z, abs(sub(b, a)) * STD_CURVE / abs(br.pf.z)));
-            const wb = bw * abs(br.cf.z), wa = st === PYTHAGORAS ? wb : bw * abs(br.pf.z);
-            it.inc = { a, c: ctrl, b, wa, wb };
-        }
-        return snap;
-    }
-
-    startMorph(from, ms = MORPH_MS) {
-        this.computeItems();
-        this.morph = { start: performance.now(), ms, from, to: this.snapshot(), fromHyp: from.hyp };
-        this.loop();
-    }
-
-    renderMorph() {
-        const ctx = this.ctx, { from, to, start, ms } = this.morph;
-        const e = easeInOutCubic(clamp((performance.now() - start) / ms, 0, 1));
-        const lin = (a, b) => a + (b - a) * e, mix = (p, q) => C(lin(p.x, q.x), lin(p.y, q.y));
-        const geo = (a, b) => Math.exp(lin(Math.log(Math.max(a, 1e-6)), Math.log(Math.max(b, 1e-6))));
-        // A node missing on one side grows from (or shrinks into) its nearest ancestor there.
-        const stand = (snap, other) => {
-            for (let id = other.parent; id; ) {
-                const a = snap.get(id);
-                if (a) return { ...other, o: a.o, z: scale(a.z, 0.02), r: 0.5, lenPx: 1, nodeA: 0, inc: null, ghost: true };
-                const n = this.doc.find(id) || (from.get(id) || to.get(id) || {}).n;
-                id = n && n.parent ? n.parent.id : '';
-            }
-            return null;
-        };
-        const ids = new Set([...from.keys(), ...to.keys()]);
-        const items = [], inc = [];
-        for (const id of ids) {
-            let f = from.get(id), t = to.get(id);
-            if (!f) f = stand(from, t);
-            if (!t) t = stand(to, f);
-            if (!f || !t) continue;
-            const n = this.doc.find(id) || t.n || f.n;
-            const o = mix(f.o, t.o), z = lerpZ(f.z, t.z, e, true);
-            const it = { n, f: Frame(o, z), s: o, r: geo(f.r, t.r), lenPx: geo(f.lenPx, t.lenPx),
-                         angle: f.angle + remainder(t.angle - f.angle, 2 * PI) * e, depth: t.depth, branchPx: geo(f.branchPx, t.branchPx),
-                         nodeA: lin(f.nodeA, t.nodeA), fillB: lin(f.fillB, t.fillB), lineB: lin(f.lineB, t.lineB) };
-            items.push(it);
-            if (f.inc || t.inc) {  // a side without the branch draws it at zero width
-                const fi = f.inc || { a: f.o, c: f.o, b: f.o, wa: 0, wb: 0 }, ti = t.inc || { a: t.o, c: t.o, b: t.o, wa: 0, wb: 0 };
-                inc.push({ n, depth: t.depth - 1, a: mix(fi.a, ti.a), c: mix(fi.c, ti.c), b: mix(fi.b, ti.b),
-                           wa: lin(fi.wa, ti.wa), wb: lin(fi.wb, ti.wb), alpha: lin(f.inc ? 1 : 0, t.inc ? 1 : 0) });
-            }
-        }
-        items.sort((a, b) => a.depth - b.depth);
-        const hypA = (this.morph.fromHyp ? 1 - e : 0) + (this.hyp() ? e : 0);
-        if (hypA > 0) this.drawDisk(hypA);
-        const segs = [];
-        for (const br of inc) {
-            if (br.alpha <= 0.01 || (br.wa < 0.05 && br.wb < 0.05)) continue;
-            ctx.globalAlpha = br.alpha;
-            const pts = taper(br.a, br.c, br.b, Math.max(0.6, br.wa), Math.max(0.6, br.wb));
-            ctx.beginPath();
-            pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-            ctx.closePath();
-            ctx.fillStyle = css(this.inCut(br.n) ? darker(this.theme.cut, 140) : this.depthColor(br.depth, 0.7));
-            ctx.fill();
-            const pad = Math.max(br.wa, br.wb) / 2 + 1;
-            segs.push({ a: br.a, b: br.b, pad, box: inflate(R(Math.min(br.a.x, br.b.x), Math.min(br.a.y, br.b.y), Math.max(br.a.x, br.b.x), Math.max(br.a.y, br.b.y)), pad), p: br.n.parent, c: br.n });
-        }
-        for (const v of items) {
-            if (v.nodeA <= 0.01) continue;
-            ctx.globalAlpha = v.nodeA;
-            if (v.r > 1e5 || this.covers(v.s, v.r)) {
-                if (this.covers(v.s, v.r)) { ctx.fillStyle = css(this.depthColor(v.depth, v.fillB)); ctx.fillRect(0, 0, this.width, this.height); }
-                continue;
-            }
-            ctx.beginPath();
-            ctx.arc(v.s.x, v.s.y, v.r, 0, 2 * PI);
-            ctx.fillStyle = css(this.inCut(v.n) ? darker(this.theme.cut, 160) : this.depthColor(v.depth, v.fillB));
-            ctx.fill();
-            ctx.lineWidth = clamp(v.r * 0.05, 1, 3);
-            ctx.strokeStyle = css(this.depthColor(v.depth, v.lineB));
-            ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-        const sel = this.doc.find(this.selId);
-        for (const v of items)
-            if (v.n === sel && v.r < 1e5) {
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = css(this.theme.accent);
-                ctx.beginPath(); ctx.arc(v.s.x, v.s.y, v.r + 4, 0, 2 * PI); ctx.stroke();
-            }
-        this.items = items;
-        this.drawLabels(segs, false);
-    }
-
     // ---- hit testing
     hitTest(p, slop = 5) {
         const label = () => {
@@ -1193,7 +802,7 @@ export class TreeView {
                 const dist = Math.hypot(a.x - b.x, a.y - b.y), mid = C((a.x + b.x) / 2, (a.y + b.y) / 2);
                 this.following = false;
                 if (this.pinch.dist > 0 && dist > 0) this.zoomBy(dist / this.pinch.dist, mid);
-                this.panBy(sub(mid, this.pinch.mid), mid);
+                this.panBy(sub(mid, this.pinch.mid));
                 this.pinch = { dist, mid };
                 this.viewUpdated();
                 return;
@@ -1204,7 +813,7 @@ export class TreeView {
             if (!pr.moved && Math.hypot(p.x - pr.p.x, p.y - pr.p.y) > slop) { pr.moved = true; clearTimeout(this.longTimer); }
             if (pr.moved && !pr.long) {
                 this.following = false;
-                this.panBy(sub(p, pr.last), p);
+                this.panBy(sub(p, pr.last));
                 this.viewUpdated();
             }
             pr.last = p;
