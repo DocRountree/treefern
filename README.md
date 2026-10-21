@@ -10,15 +10,11 @@
 [![Latest release](https://img.shields.io/github/v/release/DocRountree/treefern)](https://github.com/DocRountree/treefern/releases/latest)
 [![License](https://img.shields.io/github/license/DocRountree/treefern)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-informational)](#download)
-[![Built with Qt 6](https://img.shields.io/badge/built%20with-Qt%206-41cd52?logo=qt&logoColor=white)](https://www.qt.io/)
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-Setup.exe)
 [![Download for Linux](https://img.shields.io/badge/Download-Linux-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-x86_64.AppImage)
 
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/7cbe0f3a-47f7-4e0a-9221-42b328ce9440">
-  <img width="860" alt="TreeFern showing the standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690">
-</picture>
+<img width="860" alt="TreeFern showing the standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690">
 
 </div>
 
