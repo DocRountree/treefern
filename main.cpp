@@ -38,6 +38,7 @@ constexpr double PI = 3.14159265358979323846, DEG = PI / 180;
 constexpr double DEFAULT_SPREAD = 120 * DEG, DEFAULT_SHRINK = 0.68;
 constexpr double ZOOM_STEP = 1.15, FAST_ZOOM_STEP = 2.0;
 constexpr int ANIM_MS = 380;  // relayout animation; camera flights take twice as long
+constexpr int MORPH_MS = 900;  // switching between layouts
 constexpr int MAX_LABELS = 400, MAX_RECENT = 10, MAX_SEARCH = 200;
 // labels
 constexpr double LABEL_MIN_SCREEN_LEN = 35;  // disks: smaller discs get no label
@@ -60,6 +61,11 @@ constexpr double STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w
 constexpr double DEFAULT_CURL = 0.35;      // -1..1, fraction of the safe fan rotation
 constexpr double STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
 constexpr double STD_CLEARANCE = 0.2;      // 3+ forks: min distance between sibling subtrees, in fork units
+// pythagoras style: the standard layout with a wide footprint, drawn as squares
+constexpr double PY_W = 0.5;               // half the side of a clade's square, in its own units
+// hyperbolic style (Poincaré disk)
+constexpr double HYP_EDGE = 1.1;           // hyperbolic length of every edge
+constexpr double HYP_MIN_PX = 0.35;        // cull subtrees whose nodes are smaller than this
 // camera
 constexpr double MIN_PX = 0.6;          // disks: cull subtrees smaller than this on screen
 constexpr double FIT_MARGIN = 120;      // px left free around a fitted tree
@@ -491,9 +497,33 @@ static Local lerp(const Local& a, const Local& b, double t) {
     return {a.o + (b.o - a.o) * t, lerpZ(a.z, b.z, t), lerpAngle(a.dir, b.dir, t)};
 }
 
+// Möbius maps of the unit disk, z -> (a z + b) / (c z + d), for the hyperbolic view.
+struct Mob { C a{1, 0}, b{0, 0}, c{0, 0}, d{1, 0}; };
+static Mob operator*(const Mob& p, const Mob& q) {
+    return {p.a * q.a + p.b * q.c, p.a * q.b + p.b * q.d, p.c * q.a + p.d * q.c, p.c * q.b + p.d * q.d};
+}
+static C apply(const Mob& m, C z) { return (m.a * z + m.b) / (m.c * z + m.d); }
+static Mob inverse(const Mob& m) { return {m.d, -m.b, -m.c, m.a}; }  // determinant 1
+static Mob mobRot(double phi) { return {std::polar(1.0, phi / 2), 0, 0, std::polar(1.0, -phi / 2)}; }
+static Mob mobTransX(double d) {  // hyperbolic translation along +x: 0 -> tanh(d/2)
+    const double ch = std::cosh(d / 2), sh = std::sinh(d / 2);
+    return {ch, sh, sh, ch};
+}
+static Mob mobToZero(C c) {  // the translation taking c to 0
+    const double k = 1 / std::sqrt(std::max(1e-300, 1 - std::norm(c)));
+    return {k, -k * c, -k * std::conj(c), k};
+}
+static C mobOrigin(const Mob& m) { return m.b / m.d; }
+static C mobDeriv0(const Mob& m) { return (m.a * m.d - m.b * m.c) / (m.d * m.d); }
+static Mob normalized(const Mob& m) {  // rescale to determinant 1 so long products do not drift
+    const C s = 1.0 / std::sqrt(m.a * m.d - m.b * m.c);
+    return {m.a * s, m.b * s, m.c * s, m.d * s};
+}
+
 // ------------------------------------------------------------- layout ---
 struct Layout {
-    enum Style { Standard, Disks };
+    enum Style { Standard, Pythagoras, Disks, Hyperbolic };
+    static constexpr Style STYLES[] = {Standard, Pythagoras, Disks, Hyperbolic};
 
     Style style = Standard;
     double spread = DEFAULT_SPREAD;  // standard: fan angle of a fork
@@ -501,27 +531,39 @@ struct Layout {
     double curl = DEFAULT_CURL;      // standard: how far lopsided forks turn toward the heavy side
     QHash<const Node*, Local> loc;   // parent-relative frames (root: relative to the view)
     QHash<const Node*, double> ext;  // subtree radius around the node's origin, own units
+    QHash<const Node*, Mob> hyp;     // hyperbolic: map from a node's frame to its parent's
     QRectF bbox;                     // whole tree, in view units
 
-    static QString styleName(Style s) { return s == Standard ? "Standard" : "Disks"; }
+    static QString styleName(Style s) {
+        return s == Standard ? "Standard" : s == Pythagoras ? "Pythagoras" : s == Disks ? "Disks" : "Hyperbolic";
+    }
+    static QString styleKey(Style s) { return styleName(s).toLower(); }
+    // Styles placed by the standard (branching) algorithm, with a trunk below the root.
+    static bool branchy(Style s) { return s == Standard || s == Pythagoras; }
     static bool hidesKids(const Node* n) { return n->collapsed || n->kids.empty(); }
 
     int count() const { return int(loc.size()); }
     double extent(const Node* n) const { return ext.value(n, 1.0); }
     int weight(const Node* n) const { return size_.value(n, 1); }  // clade size, ignoring collapse
     double own(const Node* n) const {  // radius of the node's own footprint, own units
-        return style == Disks ? 1.0 : hidesKids(n) ? STD_NODE : STD_WIDTH;
+        return style == Disks ? 1.0 : style == Pythagoras ? PY_W : hidesKids(n) ? STD_NODE : STD_WIDTH;
     }
 
     void compute(const Node* root) {
         loc.clear();
         ext.clear();
+        hyp.clear();
         size_.clear();
         leaves_.clear();
         bbox = {};
         if (!root) return;
         weigh(root);
-        if (style == Standard) {
+        if (style == Hyperbolic) {
+            hyperbolic(root, -PI, PI);
+            bbox = QRectF(-1, -1, 2, 2);
+            return;
+        }
+        if (branchy(style)) {
             loc[root] = Local{C(0, 0), C(0, -1), 0};  // grows upwards
             standard(root);
         } else {
@@ -579,7 +621,8 @@ private:
                 for (auto& k : n->kids) rec(k.get(), compose(f, loc.value(k.get())));
         };
         const Local L = loc.value(root);
-        if (style == Standard) add(L.o - L.z, 0);  // the trunk below the root
+        if (style == Pythagoras) add(L.o - L.z * (2 * PY_W), PY_W * std::abs(L.z));  // the root's square
+        else if (style == Standard) add(L.o - L.z, 0);                               // the trunk below the root
         rec(root, Frame{L.o, L.z});
         bbox = QRectF(QPointF(x0, y0), QPointF(x1, y1));
     }
@@ -670,13 +713,17 @@ private:
     // slack becomes even gaps, and if the fan is too tight
     // every child shrinks by a common factor. Returns the bounding circle and pieces.
     Hull standard(const Node* n) {
-        if (hidesKids(n)) return {0, STD_NODE, {{C(0, 0), STD_NODE}}};
+        const bool py = style == Pythagoras;
+        if (hidesKids(n)) {
+            const double r = py ? PY_W : STD_NODE;
+            return {0, r, {{C(0, 0), r}}};
+        }
         const auto kids = ordered(n);
         const size_t m = kids.size();
         // Children's hulls don't depend on where they are placed, so compute them first.
         std::vector<Hull> sub(m);
         for (size_t i = 0; i < m; ++i) sub[i] = standard(kids[i]);
-        std::vector<std::pair<C, double>> circles{{C(0, 0), STD_WIDTH}};
+        std::vector<std::pair<C, double>> circles{{C(0, 0), py ? PY_W : STD_WIDTH}};
         auto placeAt = [&](size_t i, double mid, double s) {
             const C u = std::polar(1.0, mid);
             loc[kids[i]] = Local{u, u * s, 0};
@@ -745,6 +792,34 @@ private:
         }
         const auto [x, r] = enclose(circles);
         return {x, r, std::move(circles)};
+    }
+
+    // Hyperbolic: a radial tree in the hyperbolic plane (Lamping & Rao). Every
+    // node has its own frame (itself at 0, growing along +x) and a wedge of
+    // directions in that frame for its children. Children split the wedge by
+    // weight and sit HYP_EDGE away along the middle of their share. Seen from a
+    // child, its share of the parent's wedge looks wider; that is the child's
+    // own wedge. Wedges are convex regions of the plane, so subtrees never meet.
+    void hyperbolic(const Node* n, double lo, double hi) {
+        loc[n] = Local{C(0, 0), C(1, 0), 0};
+        ext[n] = 1;
+        if (hidesKids(n)) return;
+        const auto kids = ordered(n);
+        const std::vector<double> th = wedges(kids, hi - lo);
+        double a = lo;
+        for (size_t i = 0; i < kids.size(); ++i) {
+            const double b = a + th[i], mid = (a + b) / 2;
+            const Mob L = mobRot(mid) * mobTransX(HYP_EDGE);  // child frame -> parent frame
+            hyp[kids[i]] = L;
+            const Mob Li = inverse(L);
+            auto seen = [&](double ang) { return std::arg(apply(Li, std::polar(1.0, ang))); };
+            double klo = seen(a + 1e-9), khi = seen(b - 1e-9);
+            if (khi <= klo) khi += 2 * PI;
+            // keep the child's wedge pointing away from its parent (never wider than 340 degrees)
+            const double half = std::min((khi - klo) / 2, 170 * DEG), c = (klo + khi) / 2;
+            hyperbolic(kids[i], c - half, c + half);
+            a = b;
+        }
     }
 };
 
@@ -881,14 +956,61 @@ public:
             viewUpdated();
         });
         connect(&camAnim, &QVariantAnimation::finished, this, [this] { reanchor(); viewUpdated(); });
+        setup(hAnim, 2 * ANIM_MS, QEasingCurve::InOutCubic);
+        connect(&hAnim, &QVariantAnimation::valueChanged, this, [this](const QVariant& v) {
+            const double e = v.toDouble(), r = std::abs(hFly_.q);
+            const C c = r < 1e-12 ? C(0, 0) : hFly_.q * (std::tanh(e * std::atanh(std::min(r, 1 - 1e-15))) / r);
+            hcam.A = normalized(mobRot(hFly_.turn * e) * mobToZero(c) * hFly_.A0);
+            viewUpdated();
+        });
+        connect(&hAnim, &QVariantAnimation::finished, this, [this] { hReanchor(); viewUpdated(); });
+        setup(morphAnim, MORPH_MS, QEasingCurve::InOutCubic);
+        connect(&morphAnim, &QVariantAnimation::valueChanged, this, [this] { viewUpdated(); });
+        connect(&morphAnim, &QVariantAnimation::finished, this, [this] { morph_.reset(); viewUpdated(); });
         relayout(false);
     }
 
     bool disks() const { return lay.style == Layout::Disks; }
+    bool hyp() const { return lay.style == Layout::Hyperbolic; }
+    bool py() const { return lay.style == Layout::Pythagoras; }
+
+    // Switch layout, morphing every visible node from where it is now.
+    void setStyle(Layout::Style st) {
+        if (st == lay.style) return;
+        const Snapshot from = lastSnap_;
+        lay.style = st;
+        lay.compute(model->root());
+        anim.stop();
+        camAnim.stop();
+        hAnim.stop();
+        following = false;
+        fromLoc_.clear();
+        shownLoc.clear();
+        shownLocById_.clear();
+        resetCam();
+        if (const Node* n = model->find(selId); n && lay.loc.contains(n)) {  // keep the selection in view
+            const auto f = screenFrame(n);
+            if (!f || !QRectF(rect()).adjusted(40, 40, -40, -40).contains(qpt(f->o)) || std::abs(f->z) < 12) focusNow(n);
+        }
+        if (!from.m.isEmpty()) startMorph(from, MORPH_MS);
+        else viewUpdated();
+    }
 
     // Recompute the layout and animate from what is on screen now. While it
     // animates, the camera keeps the selected node fixed until the user pans or zooms.
     void relayout(bool animate = true) {
+        if (hyp()) {  // edits morph in screen space
+            const Snapshot from = lastSnap_;
+            lay.compute(model->root());
+            anim.stop();
+            camAnim.stop();
+            shownLoc.clear();
+            shownLocById_.clear();
+            hFixAnchor();
+            if (animate && !from.m.isEmpty()) startMorph(from, int(ANIM_MS * 1.4));
+            else update();
+            return;
+        }
         fromLoc_ = animate ? shownLocById_ : QHash<QString, Local>();
         lay.compute(model->root());
         anim.stop();
@@ -902,6 +1024,7 @@ public:
 
     void focusOn(const Node* n) {
         if (!n || !lay.loc.contains(n)) return;
+        if (hyp()) return hFocus(n);
         double mag = std::min(width(), height()) * 0.42;
         if (!disks()) {
             const auto f = screenFrame(n);
@@ -927,6 +1050,7 @@ public:
 
     // Zoom relative to the fitted view, accumulated in log space to survive extreme depths.
     QString zoomText() const {
+        if (hyp()) return QString::number(hcam.R / hDefaultR(), 'f', 2) + "x";
         const Node* a = anchorNode();
         if (!a) return "-";
         double z = std::log10(std::abs(cam.f.z) / fitScale());
@@ -942,6 +1066,13 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent*) override;
+    void resizeEvent(QResizeEvent* e) override {  // keep the view centred
+        if (e->oldSize().isValid()) {
+            const C d = C(e->size().width() - e->oldSize().width(), e->size().height() - e->oldSize().height()) / 2.0;
+            cam.f.o += d;
+            hcam.D += d;
+        }
+    }
 
     void mousePressEvent(QMouseEvent* e) override {
         pressPos = lastPos = e->position();
@@ -953,7 +1084,7 @@ protected:
         moved = moved || QLineF(e->position(), pressPos).length() > 4;
         if (moved) {
             following = false;
-            panBy(e->position() - lastPos);
+            panBy(e->position() - lastPos, e->position());
             viewUpdated();
         }
         lastPos = e->position();
@@ -990,9 +1121,27 @@ protected:
 private:
     // A node as drawn this frame: screen centre, drawn radius, frame scale (px),
     // growth direction on screen, tree depth.
-    struct Item { const Node* n; QPointF s; double r, lenPx, angle; int depth; double branchPx; };
+    struct Item { const Node* n; QPointF s; double r, lenPx, angle; int depth; double branchPx; Frame f; };
     // The branch into `child`, from its parent's frame pf to its own frame cf (depth = parent's).
-    struct Branch { const Node* child; Frame pf, cf; int depth; };
+    // ctrl overrides the curve's control point (hyperbolic: geodesics).
+    struct Branch { const Node* child; Frame pf, cf; int depth; std::optional<QPointF> ctrl = std::nullopt; };
+    // For morphing: what was drawn for each visible node, by id (nodes may be
+    // freed by an undo or reload before the morph starts).
+    struct Snap {
+        QString parent;
+        C o, z;
+        double r, lenPx, angle;
+        int depth;
+        double branchPx, nodeA, fillB, lineB;
+        bool hasInc = false;
+        QPointF a, c, b;  // branch into the node: start, control, end
+        double wa = 0, wb = 0;
+    };
+    struct Snapshot { QHash<QString, Snap> m; bool hyp = false; };
+    struct Morph { Snapshot from, to; };
+    // hyperbolic camera: the anchor node's frame -> the unit disk, and the disk's radius and centre on screen
+    struct HCam { QString anchor; Mob A = mobRot(-PI / 2); double R = 100; C D{150, 100}; };
+    struct HFly { Mob A0; C q; double turn = 0; };
     struct HitSeg { QPointF a, b; double hw; const Node* n; };
     struct Seg { QPointF a, b; double pad; QRectF box; const Node *p, *c; };  // branch piece as a label obstacle
     struct Cam { QString anchor; Frame f{C(0, 0), C(300, 0)}; };  // the anchor node's frame on screen
@@ -1001,7 +1150,11 @@ private:
     Cam cam;
     QHash<const Node*, Local> shownLoc;  // frames as drawn now
     // animation state is keyed by id: node pointers may have been freed by a reload
-    QVariantAnimation anim, camAnim;
+    QVariantAnimation anim, camAnim, hAnim, morphAnim;
+    HCam hcam;
+    HFly hFly_;
+    std::optional<Morph> morph_;
+    Snapshot lastSnap_;  // what the last paint drew
     QHash<QString, Local> fromLoc_, shownLocById_;
     Frame camFrom_{}, camTo_{};
     bool following = false, havePrev_ = false;  // pin the selected node at followPrev_ during relayout
@@ -1045,6 +1198,7 @@ private:
     }
 
     void resetCam() {
+        if (hyp()) return hReset();
         camAnim.stop();
         const Node* r = model->root();
         if (!r || !lay.loc.contains(r)) return;
@@ -1068,6 +1222,10 @@ private:
 
     // n's frame on screen, reached from the anchor via their common ancestor.
     std::optional<Frame> screenFrame(const Node* n) const {
+        if (hyp()) {
+            const auto m = hMatrix(n);
+            return m ? std::optional(hFrame(*m)) : std::nullopt;
+        }
         const Node* a = anchorNode();
         if (!a || !n || !lay.loc.contains(n)) return std::nullopt;
         const Node* l = a;
@@ -1083,7 +1241,7 @@ private:
     // Where the branch into n starts: its parent's frame (standard: a unit trunk below the root).
     std::optional<Frame> stemFrom(const Node* n, const Frame& f) const {
         if (n->parent) return uncompose(f, sloc(n));
-        if (lay.style == Layout::Standard) return Frame{f.o - f.z, f.z};
+        if (Layout::branchy(lay.style)) return Frame{f.o - f.z, f.z};
         return std::nullopt;
     }
 
@@ -1091,6 +1249,7 @@ private:
     // the child under the view centre while that child is big. The gap between
     // the thresholds prevents ping-pong.
     void reanchor() {
+        if (hyp()) return hReanchor();
         if (camAnim.state() == QAbstractAnimation::Running) return;
         const Node* a = anchorNode();
         if (!a) return;
@@ -1135,13 +1294,26 @@ private:
         viewUpdated();
     }
 
-    void panBy(QPointF d) {
+    // Pan by d; `at` is where the pointer is now (hyperbolic pans need both ends).
+    void panBy(QPointF d, std::optional<QPointF> at = std::nullopt) {
+        if (hyp()) {
+            hAnim.stop();
+            const C to = at ? cpx(*at) : centre() + cpx(d);
+            return hPan(to - cpx(d), to);
+        }
         camAnim.stop();
         cam.f.o += cpx(d);
         reanchor();
     }
 
     void zoomBy(double f, QPointF p) {
+        if (hyp()) {
+            const double lo = std::min(width(), height()), R1 = std::clamp(hcam.R * f, lo * 0.15, lo * 80);
+            f = R1 / hcam.R;
+            hcam.R = R1;
+            hcam.D = cpx(p) + (hcam.D - cpx(p)) * f;
+            return;
+        }
         camAnim.stop();
         const double s = std::abs(cam.f.z);
         if (s * f > CAM_MAX_SCALE) f = CAM_MAX_SCALE / s;
@@ -1185,7 +1357,7 @@ private:
     // (the selection if visible, else the view centre). Summing angles instead
     // of composing frames stays exact at any zoom depth.
     void levelCamera() {
-        if (camAnim.state() == QAbstractAnimation::Running) return;  // flight targets are already level
+        if (camAnim.state() == QAbstractAnimation::Running || hyp()) return;  // flight targets are already level
         const Node* a = anchorNode();
         if (!a) return;
         double want = 0;
@@ -1200,12 +1372,13 @@ private:
     Item makeItem(const Node* n, const Frame& f, int depth) const {
         const double s = std::abs(f.z);
         const bool leaf = Layout::hidesKids(n);
-        const double r = disks() ? s : leaf ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
+        const double r = disks() ? s : py() ? std::max(3.0, s * PY_W)
+                       : leaf ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
         // Standard: a leaf has no outgoing branch, so its size on screen is the branch drawn to it.
         double len = s;
-        if (!disks() && leaf && n->parent)
+        if (Layout::branchy(lay.style) && leaf && n->parent)
             if (const Local L = sloc(n); std::abs(L.z) > 0) len = s / std::abs(L.z) * std::abs(L.o);
-        return {n, qpt(f.o), r, s, std::arg(f.z) + sloc(n).dir, depth, len};
+        return {n, qpt(f.o), r, s, std::arg(f.z) + sloc(n).dir, depth, len, f};
     }
 
     // Collect visible nodes and branches: the anchor's subtree, then each
@@ -1214,6 +1387,7 @@ private:
     void computeItems() {
         items_.clear();
         branches_.clear();
+        if (hyp()) return hComputeItems();
         const Node* A = anchorNode();
         if (!A || !lay.loc.contains(A)) return;
         const double margin = disks() ? 0 : 100, minPx = disks() ? MIN_PX : 0.0;
@@ -1292,8 +1466,145 @@ private:
     }
 
     std::vector<Seg> drawBranches(QPainter& p);
+    std::vector<Seg> drawBlocks(QPainter& p);
     void drawNodes(QPainter& p);
-    void drawLabels(QPainter& p, const std::vector<Seg>& segs);
+    void drawLabels(QPainter& p, const std::vector<Seg>& segs, bool dk);
+    void drawDisk(QPainter& p, double alpha);
+    void renderMorph(QPainter& p);
+    Snapshot snapshot() const;
+
+    // ---- hyperbolic camera (Poincaré disk). Node frames are reached from the
+    // anchor through the tree by Möbius maps, like the Euclidean camera, so
+    // precision does not depend on how deep the anchor is.
+    double hDefaultR() const { return std::max(40.0, std::min(width(), height()) * 0.46); }
+    void hReset() {
+        hAnim.stop();
+        const Node* r = model->root();
+        hcam = {r ? r->id : QString(), mobRot(-PI / 2), hDefaultR(), centre()};
+    }
+    void hFixAnchor() {
+        const Node* a = model->find(hcam.anchor);
+        if (!a || !model->root()) return hReset();
+        while (!lay.loc.contains(a) && a->parent) a = a->parent;  // climb out of collapsed clades
+        hcam.anchor = a->id;
+    }
+    std::optional<Mob> hMatrix(const Node* n) const {
+        const Node* a = model->find(hcam.anchor);
+        if (!a || !n || !lay.loc.contains(n) || !lay.loc.contains(a)) return std::nullopt;
+        const Node* l = a;
+        while (!l->contains(n)) l = l->parent;
+        Mob m = hcam.A;
+        for (const Node* x = a; x != l; x = x->parent) m = m * inverse(lay.hyp.value(x));
+        std::vector<const Node*> path;
+        for (const Node* x = n; x != l; x = x->parent) path.push_back(x);
+        for (auto it = path.rbegin(); it != path.rend(); ++it) m = m * lay.hyp.value(*it);
+        return normalized(m);
+    }
+    Frame hFrame(const Mob& m) const {
+        return {hcam.D + mobOrigin(m) * hcam.R, mobDeriv0(m) * (hcam.R * std::tanh(HYP_EDGE / 2))};
+    }
+    // Control point making the drawn branch follow the geodesic (a circle arc).
+    QPointF hCtrl(const Mob& pm, const Mob& L, C a, C b) const {
+        const C mid = mobOrigin(L) * (std::tanh(HYP_EDGE / 4) / std::tanh(HYP_EDGE / 2));
+        return qpt(2.0 * (hcam.D + apply(pm, mid) * hcam.R) - (a + b) / 2.0);
+    }
+    void hComputeItems() {
+        const Node* A = model->find(hcam.anchor);
+        if (!A || !lay.loc.contains(A)) return;
+        std::function<void(const Node*, const Mob&, int, const Node*)> down =
+            [&](const Node* n, const Mob& m, int depth, const Node* skip) {
+                const Frame f = hFrame(m);
+                if (!finiteFrame(f) || std::abs(f.z) < HYP_MIN_PX) return;
+                items_.push_back(makeItem(n, f, depth));
+                if (Layout::hidesKids(n)) return;
+                for (auto& k : n->kids) {
+                    if (k.get() == skip) continue;
+                    const Mob L = lay.hyp.value(k.get()), mk = normalized(m * L);
+                    const Frame cf = hFrame(mk);
+                    if (!finiteFrame(cf) || std::abs(cf.z) < HYP_MIN_PX) continue;
+                    branches_.push_back({k.get(), f, cf, depth, hCtrl(m, L, f.o, cf.o)});
+                    down(k.get(), mk, depth + 1, nullptr);
+                }
+            };
+        int depth = A->depth();
+        Mob m = hcam.A;
+        down(A, m, depth, nullptr);
+        for (const Node* c = A; c->parent; c = c->parent, --depth) {
+            const Mob L = lay.hyp.value(c), pm = normalized(m * inverse(L));
+            const Frame pf = hFrame(pm), cf = hFrame(m);
+            if (finiteFrame(pf) && finiteFrame(cf) && std::abs(cf.z) >= HYP_MIN_PX)
+                branches_.push_back({c, pf, cf, depth - 1, hCtrl(pm, L, pf.o, cf.o)});
+            down(c->parent, pm, depth - 1, c);
+            m = pm;
+        }
+        std::stable_sort(items_.begin(), items_.end(), [](const Item& a, const Item& b) { return a.depth < b.depth; });
+    }
+    // Slide the plane so the point under `from` follows the pointer to `to`.
+    void hPan(C from, C to) {
+        auto disk = [&](C p) {
+            const C u = (p - hcam.D) / hcam.R;
+            const double k = std::abs(u);
+            return k > 0.97 ? u * (0.97 / k) : u;
+        };
+        hcam.A = normalized(inverse(mobToZero(disk(to))) * mobToZero(disk(from)) * hcam.A);
+        hReanchor();
+    }
+    // Keep the anchor at the node nearest the centre of the disk.
+    void hReanchor() {
+        const Node* a = model->find(hcam.anchor);
+        if (!a || !lay.loc.contains(a)) return;
+        Mob A = hcam.A;
+        for (int guard = 0; guard < 10000; ++guard) {
+            const Node* best = nullptr;
+            Mob bestM;
+            double bw = std::abs(mobOrigin(A)) - 1e-9;
+            auto consider = [&](const Node* n, const Mob& m) {
+                if (const double w = std::abs(mobOrigin(m)); w < bw) { bw = w; best = n; bestM = m; }
+            };
+            if (a->parent) consider(a->parent, A * inverse(lay.hyp.value(a)));
+            if (!Layout::hidesKids(a))
+                for (auto& k : a->kids) consider(k.get(), A * lay.hyp.value(k.get()));
+            if (!best) break;
+            a = best;
+            A = normalized(bestM);
+        }
+        hcam.anchor = a->id;
+        hcam.A = A;
+    }
+    // Glide n to the centre along the geodesic, turning it to grow upwards.
+    void hFocus(const Node* n) {
+        const auto m = hMatrix(n);
+        if (!m) return;
+        const C q = mobOrigin(*m);
+        const Mob end = mobToZero(q) * *m;
+        hAnim.stop();
+        hFly_ = {hcam.A, q, std::remainder(-PI / 2 - std::arg(mobDeriv0(end)), 2 * PI)};
+        hAnim.start();
+    }
+    // Jump straight to the view focusOn would fly to.
+    void focusNow(const Node* n) {
+        if (!n || !lay.loc.contains(n)) return;
+        if (hyp()) {
+            hcam = {n->id, mobRot(-PI / 2), hDefaultR(), centre()};
+            return;
+        }
+        double mag = std::min(width(), height()) * 0.42;
+        if (!disks()) {
+            const auto f = screenFrame(n);
+            mag = std::min(std::max(f ? std::abs(f->z) : 120.0, 120.0), mag / lay.extent(n));
+        }
+        camAnim.stop();
+        cam.anchor = n->id;
+        cam.f = {centre(), std::polar(mag, absAngle(n))};
+        reanchor();
+    }
+    void startMorph(const Snapshot& from, int ms) {
+        computeItems();
+        morph_ = Morph{from, snapshot()};
+        morphAnim.stop();
+        morphAnim.setDuration(ms);
+        morphAnim.start();
+    }
 };
 
 void Canvas::paintEvent(QPaintEvent*) {
@@ -1309,8 +1620,16 @@ void Canvas::paintEvent(QPaintEvent*) {
         p.drawText(rect(), Qt::AlignCenter, "No file open — use File ▸ Open or File ▸ New");
         return;
     }
-    computeItems();
-    const auto segs = drawBranches(p); drawNodes(p); drawLabels(p, segs);
+    if (morph_) {
+        renderMorph(p);
+    } else {
+        computeItems();
+        if (hyp()) drawDisk(p, 1);
+        const auto segs = py() ? drawBlocks(p) : drawBranches(p);
+        drawNodes(p);
+        drawLabels(p, segs, disks());
+        lastSnap_ = snapshot();
+    }
     if (selId.isEmpty() && !exporting) {
         p.setFont(font());
         p.setPen(T.dim);
@@ -1330,7 +1649,7 @@ std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
         const double ps = std::abs(br.pf.z);
         const double wa = std::max(1.0, ps * STD_WIDTH), wb = std::max(1.0, std::abs(br.cf.z) * STD_WIDTH);
         const double m = std::max(wa, wb);
-        const QPointF ctrl = a + qpt(br.pf.z / ps) * (QLineF(a, b).length() * STD_CURVE);
+        const QPointF ctrl = br.ctrl ? *br.ctrl : a + qpt(br.pf.z / ps) * (QLineF(a, b).length() * STD_CURVE);
         if (!view.intersects(QPolygonF({a, b, ctrl}).boundingRect().adjusted(-m, -m, m, m))) continue;
         const QColor col = inCut(br.child) ? T.cut.darker(140) : depthColor(br.depth, 0.7);
         const auto mid = drawTaper(p, a, ctrl, b, wa, wb, col, view);
@@ -1352,6 +1671,7 @@ std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
 void Canvas::drawNodes(QPainter& p) {
     const bool dk = disks();
     for (const Item& v : items_) {
+        if (py()) break;  // pythagoras: the squares are the nodes
         const bool cut = inCut(v.n);
         const QColor fill = cut ? T.cut.darker(160) : depthColor(v.depth, dk ? 0.55 : 1.0);
         if (covers(cpx(v.s), v.r)) { p.fillRect(rect(), fill); continue; }  // fills the view: skip the huge ellipse
@@ -1374,8 +1694,8 @@ void Canvas::drawNodes(QPainter& p) {
 // one that is not blocked. Hard obstacles: placed labels (+gap), other nodes,
 // and branches not incident to the node. Its own branches are a soft cost.
 // The selection is forced if nothing is free; the hovered label is drawn last.
-void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
-    const bool dk = disks(), beside = labelMode == LabelMode::Beside;
+void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs, bool dk) {
+    const bool beside = labelMode == LabelMode::Beside;
     const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
     constexpr double padX = 5, padY = 2;
     static const double OFFS[] = {0, .45, -.45, .9, -.9, 1.4, -1.4, 2.0, -2.0, 2.5, -2.5, PI};
@@ -1548,6 +1868,187 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
         p.drawText(l.box.adjusted(padX, padY, -padX, -padY), Qt::AlignCenter, l.text);
         labelHits.push_back({l.box, l.n->id});
     }
+}
+
+// Pythagoras: every clade is a square ending at its fork. A square's top edge
+// is shared among its children in angular order (in proportion to their size)
+// and joined to their squares by trapezoids. All of it stays inside the
+// circles the layout reserves, so subtrees never meet.
+std::vector<Canvas::Seg> Canvas::drawBlocks(QPainter& p) {
+    std::vector<Seg> segs;
+    const QRectF view = QRectF(rect()).adjusted(-60, -60, 60, 60);
+    auto fill = [&](const QPolygonF& poly, const QColor& col) {
+        p.setPen(Qt::NoPen);
+        p.setBrush(col);
+        p.drawPolygon(poly);
+    };
+    auto colour = [&](const Node* n, int d, double b) { return inCut(n) ? T.cut.darker(140) : depthColor(d, b); };
+    struct Sq { const Item* v; double half; QPointF top0, top1, bot0, bot1, base; };
+    QHash<const Node*, Sq> sq;
+    for (const Item& v : items_) {
+        const double half = std::max(0.6, PY_W * std::abs(v.f.z));
+        const C u = v.f.z / std::abs(v.f.z), nrm = C(-u.imag(), u.real()) * half, o = cpx(v.s), base = o - u * (2 * half);
+        sq[v.n] = {&v, half, qpt(o + nrm), qpt(o - nrm), qpt(base - nrm), qpt(base + nrm), qpt(base)};
+    }
+    for (const Item& v : items_) {  // joints first, so squares sit on top of them
+        if (Layout::hidesKids(v.n)) continue;
+        const Sq& me = sq[v.n];
+        std::vector<const Sq*> kids;
+        double total = 0;
+        for (const Node* k : lay.ordered(v.n))
+            if (auto it = sq.constFind(k); it != sq.cend()) { kids.push_back(&*it); total += it->half; }
+        double acc = 0;
+        for (const Sq* c : kids) {
+            const QPointF p0 = me.top1 + (me.top0 - me.top1) * (acc / total);
+            acc += c->half;
+            const QPointF p1 = me.top1 + (me.top0 - me.top1) * (acc / total);
+            fill(QPolygonF({p0, p1, c->bot1, c->bot0}), colour(c->v->n, c->v->depth, 0.62));
+        }
+    }
+    for (const Sq& q : sq) {
+        const QRectF bb = QRectF(q.v->s, q.base).normalized().adjusted(-q.half, -q.half, q.half, q.half);
+        if (!view.intersects(bb)) continue;
+        fill(QPolygonF({q.top0, q.top1, q.bot0, q.bot1}), colour(q.v->n, q.v->depth, 0.9));
+        hitSegs_.push_back({q.base, q.v->s, q.half, q.v->n});
+        segs.push_back({q.base, q.v->s, q.half + 1, bb.adjusted(-1, -1, 1, 1), q.v->n->parent, q.v->n});
+    }
+    return segs;
+}
+
+void Canvas::drawDisk(QPainter& p, double alpha) {
+    p.setOpacity(alpha);
+    QColor fill = T.dark ? QColor(255, 255, 255, 6) : QColor(0, 0, 0, 6), line = T.dim;
+    line.setAlphaF(0.35);
+    p.setPen(QPen(line, 1));
+    p.setBrush(fill);
+    p.drawEllipse(qpt(hcam.D), hcam.R, hcam.R);
+    p.setOpacity(1);
+}
+
+// What this frame drew, by node id: frame, node size and the branch into it.
+Canvas::Snapshot Canvas::snapshot() const {
+    Snapshot snap;
+    snap.hyp = hyp();
+    const auto st = lay.style;
+    const double bw = st == Layout::Pythagoras ? 2 * PY_W : STD_WIDTH;
+    for (const Item& v : items_)
+        snap.m.insert(v.n->id, {v.n->parent ? v.n->parent->id : QString(), cpx(v.s), v.f.z, v.r, v.lenPx, v.angle, v.depth,
+                                v.branchPx, st == Layout::Pythagoras ? 0.0 : 1.0, st == Layout::Disks ? 0.55 : 1.0,
+                                st == Layout::Disks ? 1.0 : 0.65});
+    for (const Branch& br : branches_) {
+        auto it = snap.m.find(br.child->id);
+        if (it == snap.m.end()) continue;
+        const QPointF a = qpt(br.pf.o), b = qpt(br.cf.o);
+        it->hasInc = true;
+        it->a = a;
+        it->b = b;
+        it->c = st == Layout::Pythagoras ? (a + b) / 2
+              : br.ctrl ? *br.ctrl : a + qpt(br.pf.z / std::abs(br.pf.z)) * (QLineF(a, b).length() * STD_CURVE);
+        it->wb = bw * std::abs(br.cf.z);
+        it->wa = st == Layout::Pythagoras ? it->wb : bw * std::abs(br.pf.z);
+    }
+    return snap;
+}
+
+// Morph between two snapshots in screen space. A node missing on one side
+// grows from (or shrinks into) its nearest ancestor there.
+void Canvas::renderMorph(QPainter& p) {
+    const Snapshot &from = morph_->from, &to = morph_->to;
+    const double e = morphAnim.currentValue().toDouble();
+    auto lin = [&](double a, double b) { return a + (b - a) * e; };
+    auto mix = [&](QPointF a, QPointF b) { return a + (b - a) * e; };
+    auto geo = [&](double a, double b) { return std::exp(lin(std::log(std::max(a, 1e-6)), std::log(std::max(b, 1e-6)))); };
+    auto parentOf = [&](const QString& id) {
+        if (const Node* n = model->find(id)) return n->parent ? n->parent->id : QString();
+        if (auto it = from.m.constFind(id); it != from.m.cend()) return it->parent;
+        if (auto it = to.m.constFind(id); it != to.m.cend()) return it->parent;
+        return QString();
+    };
+    auto stand = [&](const Snapshot& snap, const QString& id, const Snap& other) -> std::optional<Snap> {
+        for (QString a = parentOf(id); !a.isEmpty(); a = parentOf(a))
+            if (auto it = snap.m.constFind(a); it != snap.m.cend()) {
+                Snap g = other;
+                g.o = it->o;
+                g.z = it->z * 0.02;
+                g.r = 0.5;
+                g.lenPx = 1;
+                g.nodeA = 0;
+                g.hasInc = false;
+                return g;
+            }
+        return std::nullopt;
+    };
+    QSet<QString> ids;
+    for (auto it = from.m.cbegin(); it != from.m.cend(); ++it) ids.insert(it.key());
+    for (auto it = to.m.cbegin(); it != to.m.cend(); ++it) ids.insert(it.key());
+
+    struct Drawn { QString id; const Node* n; QPointF s; C z; double r, lenPx, angle; int depth; double branchPx, nodeA, fillB, lineB; };
+    struct Inc { QString id; const Node* n; int depth; QPointF a, c, b; double wa, wb, alpha; };
+    std::vector<Drawn> drawn;
+    std::vector<Inc> inc;
+    for (const QString& id : ids) {
+        std::optional<Snap> f, t;
+        if (auto it = from.m.constFind(id); it != from.m.cend()) f = *it;
+        if (auto it = to.m.constFind(id); it != to.m.cend()) t = *it;
+        if (!f && t) f = stand(from, id, *t);
+        if (!t && f) t = stand(to, id, *f);
+        if (!f || !t) continue;
+        const Node* n = model->find(id);  // null for a node that is gone: drawn, but no label
+        const QPointF s = mix(qpt(f->o), qpt(t->o));
+        drawn.push_back({id, n, s, lerpZ(f->z, t->z, e, true), geo(f->r, t->r), geo(f->lenPx, t->lenPx),
+                         f->angle + std::remainder(t->angle - f->angle, 2 * PI) * e, t->depth, geo(f->branchPx, t->branchPx),
+                         lin(f->nodeA, t->nodeA), lin(f->fillB, t->fillB), lin(f->lineB, t->lineB)});
+        if (f->hasInc || t->hasInc) {  // a side without the branch draws it at zero width
+            const QPointF fa = f->hasInc ? f->a : qpt(f->o), fc = f->hasInc ? f->c : qpt(f->o), fb = f->hasInc ? f->b : qpt(f->o);
+            const QPointF ta = t->hasInc ? t->a : qpt(t->o), tc = t->hasInc ? t->c : qpt(t->o), tb = t->hasInc ? t->b : qpt(t->o);
+            inc.push_back({id, n, t->depth - 1, mix(fa, ta), mix(fc, tc), mix(fb, tb), lin(f->hasInc ? f->wa : 0, t->hasInc ? t->wa : 0),
+                           lin(f->hasInc ? f->wb : 0, t->hasInc ? t->wb : 0), lin(f->hasInc ? 1 : 0, t->hasInc ? 1 : 0)});
+        }
+    }
+    std::stable_sort(drawn.begin(), drawn.end(), [](const Drawn& a, const Drawn& b) { return a.depth < b.depth; });
+
+    const double hypA = (from.hyp ? 1 - e : 0) + (hyp() ? e : 0);
+    if (hypA > 0) drawDisk(p, hypA);
+    const QRectF view = QRectF(rect()).adjusted(-60, -60, 60, 60);
+    std::vector<Seg> segs;
+    for (const Inc& br : inc) {
+        if (br.alpha <= 0.01 || (br.wa < 0.05 && br.wb < 0.05)) continue;
+        p.setOpacity(br.alpha);
+        const QColor col = br.n && inCut(br.n) ? T.cut.darker(140) : depthColor(br.depth, 0.7);
+        drawTaper(p, br.a, br.c, br.b, std::max(0.6, br.wa), std::max(0.6, br.wb), col, view);
+        if (br.n) {
+            const double pad = std::max(br.wa, br.wb) / 2 + 1;
+            segs.push_back({br.a, br.b, pad, QRectF(br.a, br.b).normalized().adjusted(-pad, -pad, pad, pad), br.n->parent, br.n});
+        }
+    }
+    for (const Drawn& v : drawn) {
+        if (v.nodeA <= 0.01) continue;
+        p.setOpacity(v.nodeA);
+        const QColor fill = v.n && inCut(v.n) ? T.cut.darker(160) : depthColor(v.depth, v.fillB);
+        if (covers(cpx(v.s), v.r)) { p.fillRect(rect(), fill); continue; }
+        if (v.r > 1e5) continue;
+        p.setPen(QPen(depthColor(v.depth, v.lineB), std::clamp(v.r * 0.05, 1.0, 3.0)));
+        p.setBrush(fill);
+        p.drawEllipse(v.s, v.r, v.r);
+    }
+    p.setOpacity(1);
+    p.setBrush(Qt::NoBrush);
+    const Node* sel = model->find(selId);
+    items_.clear();
+    Snapshot now;
+    now.hyp = hypA > 0.5;
+    for (const Drawn& v : drawn) {
+        if (v.n == sel && sel && v.r < 1e5) { p.setPen(QPen(T.accent, 2)); p.drawEllipse(v.s, v.r + 4, v.r + 4); }
+        if (v.n) items_.push_back({v.n, v.s, v.r, v.lenPx, v.angle, v.depth, v.branchPx, Frame{cpx(v.s), v.z}});
+        now.m.insert(v.id, {parentOf(v.id), cpx(v.s), v.z, v.r, v.lenPx, v.angle, v.depth, v.branchPx, v.nodeA, v.fillB, v.lineB});
+    }
+    for (const Inc& br : inc)
+        if (auto it = now.m.find(br.id); it != now.m.end() && br.alpha > 0.5) {
+            it->hasInc = true;
+            it->a = br.a; it->c = br.c; it->b = br.b; it->wa = br.wa; it->wb = br.wb;
+        }
+    lastSnap_ = now;  // switching again mid-morph starts from here
+    drawLabels(p, segs, false);
 }
 
 // --------------------------------------------------------- info panel ---
@@ -1756,7 +2257,7 @@ public:
         auto layoutKey = [this, &mk](QList<QKeySequence> keys, auto fn) {
             mk("", keys, [this, fn] {
                 fn(canvas->lay);
-                if (!canvas->disks()) canvas->relayout();
+                if (Layout::branchy(canvas->lay.style)) canvas->relayout();
                 updateHud();
             });
         };
@@ -1792,7 +2293,7 @@ public:
         };
         viewMenu->addSection("Style");
         auto styleGroup = new QActionGroup(this);
-        for (Layout::Style st : {Layout::Standard, Layout::Disks})
+        for (Layout::Style st : Layout::STYLES)
             styleActs.push_back(radio(styleGroup, mk(Layout::styleName(st), {QKeySequence(QString("Ctrl+%1").arg(st + 1))},
                                                      [this, st] { setStyle(st); })));
         viewMenu->addSection("Labels");
@@ -1831,8 +2332,11 @@ public:
         });
 
         QSettings s;  // restore view preferences
-        const int st = std::clamp(s.value("view/style", int(Layout::Standard)).toInt(), 0, 1);
-        canvas->lay.style = Layout::Style(st);
+        // "view/layout" holds the style's name; older versions stored 0 = Standard, 1 = Disks as "view/style"
+        Layout::Style st = s.value("view/style", 0).toInt() == 1 ? Layout::Disks : Layout::Standard;
+        for (Layout::Style x : Layout::STYLES)
+            if (Layout::styleKey(x) == s.value("view/layout").toString()) st = x;
+        canvas->lay.style = st;
         styleActs[st]->setChecked(true);
         setLabelsBeside(s.value("view/labelsBeside", false).toBool());
         applyTheme(s.value("view/dark", true).toBool());
@@ -1912,11 +2416,9 @@ private:
 
     // ---- view settings
     void setStyle(Layout::Style st) {
-        canvas->lay.style = st;
+        canvas->setStyle(st);  // morphs from the current layout
         styleActs[st]->setChecked(true);
-        canvas->relayout(false);  // frames mean different things per style: don't morph
-        canvas->fitView();
-        QSettings().setValue("view/style", int(st));
+        QSettings().setValue("view/layout", Layout::styleKey(st));
         updateHud();
     }
 
@@ -2101,7 +2603,7 @@ private:
     void updateHud() {
         QString cut, params;
         if (Node* c = model.find(canvas->cutId)) cut = QString("   ✂ cut: %1 (select target, V)").arg(c->name);
-        if (!canvas->disks())
+        if (Layout::branchy(canvas->lay.style))
             params = QString("   spread %1°   shrink %2   curl %3")
                          .arg(qRound(canvas->lay.spread / DEG))
                          .arg(canvas->lay.shrink, 0, 'f', 2)
