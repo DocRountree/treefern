@@ -35,9 +35,11 @@ You can also [use TreeFern in your browser](https://docrountree.github.io/treefe
 
 ## Features
 
-- **Two layouts**
+- **Four layouts** (Ctrl+1 to Ctrl+4 on the desktop, 1 to 4 on the web)
   - **Standard**: a tapered branching tree in which heavier daughter clades curve away from their mother clade, inspired by the [OneZoom](https://www.onezoom.org/) viewer. Spread, shrink and curl can be adjusted from the keyboard.
   - **Disks**: nested circle packing, with each daughter clade drawn as a disk inside its mother clade.
+  - **Rectangular cladogram**: the right-angled tree of journal figures, with the tips aligned in a column and labelled beside it, and clade names placed along their branches.
+  - **Circular cladogram**: the same tree around a circle, with the root at the centre and the tip labels radiating outward.
 - **Editing**: add daughter clades, rename clades and attach free-form notes to them, collapse or expand subtrees, delete subtrees, and move a subtree to a new mother clade with cut and paste.
 - **Autosave and live sync**: each change is written to disk atomically, and the file is reloaded automatically if another program modifies it.
 - **Dynamic labels**: labels too small to read are hidden until you zoom in, and labels reposition themselves to avoid overlapping. Labels can be placed over or beside nodes.
