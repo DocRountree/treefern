@@ -1,7 +1,7 @@
 // Tree layout, ported from the desktop app. Every node gets a frame *relative
 // to its parent* (origin offset + complex scale/rotation). Children are ordered
 // lightest -> heaviest, so the heaviest clade is always the last branch.
-import { PI, DEG, C, scale, abs, arg, polar, clamp, Local, Frame, compose } from './geom.js';
+import { PI, DEG, C, scale, abs, arg, polar, clamp, Local, Frame, compose, mmul, mrot, mtransX, mapply, minv } from './geom.js';
 import { hidesKids } from './model.js';
 
 export const DEFAULT_SPREAD = 120 * DEG, DEFAULT_SHRINK = 0.68, DEFAULT_CURL = 0.35;
@@ -18,8 +18,16 @@ const STD_MAX_FAN = 300 * DEG;  // fan cap (unless the spread itself is wider)
 const STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w_max)^this
 const STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
 const STD_CLEARANCE = 0.2;      // 3+ forks: min distance between sibling subtrees, in fork units
+// pythagoras style: the standard layout with a wide footprint, drawn as blocks
+export const PY_W = 0.5;       // half the side of a clade's square, in its own units
+// hyperbolic style (Poincaré disk)
+export const HYP_EDGE = 1.1;    // hyperbolic length of every edge
 
-export const STANDARD = 'standard', DISKS = 'disks';
+export const STANDARD = 'standard', PYTHAGORAS = 'pythagoras', DISKS = 'disks', HYPERBOLIC = 'hyperbolic';
+export const STYLES = [STANDARD, PYTHAGORAS, DISKS, HYPERBOLIC];
+export const STYLE_NAMES = { standard: 'Standard', pythagoras: 'Pythagoras', disks: 'Disks', hyperbolic: 'Hyperbolic' };
+// Styles placed by the standard (branching) algorithm, with a trunk below the root.
+export const branchy = st => st === STANDARD || st === PYTHAGORAS;
 
 export class Layout {
     constructor() {
@@ -31,20 +39,30 @@ export class Layout {
         this.ext = new Map();   // subtree radius around the node's origin, own units
         this.size = new Map();  // node + all descendants (ignores collapse)
         this.leaves = new Map();
+        this.hyp = new Map();   // hyperbolic: node -> Möbius map from its frame to its parent's
         this.bbox = { x0: 0, y0: 0, x1: 0, y1: 0 };
     }
 
     count() { return this.loc.size; }
     extent(n) { return this.ext.get(n) ?? 1; }
     weight(n) { return this.size.get(n) ?? 1; }
-    own(n) { return this.style === DISKS ? 1 : hidesKids(n) ? STD_NODE : STD_WIDTH; }
+    own(n) {
+        if (this.style === DISKS) return 1;
+        if (this.style === PYTHAGORAS) return PY_W;
+        return hidesKids(n) ? STD_NODE : STD_WIDTH;
+    }
 
     compute(root) {
-        this.loc.clear(); this.ext.clear(); this.size.clear(); this.leaves.clear();
+        this.loc.clear(); this.ext.clear(); this.size.clear(); this.leaves.clear(); this.hyp.clear();
         this.bbox = { x0: 0, y0: 0, x1: 0, y1: 0 };
         if (!root) return;
         this.weigh(root);
-        if (this.style === STANDARD) {
+        if (this.style === HYPERBOLIC) {
+            this.hyperbolic(root, -PI, PI);
+            this.bbox = { x0: -1, y0: -1, x1: 1, y1: 1 };
+            return;
+        }
+        if (branchy(this.style)) {
             this.loc.set(root, Local(C(0, 0), C(0, -1), 0));  // grows upwards
             this.standard(root);
         } else {
@@ -87,7 +105,10 @@ export class Layout {
             y0 = Math.min(y0, c.y - r); y1 = Math.max(y1, c.y + r);
         };
         const L = this.loc.get(root);
-        if (this.style === STANDARD) addc({ x: L.o.x - L.z.x, y: L.o.y - L.z.y }, 0);  // the trunk below the root
+        if (this.style === PYTHAGORAS) {  // the root's square
+            const k = 2 * PY_W;
+            addc({ x: L.o.x - L.z.x * k, y: L.o.y - L.z.y * k }, PY_W * abs(L.z));
+        } else if (branchy(this.style)) addc({ x: L.o.x - L.z.x, y: L.o.y - L.z.y }, 0);  // the trunk below the root
         const stack = [[root, Frame(L.o, L.z)]];
         while (stack.length) {
             const [n, f] = stack.pop();
@@ -135,10 +156,11 @@ export class Layout {
     // direction, and unit = its outgoing branch length. Returns the subtree's
     // bounding circle (centre c on its x axis, radius R) and its pieces.
     standard(n) {
-        if (hidesKids(n)) return { c: 0, R: STD_NODE, pieces: [[C(0, 0), STD_NODE]] };
+        const py = this.style === PYTHAGORAS;
+        if (hidesKids(n)) { const r = py ? PY_W : STD_NODE; return { c: 0, R: r, pieces: [[C(0, 0), r]] }; }
         const kids = this.ordered(n), m = kids.length;
         const sub = kids.map(k => this.standard(k));
-        const circles = [[C(0, 0), STD_WIDTH]];
+        const circles = [[C(0, 0), py ? PY_W : STD_WIDTH]];
         const placeAt = (i, mid, s) => {
             const u = polar(1, mid);
             this.loc.set(kids[i], Local(u, scale(u, s), 0));
@@ -202,6 +224,34 @@ export class Layout {
         return { c: x, R: r, pieces: circles };
     }
 }
+
+// Hyperbolic: like a radial tree in the hyperbolic plane (Lamping & Rao).
+// Every node has its own frame (itself at 0, growing along +x) and a wedge of
+// directions, in that frame, for its children. Children split the wedge by
+// weight and sit HYP_EDGE away along the middle of their share. Seen from a
+// child, its share of the parent's wedge looks wider; that wider wedge is the
+// child's own. Wedges are convex regions of the plane, so subtrees never meet.
+Layout.prototype.hyperbolic = function (n, lo, hi) {
+    this.loc.set(n, Local(C(0, 0), C(1, 0), 0));
+    this.ext.set(n, 1);
+    if (hidesKids(n)) return;
+    const kids = this.ordered(n);
+    const th = this.wedges(kids, hi - lo);
+    let a = lo;
+    kids.forEach((k, i) => {
+        const b = a + th[i], mid = (a + b) / 2;
+        const L = mmul(mrot(mid), mtransX(HYP_EDGE));  // child frame -> parent frame
+        this.hyp.set(k, L);
+        const Li = minv(L);
+        const seen = ang => arg(mapply(Li, polar(1, ang)));  // a wedge edge, as seen from the child
+        let klo = seen(a + 1e-9), khi = seen(b - 1e-9);
+        if (khi <= klo) khi += 2 * PI;
+        // keep the child's wedge pointing away from its parent (never wider than 340 degrees)
+        const half = Math.min((khi - klo) / 2, 170 * DEG), c = (klo + khi) / 2;
+        this.hyperbolic(k, c - half, c + half);
+        a = b;
+    });
+};
 
 // Angular range, relative to the child's axis and seen from the parent's fork,
 // covered by a child at distance 1 with scale s, every piece grown by pad.
