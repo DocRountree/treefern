@@ -274,7 +274,7 @@ function navigate(d) {
 // ---------------------------------------------------------------- editing
 let dlgResolve = null, dlgRapid = false;
 const EDIT_HINT = 'Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.';
-const RAPID_HINT = 'Enter: add it, then a daughter of it. Tab: add it, then a sister. Ctrl+Enter or Add: add it and stop. Esc: stop.';
+const RAPID_HINT = 'Enter or Add: add it and stop. Shift+Enter: add it, then a daughter of it. Tab: add it, then a sister. Esc: stop.';
 // rapid: adding clades one after another; resolves with next = 'child', 'sister' or 'done'.
 function openEditDialog({ title, name = '', info = '', withInfo = true, rapid = false }) {
     const dlg = $('editDlg');
@@ -300,7 +300,7 @@ $('editSister').addEventListener('click', () => finishEdit(true, 'sister'));
 $('editDaughter').addEventListener('click', () => finishEdit(true, 'child'));
 $('editName').addEventListener('keydown', e => {
     if (!dlgRapid || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
-    if (e.key === 'Enter') { e.preventDefault(); finishEdit(true, 'child'); }
+    if (e.key === 'Enter') { e.preventDefault(); finishEdit(true, e.shiftKey ? 'child' : 'done'); }
     else if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); finishEdit(true, 'sister'); }
 });
 function finishEdit(ok, next = 'done') {
