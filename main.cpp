@@ -252,10 +252,15 @@ public:
         return {};
     }
     void commit() {
+        undo_.push_back(std::exchange(current_, toJson(root_.get())));
+        if (undo_.size() > 200) undo_.erase(undo_.begin());
+        redo_.clear();
         reindex();
         save();
         emit treeChanged();
     }
+    QString undo() { return step(undo_, redo_, "Undone"); }
+    QString redo() { return step(redo_, undo_, "Redone"); }
 
 signals:
     void treeChanged();
@@ -266,6 +271,30 @@ private:
     QHash<QString, Node*> index_;
     QDateTime lastMtime_;
     QFileSystemWatcher watcher_;
+    // Undo history: whole-tree snapshots. current_ is the tree as of the last commit.
+    QJsonObject current_;
+    std::vector<QJsonObject> undo_, redo_;
+
+    void resetHistory() {
+        current_ = toJson(root_.get());
+        undo_.clear();
+        redo_.clear();
+    }
+
+    QString step(std::vector<QJsonObject>& from, std::vector<QJsonObject>& to, const char* done) {
+        if (from.empty()) return QString("Nothing to %1").arg(&from == &undo_ ? "undo" : "redo");
+        QString err;
+        auto tree = fromJson(from.back(), err);
+        if (!tree) return err;
+        to.push_back(std::exchange(current_, from.back()));
+        from.pop_back();
+        root_ = std::move(tree);
+        reindex();
+        save();
+        status = QString("%1 (%2)").arg(done, status);
+        emit treeChanged();
+        return {};
+    }
 
     // Watch the file and its directory (the latter catches delete + recreate).
     void setPath(const QString& p) {
@@ -280,6 +309,7 @@ private:
         setPath(p);
         root_ = std::move(tree);
         reindex();
+        resetHistory();
         lastMtime_ = QFileInfo(path).lastModified();
     }
 
@@ -412,6 +442,7 @@ private:
         if (auto tree = parseFile(path, err)) {
             root_ = std::move(tree);
             reindex();
+            resetHistory();
             status = "Reloaded external change " + now();
             emit treeChanged();
         } else {
@@ -1725,6 +1756,10 @@ public:
         layoutKey({Qt::Key_Comma}, [](Layout& l) { l.curl = std::max(-1.0, l.curl - 0.05); });
         layoutKey({Qt::Key_Period}, [](Layout& l) { l.curl = std::min(1.0, l.curl + 0.05); });
 
+        QMenu* editMenu = menuBar()->addMenu("&Edit");
+        editMenu->addAction(mk("&Undo", {QKeySequence::Undo}, [this] { undoRedo(model.undo()); }));
+        editMenu->addAction(mk("&Redo", {QKeySequence::Redo, QKeySequence("Ctrl+Shift+Z")}, [this] { undoRedo(model.redo()); }));
+
         QMenu* cladeMenu = menuBar()->addMenu("&Clade");
         fillCladeMenu(cladeMenu, aFind);
         cladeMenu->addSeparator();
@@ -2029,6 +2064,12 @@ private:
                          .arg(Layout::styleName(canvas->lay.style), canvas->zoomText(), params)
                          .arg(canvas->lay.count())
                          .arg(cut, model.status));
+    }
+
+    void undoRedo(const QString& err) {
+        if (err.isEmpty()) return;  // treeChanged already refreshed
+        model.status = err;
+        updateHud();
     }
 
     // ---- clade actions
