@@ -12,6 +12,7 @@
 //
 // File format: {"root": id, "nodes": [{id, parent?, name, info, collapsed}, …]}
 
+#include <QSvgGenerator>
 #include <QtWidgets>
 #include <algorithm>
 #include <cmath>
@@ -844,6 +845,7 @@ public:
 
     Layout lay;  // target layout; what is drawn (shownLoc) animates towards it
     QString selId, cutId;
+    bool exporting = false;  // hides the usage hint
     LabelMode labelMode = LabelMode::Over;
 
     explicit Canvas(Model* m) : model(m) {
@@ -1300,7 +1302,7 @@ void Canvas::paintEvent(QPaintEvent*) {
     }
     computeItems();
     const auto segs = drawBranches(p); drawNodes(p); drawLabels(p, segs);
-    if (selId.isEmpty()) {
+    if (selId.isEmpty() && !exporting) {
         p.setFont(font());
         p.setPen(T.dim);
         p.drawText(10, 20, "Click a node to select · wheel zoom (Shift = fast) · drag pan · "
@@ -1724,6 +1726,7 @@ public:
         recentMenu = fileMenu->addMenu("Open &Recent");
         connect(recentMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildRecentMenu);
         fileMenu->addAction(aSaveAs = mk("Save &As…", {QKeySequence("Ctrl+Shift+S")}, [this] { fileSaveAs(); }));
+        fileMenu->addAction(aExport = mk("&Export view…", {QKeySequence("Ctrl+E")}, [this] { fileExport(); }));
         fileMenu->addSeparator();
         fileMenu->addAction(mk("&Quit", {QKeySequence::Quit}, [this] { close(); }));
 
@@ -1868,7 +1871,7 @@ private:
     InfoPanel* panel = nullptr;
     QLabel* hud = new QLabel;
     QMenu* recentMenu = nullptr;
-    QAction *aAdd, *aEdit, *aCollapse, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs;
+    QAction *aAdd, *aEdit, *aCollapse, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs, *aExport;
     QAction *aLabelsOver, *aLabelsBeside, *aDark;
     std::vector<QAction*> styleActs;  // indexed by Layout::Style
 
@@ -2006,6 +2009,39 @@ private:
         switched(model.create(p, std::move(tree)), "Cannot create file");
     }
 
+    // Export the current view as PNG (at 2x resolution) or SVG, chosen by extension.
+    void fileExport() {
+        if (!model.isOpen()) return;
+        const QString base = QFileInfo(model.path).completeBaseName();
+        QString filter = "PNG image (*.png)";
+        QString p = QFileDialog::getSaveFileName(this, "Export view", startDir() + "/" + base + ".png",
+                                                 "PNG image (*.png);;SVG image (*.svg)", &filter);
+        if (p.isEmpty()) return;
+        const bool svg = filter.startsWith("SVG");
+        if (QFileInfo(p).suffix().isEmpty()) p += svg ? ".svg" : ".png";
+        canvas->exporting = true;
+        bool ok;
+        if (p.endsWith(".svg", Qt::CaseInsensitive)) {
+            QSvgGenerator gen;
+            gen.setFileName(p);
+            gen.setSize(canvas->size());
+            gen.setViewBox(canvas->rect());
+            gen.setTitle(base);
+            QPainter painter;
+            ok = painter.begin(&gen);
+            if (ok) canvas->render(&painter);
+            ok = painter.end() && ok;
+        } else {
+            QImage img(canvas->size() * 2, QImage::Format_ARGB32);
+            img.setDevicePixelRatio(2);
+            canvas->render(&img);
+            ok = img.save(p);
+        }
+        canvas->exporting = false;
+        model.status = ok ? "Exported " + p : "Cannot write " + p;
+        updateHud();
+    }
+
     void fileSaveAs() {
         if (!model.isOpen()) return;
         const QString p = askSavePath("Save cladogram as", model.path);
@@ -2048,6 +2084,7 @@ private:
         aCut->setEnabled(s && s->parent);
         aPaste->setEnabled(s && cut && !cut->contains(s));
         aSaveAs->setEnabled(model.isOpen());
+        aExport->setEnabled(model.isOpen());
         canvas->update();
         updateHud();
     }
