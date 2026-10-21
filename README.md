@@ -152,9 +152,9 @@ Because the format is plain JSON, files can be generated or edited by scripts an
 ## Screenshots
 
 <p align="center">
-  <img width="720" alt="Zooming from the root of the tree of life into the comb jellies (Ctenophora)" src="docs/zoom-comb-jellies.gif">
+  <img width="720" alt="Zooming from Proto-Indo-European into German" src="docs/zoom-german.gif">
   <br>
-  <em>Zooming from the root of <code>samples/life.json</code> into the comb jellies (Ctenophora)</em>
+  <em>Zooming from Proto-Indo-European into German in <code>samples/indo-european.json</code></em>
 </p>
 
 <table>
