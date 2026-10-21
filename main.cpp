@@ -2454,8 +2454,8 @@ private:
     enum class Next { Done, Daughter, Sister };
     struct NewClade { QString name, info; Next next; };
 
-    // Name (and info) of one new clade. Enter in the name: add it, then a
-    // daughter of it; Tab: add it, then a sister; Ctrl+Enter or Add: add and stop.
+    // Name (and info) of one new clade. Enter in the name or Add: add it and
+    // stop; Shift+Enter: add it, then a daughter of it; Tab: add it, then a sister.
     // An empty name, Esc or Cancel stops.
     std::optional<NewClade> askNewClade(const QString& parentName) {
         QDialog dlg(this);
@@ -2464,8 +2464,8 @@ private:
         auto nameEdit = new QLineEdit;
         auto infoEdit = new QPlainTextEdit;
         infoEdit->setPlaceholderText("(no info)");
-        auto hint = new QLabel("Enter: add it, then a daughter of it   ·   Tab: add it, then a sister   ·   "
-                               "Ctrl+Enter or Add: add it and stop   ·   Esc: stop");
+        auto hint = new QLabel("Enter or Add: add it and stop   ·   Shift+Enter: add it, then a daughter of it   ·   "
+                               "Tab: add it, then a sister   ·   Esc: stop");
         hint->setWordWrap(true);
         hint->setStyleSheet(colorCss(T.dim));
         auto buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
@@ -2489,7 +2489,10 @@ private:
         };
         KeyHook hook([&](QKeyEvent* e) {
             if (e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) return false;
-            if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) { finish(Next::Daughter); return true; }
+            if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) {
+                finish(e->modifiers() & Qt::ShiftModifier ? Next::Daughter : Next::Done);
+                return true;
+            }
             if (e->key() == Qt::Key_Tab) { finish(Next::Sister); return true; }
             return false;
         });
