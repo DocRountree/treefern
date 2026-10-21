@@ -4,18 +4,18 @@
   <g fill="none" stroke="#7fd18b" stroke-linecap="round">
     <path d="M128 224 V92" stroke-width="13"/>
     <g stroke-width="11">
-      <path d="M128 184 Q90 168 68 128"/>
-      <path d="M68 128 Q46 126 32 112"/>
-      <path d="M68 128 Q54 112 48 90"/>
+      <path d="M128 184 Q100 174 84 142"/>
+      <path d="M84 142 Q62 140 48 126"/>
+      <path d="M84 142 Q70 126 64 104"/>
       <path d="M128 138 Q98 120 84 82"/>
       <path d="M128 92 Q118 66 112 38"/>
     </g>
     <g stroke-width="7"><path d="M128 184 Q170 166 196 118"/><path d="M128 138 Q162 118 178 72"/><path d="M128 92 Q140 62 146 26"/></g>
   </g>
   <g fill="#c8f0cd">
-    <circle cx="68" cy="128" r="8"/>
-    <circle cx="30" cy="110" r="11"/>
-    <circle cx="47" cy="86" r="10"/>
+    <circle cx="84" cy="142" r="8"/>
+    <circle cx="46" cy="124" r="11"/>
+    <circle cx="63" cy="100" r="10"/>
     <circle cx="83" cy="76" r="11"/>
     <circle cx="111" cy="33" r="10"/>
   </g>
