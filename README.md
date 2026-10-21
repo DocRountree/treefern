@@ -123,7 +123,7 @@ Typical workflow:
 1. Click a clade to select it. Its name, position in the tree and notes appear in the side panel.
 2. Press **F** to focus the camera on the clade's node.
 3. Press the **up arrow** key to select the daughter clade, or the **down arrow** to select the mother clade.
-4. Press **A** or **D** to add a daughter clade, or **E** to edit the clade's name and notes. While adding, press **Enter** to add the clade and start a daughter of it, or **Tab** to add it and start a sister.
+4. Press **A** or **D** to add a daughter clade, **S** to add a sister clade, or **E** to edit the clade's name and notes. While adding, press **Enter** to add the clade and start a daughter of it, or **Tab** to add it and start a sister.
 5. To move a subtree, select it and press **X**, then select the new mother clade and press **V**.
 6. Press **K** to colour the clade and everything inside it.
 7. Press **Ctrl+Z** to undo any mistake.
