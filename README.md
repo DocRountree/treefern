@@ -1,13 +1,24 @@
+<div align="center">
+
+<img src="packaging/treefern.svg" width="120" alt="TreeFern icon">
+
 # TreeFern
+
+**A lightweight, free and open-source editor for cladograms.**
 
 [![Build](https://github.com/DocRountree/treefern/actions/workflows/build.yml/badge.svg)](https://github.com/DocRountree/treefern/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/DocRountree/treefern)](https://github.com/DocRountree/treefern/releases/latest)
+[![License](https://img.shields.io/github/license/DocRountree/treefern)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-informational)](#download)
 
-TreeFern is a lightweight, free and open-source editor for cladograms, written in C++ with Qt 6.
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-0078D6?style=for-the-badge)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-Setup.exe)
+[![Download for Linux](https://img.shields.io/badge/Download-Linux-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-x86_64.AppImage)
 
-Cladograms are stored as plain JSON files. Every edit is saved immediately, and changes made to the file by other programs are picked up live.
+<img width="860" alt="TreeFern showing the standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690">
 
-<img width="1705" height="1414" alt="TreeFern showing the standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690" />
+</div>
+
+TreeFern is written in C++ with Qt 6. Cladograms are stored as plain JSON files: every edit is saved immediately, and changes made to the file by other programs are picked up live.
 
 ## Contents
 
@@ -15,7 +26,6 @@ Cladograms are stored as plain JSON files. Every edit is saved immediately, and 
 - [Download](#download)
 - [Building from source](#building-from-source)
 - [Usage](#usage)
-- [Keyboard and mouse reference](#keyboard-and-mouse-reference)
 - [File format](#file-format)
 - [Screenshots](#screenshots)
 - [Contributing](#contributing)
@@ -141,18 +151,30 @@ Because the format is plain JSON, files can be generated or edited by scripts an
 
 ## Screenshots
 
-**Standard and Disks layouts**
+<p align="center">
+  <img width="720" alt="Zooming from Proto-Indo-European into German" src="docs/zoom-german.gif">
+  <br>
+  <em>Zooming from Proto-Indo-European into German in <code>samples/indo-european.json</code></em>
+</p>
 
-<img width="1705" height="1414" alt="Standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690" />
-<img width="1717" height="1420" alt="Disks layout" src="https://github.com/user-attachments/assets/787e1073-e624-46f7-ae94-a4d7b69feb1d" />
-
-**Light mode**
-
-<img width="1720" height="1421" alt="Light mode" src="https://github.com/user-attachments/assets/7cbe0f3a-47f7-4e0a-9221-42b328ce9440" />
-
-**Labels beside nodes**
-
-<img width="1718" height="1421" alt="Labels beside nodes" src="https://github.com/user-attachments/assets/e501e873-f8ca-4104-8ab2-2d8eace6a696" />
+<table>
+  <tr>
+    <td width="50%"><img alt="Standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690"></td>
+    <td width="50%"><img alt="Disks layout" src="https://github.com/user-attachments/assets/787e1073-e624-46f7-ae94-a4d7b69feb1d"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Standard layout</em></td>
+    <td align="center"><em>Disks layout</em></td>
+  </tr>
+  <tr>
+    <td width="50%"><img alt="Light mode" src="https://github.com/user-attachments/assets/7cbe0f3a-47f7-4e0a-9221-42b328ce9440"></td>
+    <td width="50%"><img alt="Labels beside nodes" src="https://github.com/user-attachments/assets/e501e873-f8ca-4104-8ab2-2d8eace6a696"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Light mode</em></td>
+    <td align="center"><em>Labels beside nodes</em></td>
+  </tr>
+</table>
 
 More screenshots are in the [screenshot gallery](screenshot-gallery.md).
 
