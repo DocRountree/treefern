@@ -39,7 +39,7 @@ jobs:
           New-Item -ItemType Directory dist | Out-Null
           Copy-Item build/Release/treefern.exe dist/
           windeployqt --release --no-translations dist/treefern.exe
-          Copy-Item -Recurse samples dist/
+          Copy-Item samples/*.json dist/  # samples sit right next to treefern.exe
           Compress-Archive dist/* treefern-windows.zip
 
       - name: Installer (Windows)
