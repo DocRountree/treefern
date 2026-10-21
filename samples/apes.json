@@ -1,0 +1,753 @@
+{
+    "nodes": [
+        {
+            "collapsed": false,
+            "id": "c53d9de8d5",
+            "info": "Apes are a clade of old-world monkey, posessing a short, stiff lower back, as well as a broad ribcage and broad shoulders. They are also dinstinguished by their larger brain-to-body ratio compared to other monkeys, as well as their long gestation time (a hallmark of k-selection).",
+            "name": "Apes"
+        },
+        {
+            "collapsed": false,
+            "id": "88507541f6",
+            "info": "Also known as \"lesser apes,\" gibbons are smaller than their fellow apes. They possess uniquely long arms, ball-and-socket wrist joints, and hook-like hands for efficient tree-swinging. Gibbons also have hairless sitting pads and dagger-like canines.",
+            "name": "Gibbons",
+            "parent": "c53d9de8d5"
+        },
+        {
+            "collapsed": false,
+            "id": "76660a9431",
+            "info": "",
+            "name": "Hylobates",
+            "parent": "88507541f6"
+        },
+        {
+            "collapsed": false,
+            "id": "3d5905da75",
+            "info": "",
+            "name": "Pileatus",
+            "parent": "76660a9431"
+        },
+        {
+            "collapsed": false,
+            "id": "37f45b4b71",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "76660a9431"
+        },
+        {
+            "collapsed": false,
+            "id": "1648d87b42",
+            "info": "",
+            "name": "Lar",
+            "parent": "37f45b4b71"
+        },
+        {
+            "collapsed": false,
+            "id": "0e213e25b5",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "37f45b4b71"
+        },
+        {
+            "collapsed": false,
+            "id": "accc0adf65",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "0e213e25b5"
+        },
+        {
+            "collapsed": false,
+            "id": "e18fbc2438",
+            "info": "",
+            "name": "Klossi",
+            "parent": "accc0adf65"
+        },
+        {
+            "collapsed": false,
+            "id": "aa5209f630",
+            "info": "",
+            "name": "Moloch",
+            "parent": "accc0adf65"
+        },
+        {
+            "collapsed": false,
+            "id": "2bb2d83413",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "0e213e25b5"
+        },
+        {
+            "collapsed": false,
+            "id": "5f9f59ee48",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "2bb2d83413"
+        },
+        {
+            "collapsed": false,
+            "id": "9be7576f48",
+            "info": "",
+            "name": "Agilis",
+            "parent": "5f9f59ee48"
+        },
+        {
+            "collapsed": false,
+            "id": "012a54b0a3",
+            "info": "",
+            "name": "Albibarbis",
+            "parent": "5f9f59ee48"
+        },
+        {
+            "collapsed": false,
+            "id": "51939c835b",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "2bb2d83413"
+        },
+        {
+            "collapsed": false,
+            "id": "1a0b2abde6",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "51939c835b"
+        },
+        {
+            "collapsed": false,
+            "id": "3b39e3d042",
+            "info": "",
+            "name": "Abbotti",
+            "parent": "1a0b2abde6"
+        },
+        {
+            "collapsed": false,
+            "id": "f34f138fac",
+            "info": "",
+            "name": "Funereus",
+            "parent": "1a0b2abde6"
+        },
+        {
+            "collapsed": false,
+            "id": "a637251af3",
+            "info": "",
+            "name": "Muelleri",
+            "parent": "51939c835b"
+        },
+        {
+            "collapsed": false,
+            "id": "4fb884f097",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "88507541f6"
+        },
+        {
+            "collapsed": false,
+            "id": "61454e3e79",
+            "info": "",
+            "name": "Nomascus",
+            "parent": "4fb884f097"
+        },
+        {
+            "collapsed": false,
+            "id": "b9ee465a24",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "61454e3e79"
+        },
+        {
+            "collapsed": false,
+            "id": "66807d809d",
+            "info": "",
+            "name": "Concolor",
+            "parent": "b9ee465a24"
+        },
+        {
+            "collapsed": false,
+            "id": "afed255afc",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "b9ee465a24"
+        },
+        {
+            "collapsed": false,
+            "id": "eac43aaa22",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "afed255afc"
+        },
+        {
+            "collapsed": false,
+            "id": "28791999a6",
+            "info": "",
+            "name": "Annamensis",
+            "parent": "eac43aaa22"
+        },
+        {
+            "collapsed": false,
+            "id": "4fa4b07dcd",
+            "info": "",
+            "name": "Gabriellae",
+            "parent": "eac43aaa22"
+        },
+        {
+            "collapsed": false,
+            "id": "ad3f05bebf",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "afed255afc"
+        },
+        {
+            "collapsed": false,
+            "id": "ffd9cdf8bb",
+            "info": "",
+            "name": "Leucogenys",
+            "parent": "ad3f05bebf"
+        },
+        {
+            "collapsed": false,
+            "id": "ecd2fffe00",
+            "info": "",
+            "name": "Siki",
+            "parent": "ad3f05bebf"
+        },
+        {
+            "collapsed": false,
+            "id": "2f8a2c5a0b",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "61454e3e79"
+        },
+        {
+            "collapsed": false,
+            "id": "a85002947d",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "2f8a2c5a0b"
+        },
+        {
+            "collapsed": false,
+            "id": "d10ab6763f",
+            "info": "",
+            "name": "Hainanus",
+            "parent": "a85002947d"
+        },
+        {
+            "collapsed": false,
+            "id": "210107456d",
+            "info": "",
+            "name": "Junzi",
+            "parent": "a85002947d"
+        },
+        {
+            "collapsed": false,
+            "id": "ca64b2e584",
+            "info": "",
+            "name": "Nasutus",
+            "parent": "2f8a2c5a0b"
+        },
+        {
+            "collapsed": false,
+            "id": "a399a32267",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "4fb884f097"
+        },
+        {
+            "collapsed": false,
+            "id": "c485afb32d",
+            "info": "",
+            "name": "Symphalangus",
+            "parent": "a399a32267"
+        },
+        {
+            "collapsed": false,
+            "id": "b31db65f53",
+            "info": "",
+            "name": "Hoolocks",
+            "parent": "a399a32267"
+        },
+        {
+            "collapsed": false,
+            "id": "fe5e413316",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "b31db65f53"
+        },
+        {
+            "collapsed": false,
+            "id": "1133d50793",
+            "info": "",
+            "name": "Tianxing",
+            "parent": "fe5e413316"
+        },
+        {
+            "collapsed": false,
+            "id": "a2c7261554",
+            "info": "",
+            "name": "Leuconedys",
+            "parent": "fe5e413316"
+        },
+        {
+            "collapsed": false,
+            "id": "ec6162c4cb",
+            "info": "",
+            "name": "Hoolock",
+            "parent": "b31db65f53"
+        },
+        {
+            "collapsed": false,
+            "id": "6c22df5a89",
+            "info": "",
+            "name": "Great Apes",
+            "parent": "c53d9de8d5"
+        },
+        {
+            "collapsed": false,
+            "id": "ac350de009",
+            "info": "Orangutans are an Asian ape, and are the largest tree-nesting mammals on Earth. They are known for their orange hair and fatty cheeck pads in males. Unlike many other apes, their social structure is often solitary, rather than driven by familial or pack bonding.",
+            "name": "Orangutans",
+            "parent": "6c22df5a89"
+        },
+        {
+            "collapsed": false,
+            "id": "525cebf001",
+            "info": "",
+            "name": "Sumatran Orangutan",
+            "parent": "ac350de009"
+        },
+        {
+            "collapsed": false,
+            "id": "86aaebc831",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "ac350de009"
+        },
+        {
+            "collapsed": false,
+            "id": "de53d6c7bf",
+            "info": "",
+            "name": "Bornean Orangutan",
+            "parent": "86aaebc831"
+        },
+        {
+            "collapsed": false,
+            "id": "a89f99fcf9",
+            "info": "Subspecies",
+            "name": "Northwest Bornean Orangutan",
+            "parent": "de53d6c7bf"
+        },
+        {
+            "collapsed": false,
+            "id": "2c6c53a07b",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "de53d6c7bf"
+        },
+        {
+            "collapsed": false,
+            "id": "83f6c2350c",
+            "info": "Subspecies",
+            "name": "Southwest Bornean Orangutan",
+            "parent": "2c6c53a07b"
+        },
+        {
+            "collapsed": false,
+            "id": "9d6498bf8d",
+            "info": "Subspecies",
+            "name": "Northeast Bornean Orangutan",
+            "parent": "2c6c53a07b"
+        },
+        {
+            "collapsed": false,
+            "id": "cdcdc86079",
+            "info": "",
+            "name": "Tapanuli Orangutan",
+            "parent": "86aaebc831"
+        },
+        {
+            "collapsed": false,
+            "id": "282f6dd150",
+            "info": "",
+            "name": "African Apes",
+            "parent": "6c22df5a89"
+        },
+        {
+            "collapsed": false,
+            "id": "c0368e68fb",
+            "info": "Gorillas are the largest apes, unique for their knuckle-walking, prominent saggital crests in males, and various adaptations to a heavily plant-based diet.",
+            "name": "Gorillas",
+            "parent": "282f6dd150"
+        },
+        {
+            "collapsed": false,
+            "id": "229db9e199",
+            "info": "",
+            "name": "Eastern Gorilla",
+            "parent": "c0368e68fb"
+        },
+        {
+            "collapsed": false,
+            "id": "5eebba2b58",
+            "info": "",
+            "name": "Grauer's Gorilla",
+            "parent": "229db9e199"
+        },
+        {
+            "collapsed": false,
+            "id": "798e497cff",
+            "info": "",
+            "name": "Mountain Gorilla",
+            "parent": "229db9e199"
+        },
+        {
+            "collapsed": false,
+            "id": "e060258407",
+            "info": "",
+            "name": "Western Gorilla",
+            "parent": "c0368e68fb"
+        },
+        {
+            "collapsed": false,
+            "id": "cfbe4d061a",
+            "info": "A subspecies",
+            "name": "Western Lowland Gorilla",
+            "parent": "e060258407"
+        },
+        {
+            "collapsed": false,
+            "id": "e5f83c580e",
+            "info": "A subspecies",
+            "name": "Cross River Gorilla",
+            "parent": "e060258407"
+        },
+        {
+            "collapsed": false,
+            "id": "a3af017380",
+            "info": "Tribe Hominini: the chimpanzee–human clade. Split from gorillas ~8–10 Ma; Pan–Homo divergence ~6.5–8 Ma.",
+            "name": "Hominins",
+            "parent": "282f6dd150"
+        },
+        {
+            "collapsed": false,
+            "id": "e7d59e1b55",
+            "info": "",
+            "name": "Pan",
+            "parent": "a3af017380"
+        },
+        {
+            "collapsed": false,
+            "id": "c85ca3a723",
+            "info": "Chimpanzees are a pan species unique for their flared ears, prominent brow ridge, and large canine teeth, especially in males.",
+            "name": "Chimpanzee",
+            "parent": "e7d59e1b55"
+        },
+        {
+            "collapsed": false,
+            "id": "6ef666c408",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "c85ca3a723"
+        },
+        {
+            "collapsed": false,
+            "id": "bc40a928a5",
+            "info": "Subspecies",
+            "name": "Nigera-Cameroon Chimpanzee",
+            "parent": "6ef666c408"
+        },
+        {
+            "collapsed": false,
+            "id": "6cd48e7d6a",
+            "info": "Subspecies",
+            "name": "Western Chimpanzee",
+            "parent": "6ef666c408"
+        },
+        {
+            "collapsed": false,
+            "id": "11637c8318",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "c85ca3a723"
+        },
+        {
+            "collapsed": false,
+            "id": "72d1f86e8f",
+            "info": "Subspecies",
+            "name": "Central Chimpanzee",
+            "parent": "11637c8318"
+        },
+        {
+            "collapsed": false,
+            "id": "9f142231dd",
+            "info": "Subspecies",
+            "name": "Eastern Chimpanzee",
+            "parent": "11637c8318"
+        },
+        {
+            "collapsed": false,
+            "id": "be4f762a67",
+            "info": "Bonobos are a species of pan known for having a sleek and slender build, upright posture, and complex, matriarchal social structures.",
+            "name": "Bonobos",
+            "parent": "e7d59e1b55"
+        },
+        {
+            "collapsed": false,
+            "id": "4c1f8a92de",
+            "info": "Hominins closer to Homo than to Pan, ~4.4 Ma to present. ",
+            "name": "Hominina",
+            "parent": "a3af017380"
+        },
+        {
+            "collapsed": false,
+            "id": "8b3e0d71af",
+            "info": "~4.4 Ma, Aramis, Ethiopia. Basal hominin with a mosaic of climbing and bipedal adaptations; not a knuckle-walker.",
+            "name": "Ardipithecus ramidus",
+            "parent": "4c1f8a92de"
+        },
+        {
+            "collapsed": false,
+            "id": "2a3a86b394",
+            "info": "Australopithecus + Paranthropus: a GRADE, not a clade. 'Australopithecus' is paraphyletic with respect to Homo and Paranthropus, so its species are shown as a ladder of stem taxa.",
+            "name": "Australopithecines",
+            "parent": "4c1f8a92de"
+        },
+        {
+            "collapsed": false,
+            "id": "d42c9f60b8",
+            "info": "~4.2–3.8 Ma, Kanapoi/Allia Bay, Kenya. Oldest well-sampled australopith; most analyses recover it as directly ancestral to Au. afarensis (anagenesis).",
+            "name": "Australopithecus anamensis",
+            "parent": "2a3a86b394"
+        },
+        {
+            "collapsed": false,
+            "id": "6a90c4e2f7",
+            "info": "The 'afarensis-grade' australopiths of the middle Pliocene.",
+            "name": "Unnamed",
+            "parent": "2a3a86b394"
+        },
+        {
+            "collapsed": false,
+            "id": "1e7b5a03c9",
+            "info": "~3.5–3.3 Ma, Woranso-Mille, Ethiopia. Confirmed as a valid species in 2025 (Nature); foot bones indicate retained climbing. Analyses place it closer to Au. anamensis than to Au. afarensis.",
+            "name": "Australopithecus deyiremeda",
+            "parent": "6a90c4e2f7"
+        },
+        {
+            "collapsed": false,
+            "id": "caf428ec77",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "6a90c4e2f7"
+        },
+        {
+            "collapsed": false,
+            "id": "3c8e1a5f90",
+            "info": "Southern African australopiths plus the Homo + Paranthropus clade. Au. africanus is generally recovered closer to Homo/Paranthropus than Au. afarensis is.",
+            "name": "Unnamed",
+            "parent": "caf428ec77"
+        },
+        {
+            "collapsed": false,
+            "id": "b7d04e29a1",
+            "info": "~3.0–2.1 Ma, Sterkfontein/Makapansgat/Taung. Gracile southern African species; a plausible stem for Homo + Paranthropus.",
+            "name": "Australopithecus africanus",
+            "parent": "3c8e1a5f90"
+        },
+        {
+            "collapsed": false,
+            "id": "702b46354b",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "3c8e1a5f90"
+        },
+        {
+            "collapsed": false,
+            "id": "5e1c8f37b2",
+            "info": "~1.98 Ma, Malapa, South Africa. Mosaic of australopith and Homo-like traits; most analyses ally it with Au. africanus, but some recover it closer to Homo.",
+            "name": "Australopithecus sediba",
+            "parent": "702b46354b"
+        },
+        {
+            "collapsed": false,
+            "id": "c93a6d0e48",
+            "info": "The Homo + Paranthropus clade, both descended from a gracile australopith ancestor. 'H. heidelbergensis' is a non-monophyletic Middle Pleistocene grade and is not shown.",
+            "name": "Unnamed",
+            "parent": "702b46354b"
+        },
+        {
+            "collapsed": false,
+            "id": "0d5f2b8ca4",
+            "info": "Robust australopiths, ~2.6–1.0 Ma: extreme postcanine megadontia, flared zygomatics, sagittal crest; a specialised dead-end clade.",
+            "name": "Paranthropus",
+            "parent": "c93a6d0e48"
+        },
+        {
+            "collapsed": false,
+            "id": "7b6e93d0c2",
+            "info": "~2.6–2.3 Ma, Omo/Turkana. Earliest and most primitive robust australopith; probably close to the afarensis–Paranthropus transition.",
+            "name": "Paranthropus aethiopicus",
+            "parent": "0d5f2b8ca4"
+        },
+        {
+            "collapsed": false,
+            "id": "a1c47e2d96",
+            "info": "Eastern and southern robust clades.",
+            "name": "Unnamed",
+            "parent": "0d5f2b8ca4"
+        },
+        {
+            "collapsed": false,
+            "id": "2f8d0b65e3",
+            "info": "~2.3–1.2 Ma, East Africa (Olduvai, Koobi Fora, Konso). The 'Nutcracker Man'; hyper-robust dentition.",
+            "name": "Paranthropus boisei",
+            "parent": "a1c47e2d96"
+        },
+        {
+            "collapsed": false,
+            "id": "ed39c7140b",
+            "info": "~2.0–1.0 Ma, South Africa (Swartkrans, Kromdraai, Drimolen). Sister species to P. boisei; the longest-surviving robust form.",
+            "name": "Paranthropus robustus",
+            "parent": "a1c47e2d96"
+        },
+        {
+            "collapsed": false,
+            "id": "b60ec19360",
+            "info": "Genus Homo, from ~2.8 Ma (Ledi-Geraru, Ethiopia). H. habilis and H. erectus are probably grades rather than clean monophyletic species, so early Homo is shown as a radiation.",
+            "name": "Humans",
+            "parent": "c93a6d0e48"
+        },
+        {
+            "collapsed": false,
+            "id": "6b2e9a07d4",
+            "info": "~2.4–1.5 Ma, East Africa. Small-brained, Oldowan toolmaker. 'H. habilis' is likely a grade; the related H. rudolfensis (not shown) is sometimes linked with Kenyanthropus.",
+            "name": "Homo habilis",
+            "parent": "b60ec19360"
+        },
+        {
+            "collapsed": false,
+            "id": "8c4f1d63a9",
+            "info": "Homo sensu stricto: the post-habilis radiation.",
+            "name": "Unnamed",
+            "parent": "b60ec19360"
+        },
+        {
+            "collapsed": false,
+            "id": "7d05147e1e",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "8c4f1d63a9"
+        },
+        {
+            "collapsed": false,
+            "id": "0a7c3f9b28",
+            "info": "~1.9 Ma to ~110 ka (Ngandong), Africa and Eurasia. Includes H. ergaster and Dmanisi; increasingly seen as a paraphyletic grade of populations rather than one species.",
+            "name": "Homo erectus",
+            "parent": "7d05147e1e"
+        },
+        {
+            "collapsed": false,
+            "id": "f3f227fb03",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "7d05147e1e"
+        },
+        {
+            "collapsed": false,
+            "id": "c71e5b28d0",
+            "info": "Insular dwarf Homo of Wallacea/Sunda. Alternatively interpreted as dwarfed descendants of H. erectus, which is why their exact attachment is unstable.",
+            "name": "Unnamed",
+            "parent": "f3f227fb03"
+        },
+        {
+            "collapsed": false,
+            "id": "9a04d7e3b6",
+            "info": "~100–60 ka at Liang Bua (ancestral ~700 ka at Mata Menge), Flores. ~1.1 m tall, ~420 cc; stone tools and butchered stegodon. Most analyses favour a deep, pre-erectus origin rather than a dwarfed erectus.",
+            "name": "Homo floresiensis",
+            "parent": "c71e5b28d0"
+        },
+        {
+            "collapsed": false,
+            "id": "4e83c106af",
+            "info": "~134–67 ka, Callao Cave, Luzon. Mosaic of primitive (curved phalanges) and derived dental traits; likely another island endemic of the same dispersal.",
+            "name": "Homo luzonensis",
+            "parent": "c71e5b28d0"
+        },
+        {
+            "collapsed": false,
+            "id": "d6b15f8e02",
+            "info": "The H. sapiens + Neanderthal + Denisovan clade; stem members are Middle Pleistocene, ~0.9 Ma onward.",
+            "name": "Unnamed",
+            "parent": "f3f227fb03"
+        },
+        {
+            "collapsed": false,
+            "id": "1f7a2c90e4",
+            "info": "~0.9–0.8 Ma, Atapuerca (Gran Dolina). Widely placed at the base of the sapiens–Neanderthal clade; shares a modern facial profile.",
+            "name": "Homo antecessor",
+            "parent": "d6b15f8e02"
+        },
+        {
+            "collapsed": false,
+            "id": "a0c8958691",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "d6b15f8e02"
+        },
+        {
+            "collapsed": false,
+            "id": "7c2f9b06ea",
+            "info": "The sapiens–Neandersovan split, ~600–800 ka (genetic estimates 550–765 ka); followed by low-level introgression among all three lineages.",
+            "name": "Unnamed",
+            "parent": "a0c8958691"
+        },
+        {
+            "collapsed": false,
+            "id": "c51412d630",
+            "info": "~300 ka to present, Africa. Also known as modern humans. Sister lineage to Neanderthals + Denisovans; carries ~1–2% Neanderthal and ~3–5% Denisovan ancestry outside Africa.",
+            "name": "Sapiens",
+            "parent": "7c2f9b06ea"
+        },
+        {
+            "collapsed": false,
+            "id": "e36240e0d8",
+            "info": "The Neanderthal–Denisovan ancestral population (Rogers et al.), ~600–800 ka; diverged into the two lineages by ~400–450 ka.",
+            "name": "Neandersovans",
+            "parent": "7c2f9b06ea"
+        },
+        {
+            "collapsed": false,
+            "id": "05e1f7c8a9",
+            "info": "~400 ka–40 ka, Europe and western Asia.",
+            "name": "Neanderthals",
+            "parent": "e36240e0d8"
+        },
+        {
+            "collapsed": false,
+            "id": "26789a7aee",
+            "info": "~300 ka–~30 ka, Asia; known mainly from ancient DNA (Denisova Cave, Baishiya, Penghu).",
+            "name": "Denisovans",
+            "parent": "e36240e0d8"
+        },
+        {
+            "collapsed": false,
+            "id": "b05e48d3c1",
+            "info": "Harbin ('Dragon Man'), ~146 ka; Dali and Jinniushan may belong here. Placement contested: sister to H. sapiens in the 2021 analysis, but closer to Neanderthals in a 2025 postcranial analysis; possibly synonymous with Denisovans / H. juluensis.",
+            "name": "Homo longi",
+            "parent": "a0c8958691"
+        },
+        {
+            "collapsed": false,
+            "id": "3d90a6f1e2",
+            "info": "~335–236 ka, Rising Star, South Africa. Small-brained (~465 cc) and surprisingly young; phylogenetic position unresolved — often recovered near the base of Homo, or as sister to H. erectus.",
+            "name": "Homo naledi",
+            "parent": "8c4f1d63a9"
+        },
+        {
+            "collapsed": false,
+            "id": "9f2d7b14c6",
+            "info": "~3.9–2.95 Ma, Hadar/Laetoli. 'Lucy'. Long treated as the stem ancestor of Homo + Paranthropus, but the 2025 redescription of Au. deyiremeda suggests Au. afarensis may be a side branch rather than our ancestor.",
+            "name": "Australopithecus afarensis",
+            "parent": "caf428ec77"
+        }
+    ],
+    "root": "c53d9de8d5"
+}
