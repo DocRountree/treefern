@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=TreeFern
+Comment=Edit cladograms
+Exec=treefern %f
+Icon=treefern
+Terminal=false
+Categories=Education;Science;Biology;
+MimeType=application/json;
