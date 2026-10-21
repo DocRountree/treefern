@@ -180,4 +180,6 @@ More screenshots are in the [screenshot gallery](screenshot-gallery.md).
 
 ## License
 
-TreeFern is free software, distributed under the terms of the GNU General Public License. See [LICENSE](LICENSE) for the full text.
+TreeFern is free software, distributed under the terms of the [GNU General Public License, version 3](https://www.gnu.org/licenses/gpl-3.0.html). See [LICENSE](LICENSE) for the full text.
+
+TreeFern uses the [Qt](https://www.qt.io/) toolkit, which is available under the GNU GPL and LGPL. The Windows and Linux packages include unmodified Qt libraries.

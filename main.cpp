@@ -1,5 +1,10 @@
 // TreeFern — a cladogram editor that live-edits a JSON file (Qt 6).
 //
+// This program is free software: you can redistribute it and/or modify it under
+// the terms of the GNU General Public License, version 3, as published by the
+// Free Software Foundation. It is distributed WITHOUT ANY WARRANTY; see the
+// LICENSE file for details.
+//
 // Architecture
 //  * Model owns the Node tree and its file: every commit() is written
 //    atomically, and the file is watched so external edits are reloaded.
