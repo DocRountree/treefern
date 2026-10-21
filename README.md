@@ -132,9 +132,9 @@ A cladogram is a JSON object with the id of the root clade and a flat list of cl
 {
   "root": "a1",
   "nodes": [
-    { "id": "a1", "name": "Apes", "info": "Superfamily Hominoidea", "collapsed": false },
-    { "id": "b2", "parent": "a1", "name": "Great Apes", "info": "", "collapsed": false },
-    { "id": "c3", "parent": "a1", "name": "Gibbons", "info": "", "collapsed": true }
+    { "id": "a1", "name": "Root Clade", "info": "The big clade.", "collapsed": false },
+    { "id": "b2", "parent": "a1", "name": "Daughter Clade 1", "info": "One of the little clades.", "collapsed": false },
+    { "id": "c3", "parent": "a1", "name": "Daighter Clade 2", "info": "Another little clade.", "collapsed": true }
   ]
 }
 ```
@@ -177,14 +177,6 @@ Because the format is plain JSON, files can be generated or edited by scripts an
 </table>
 
 More screenshots are in the [screenshot gallery](screenshot-gallery.md).
-
-## Contributing
-
-Bug reports, feature requests and pull requests are welcome on the [issue tracker](https://github.com/DocRountree/treefern/issues).
-
-- The whole application is in [`main.cpp`](main.cpp). The comment at the top of the file describes its architecture.
-- Every pull request is built on Linux, Windows and macOS by [GitHub Actions](.github/workflows/build.yml).
-- Releases are made by publishing a GitHub release with a `v*` tag (for example `v1.1.0`); the build then attaches the Windows and Linux packages automatically.
 
 ## License
 
