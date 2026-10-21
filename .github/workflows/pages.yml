@@ -1,8 +1,10 @@
 name: Web app
 
+# Publishes main at the site root and the development branch under /dev/.
+# Pages holds one deployment at a time, so every run builds both.
 on:
   push:
-    branches: [main]
+    branches: [main, development]
     paths:
       - 'web/**'
       - 'samples/**'
@@ -28,13 +30,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with: { ref: main, path: main }
+      - uses: actions/checkout@v4
+        with: { ref: development, path: development }
 
       - name: Assemble site
         run: |
-          mkdir _site
-          cp -r web/. _site/
-          cp -r samples _site/
-          cp packaging/treefern.svg docs/social-preview.png _site/
+          # This run's own checkout supplies the build script, so both copies are built the same way.
+          build=${{ github.ref_name == 'development' && 'development' || 'main' }}/web/build-site.sh
+          [ -f "$build" ] || build=development/web/build-site.sh
+          sh "$build" main _site
+          sh "$build" development _site/dev dev
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
