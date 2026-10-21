@@ -64,7 +64,11 @@ constexpr double STD_CLEARANCE = 0.2;      // 3+ forks: min distance between sib
 // pythagoras style: the standard layout with a wide footprint, drawn as squares
 constexpr double PY_W = 0.5;               // half the side of a clade's square, in its own units
 // hyperbolic style (Poincaré disk)
-constexpr double HYP_EDGE = 1.1;           // hyperbolic length of every edge
+constexpr double HYP_EDGE = 1.1;           // hyperbolic length of an edge (longer at crowded forks)
+constexpr double HYP_GAP = 0.4;            // wanted hyperbolic distance between neighbouring siblings
+constexpr double HYP_MAX_EDGE = 2.2;       // longest edge, for forks with very many children
+constexpr double HYP_FLOOR = 0.6;          // every child gets at least this fraction of an equal share of angle
+constexpr double HYP_FAN = 80 * DEG;       // a subtree spreads at most this far either side of straight ahead
 constexpr double HYP_MIN_PX = 0.35;        // cull subtrees whose nodes are smaller than this
 // camera
 constexpr double MIN_PX = 0.6;          // disks: cull subtrees smaller than this on screen
@@ -797,27 +801,40 @@ private:
     // Hyperbolic: a radial tree in the hyperbolic plane (Lamping & Rao). Every
     // node has its own frame (itself at 0, growing along +x) and a wedge of
     // directions in that frame for its children. Children split the wedge by
-    // weight and sit HYP_EDGE away along the middle of their share. Seen from a
-    // child, its share of the parent's wedge looks wider; that is the child's
-    // own wedge. Wedges are convex regions of the plane, so subtrees never meet.
+    // weight (but no less than HYP_FLOOR of an equal share, so small clades are
+    // not squeezed against big ones) and sit along the middle of their share,
+    // far enough out (at least HYP_EDGE) that neighbours are about HYP_GAP
+    // apart: room grows like sinh(distance), so big polytomies spread out
+    // quickly. Seen from a child, its share of the parent's wedge looks wider;
+    // the child's own wedge is that, limited to HYP_FAN either side of straight
+    // ahead so subtrees grow away from the root. Wedges are convex regions of
+    // the plane, so subtrees never meet.
     void hyperbolic(const Node* n, double lo, double hi) {
         loc[n] = Local{C(0, 0), C(1, 0), 0};
         ext[n] = 1;
         if (hidesKids(n)) return;
         const auto kids = ordered(n);
-        const std::vector<double> th = wedges(kids, hi - lo);
+        std::vector<double> th = wedges(kids, hi - lo);
+        const double floor = HYP_FLOOR * (hi - lo) / double(kids.size());
+        double sum = 0;
+        for (double& t : th) sum += (t = std::max(t, floor));
+        for (double& t : th) t *= (hi - lo) / sum;
+        // arc length at distance d across angle t is sinh(d) * t
+        const double edge = kids.size() < 2 ? HYP_EDGE
+            : std::clamp(std::asinh(HYP_GAP / *std::min_element(th.begin(), th.end())), HYP_EDGE, HYP_MAX_EDGE);
         double a = lo;
         for (size_t i = 0; i < kids.size(); ++i) {
             const double b = a + th[i], mid = (a + b) / 2;
-            const Mob L = mobRot(mid) * mobTransX(HYP_EDGE);  // child frame -> parent frame
+            const Mob L = mobRot(mid) * mobTransX(edge);  // child frame -> parent frame
             hyp[kids[i]] = L;
             const Mob Li = inverse(L);
             auto seen = [&](double ang) { return std::arg(apply(Li, std::polar(1.0, ang))); };
             double klo = seen(a + 1e-9), khi = seen(b - 1e-9);
             if (khi <= klo) khi += 2 * PI;
-            // keep the child's wedge pointing away from its parent (never wider than 340 degrees)
-            const double half = std::min((khi - klo) / 2, 170 * DEG), c = (klo + khi) / 2;
-            hyperbolic(kids[i], c - half, c + half);
+            // straight ahead (0) is always inside the share; grow within HYP_FAN of it
+            double wlo = std::max(klo, -HYP_FAN), whi = std::min(khi, HYP_FAN);
+            if (whi <= wlo) { wlo = -1e-3; whi = 1e-3; }
+            hyperbolic(kids[i], wlo, whi);
             a = b;
         }
     }
@@ -1070,7 +1087,6 @@ protected:
         if (e->oldSize().isValid()) {
             const C d = C(e->size().width() - e->oldSize().width(), e->size().height() - e->oldSize().height()) / 2.0;
             cam.f.o += d;
-            hcam.D += d;
         }
     }
 
@@ -1140,7 +1156,7 @@ private:
     struct Snapshot { QHash<QString, Snap> m; bool hyp = false; };
     struct Morph { Snapshot from, to; };
     // hyperbolic camera: the anchor node's frame -> the unit disk, and the disk's radius and centre on screen
-    struct HCam { QString anchor; Mob A = mobRot(-PI / 2); double R = 100; C D{150, 100}; };
+    struct HCam { QString anchor; Mob A = mobRot(-PI / 2); double R = 100; };  // the disk stays centred: see hD()
     struct HFly { Mob A0; C q; double turn = 0; };
     struct HitSeg { QPointF a, b; double hw; const Node* n; };
     struct Seg { QPointF a, b; double pad; QRectF box; const Node *p, *c; };  // branch piece as a label obstacle
@@ -1308,10 +1324,8 @@ private:
 
     void zoomBy(double f, QPointF p) {
         if (hyp()) {
-            const double lo = std::min(width(), height()), R1 = std::clamp(hcam.R * f, lo * 0.15, lo * 80);
-            f = R1 / hcam.R;
-            hcam.R = R1;
-            hcam.D = cpx(p) + (hcam.D - cpx(p)) * f;
+            // the disk stays centred and grows about its centre; drag slides the tree in it
+            hcam.R = std::clamp(hcam.R * f, hDefaultR() * 0.6, hDefaultR() * 4);
             return;
         }
         camAnim.stop();
@@ -1476,11 +1490,12 @@ private:
     // ---- hyperbolic camera (Poincaré disk). Node frames are reached from the
     // anchor through the tree by Möbius maps, like the Euclidean camera, so
     // precision does not depend on how deep the anchor is.
+    C hD() const { return centre(); }  // the disk's centre on screen
     double hDefaultR() const { return std::max(40.0, std::min(width(), height()) * 0.46); }
     void hReset() {
         hAnim.stop();
         const Node* r = model->root();
-        hcam = {r ? r->id : QString(), mobRot(-PI / 2), hDefaultR(), centre()};
+        hcam = {r ? r->id : QString(), mobRot(-PI / 2), hDefaultR()};
     }
     void hFixAnchor() {
         const Node* a = model->find(hcam.anchor);
@@ -1501,12 +1516,15 @@ private:
         return normalized(m);
     }
     Frame hFrame(const Mob& m) const {
-        return {hcam.D + mobOrigin(m) * hcam.R, mobDeriv0(m) * (hcam.R * std::tanh(HYP_EDGE / 2))};
+        return {hD() + mobOrigin(m) * hcam.R, mobDeriv0(m) * (hcam.R * std::tanh(HYP_EDGE / 2))};
     }
     // Control point making the drawn branch follow the geodesic (a circle arc).
     QPointF hCtrl(const Mob& pm, const Mob& L, C a, C b) const {
-        const C mid = mobOrigin(L) * (std::tanh(HYP_EDGE / 4) / std::tanh(HYP_EDGE / 2));
-        return qpt(2.0 * (hcam.D + apply(pm, mid) * hcam.R) - (a + b) / 2.0);
+        // the hyperbolic midpoint of the edge (edges differ in length): distance d/2 is tanh(d/4)
+        const C c = mobOrigin(L);
+        const double r = std::abs(c);
+        const C mid = r > 0 ? c * (std::tanh(std::atanh(r) / 2) / r) : c;
+        return qpt(2.0 * (hD() + apply(pm, mid) * hcam.R) - (a + b) / 2.0);
     }
     void hComputeItems() {
         const Node* A = model->find(hcam.anchor);
@@ -1542,7 +1560,7 @@ private:
     // Slide the plane so the point under `from` follows the pointer to `to`.
     void hPan(C from, C to) {
         auto disk = [&](C p) {
-            const C u = (p - hcam.D) / hcam.R;
+            const C u = (p - hD()) / hcam.R;
             const double k = std::abs(u);
             return k > 0.97 ? u * (0.97 / k) : u;
         };
@@ -1585,7 +1603,7 @@ private:
     void focusNow(const Node* n) {
         if (!n || !lay.loc.contains(n)) return;
         if (hyp()) {
-            hcam = {n->id, mobRot(-PI / 2), hDefaultR(), centre()};
+            hcam = {n->id, mobRot(-PI / 2), hDefaultR()};
             return;
         }
         double mag = std::min(width(), height()) * 0.42;
@@ -1921,7 +1939,7 @@ void Canvas::drawDisk(QPainter& p, double alpha) {
     line.setAlphaF(0.35);
     p.setPen(QPen(line, 1));
     p.setBrush(fill);
-    p.drawEllipse(qpt(hcam.D), hcam.R, hcam.R);
+    p.drawEllipse(qpt(hD()), hcam.R, hcam.R);
     p.setOpacity(1);
 }
 
