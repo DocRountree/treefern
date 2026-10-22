@@ -1272,7 +1272,23 @@ $('paletteInput').addEventListener('keydown', e => {
     else if (e.key === 'Enter') { e.preventDefault(); if (palShown[palCur] && !palShown[palCur].it.disabled) runPaletteItem(palShown[palCur].it); }
 });
 $('paletteForm').addEventListener('submit', e => e.preventDefault());
-$('paletteDlg').addEventListener('click', e => { if (e.target === $('paletteDlg')) $('paletteDlg').close(); });  // backdrop
+
+// A click outside a box closes it as Esc would, one box per click (the picture
+// viewer gives way to the Edit box it came from). Both the press and the release
+// must be outside, so a drag that strays off the box does not close it.
+const outside = (d, e) => {
+    const r = d.getBoundingClientRect();
+    return e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom);
+};
+for (const d of document.querySelectorAll('dialog')) {
+    let pressed = false;
+    d.addEventListener('pointerdown', e => { pressed = outside(d, e); });
+    d.addEventListener('click', e => {
+        if (!pressed || !outside(d, e)) return;
+        pressed = false;
+        if (d.dispatchEvent(new Event('cancel', { cancelable: true }))) d.close();
+    });
+}
 
 // ---------------------------------------------------------------- keyboard
 addEventListener('keydown', e => {

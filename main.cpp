@@ -2045,6 +2045,48 @@ private:
     std::function<bool(QObject*, QEvent*)> f_;
 };
 
+// QDialog::exec(), except that a click outside the box closes it as Esc would,
+// one box per click: a box opened from another closes first. Qt drops clicks on
+// windows a modal box blocks, so the box is shown non-modal and keeps input from
+// the other windows itself.
+static int runBox(QDialog& d) {
+    static QList<QDialog*> open;
+    auto inside = [&d](QWidget* w) {
+        for (; w; w = w->parentWidget())
+            if (w == &d) return true;
+        return false;
+    };
+    EventHook hook([&](QObject* o, QEvent* e) {
+        if (open.isEmpty() || open.last() != &d || !o->isWidgetType()) return false;
+        switch (e->type()) {
+        case QEvent::MouseButtonPress: case QEvent::MouseButtonRelease: case QEvent::MouseButtonDblClick:
+        case QEvent::MouseMove: case QEvent::Wheel: case QEvent::KeyPress: case QEvent::KeyRelease:
+        case QEvent::ShortcutOverride: case QEvent::ContextMenu: case QEvent::DragEnter: case QEvent::Drop:
+            break;
+        default:
+            return false;
+        }
+        if (QApplication::activePopupWidget() || inside(static_cast<QWidget*>(o))) return false;
+        if (e->type() == QEvent::MouseButtonPress) {
+            QKeyEvent esc(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+            QCoreApplication::sendEvent(&d, &esc);
+        }
+        return true;  // the rest of the app waits for the box, as with exec()
+    });
+    d.setModal(false);
+    open.append(&d);
+    qApp->installEventFilter(&hook);
+    QEventLoop loop;
+    QObject::connect(&d, &QDialog::finished, &loop, &QEventLoop::quit);
+    d.show();
+    d.activateWindow();
+    if (d.isVisible()) loop.exec(QEventLoop::DialogExec);
+    qApp->removeEventFilter(&hook);
+    open.removeAll(&d);
+    if (!open.isEmpty()) open.last()->activateWindow();
+    return d.result();
+}
+
 // ----------------------------------------------------------- pictures ---
 // Pictures are kept in the file with the notes, so they are scaled to at most
 // IMAGE_MAX_SIDE px and stored as JPEG, or as PNG when they have transparency.
@@ -2290,7 +2332,7 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
         r.moveTop(std::clamp(r.top(), avail.top(), avail.bottom() - r.height() + 1));
     }
     dlg.setGeometry(r);
-    dlg.exec();
+    runBox(dlg);
 }
 
 // --------------------------------------------------------- info panel ---
@@ -2765,7 +2807,7 @@ public:
         auto bNew = box.addButton("New…", QMessageBox::AcceptRole);
         auto bSample = box.addButton("New from sample…", QMessageBox::AcceptRole);
         box.addButton(QMessageBox::Cancel);
-        box.exec();
+        runBox(box);
         if (box.clickedButton() == bOpen) fileOpen();
         else if (box.clickedButton() == bNew) fileNew();
         else if (box.clickedButton() == bSample) fileNew(true);
@@ -2956,10 +2998,12 @@ private:
         if (p.isEmpty()) return;
         std::unique_ptr<Node> tree = sample ? sampleTree() : nullptr;
         if (!tree) {
-            bool ok;
-            const QString name = QInputDialog::getText(this, "New cladogram", "Name of the root clade:",
-                                                       QLineEdit::Normal, "Root", &ok).trimmed();
-            if (!ok) return;
+            QInputDialog in(this);
+            in.setWindowTitle("New cladogram");
+            in.setLabelText("Name of the root clade:");
+            in.setTextValue("Root");
+            if (runBox(in) != QDialog::Accepted) return;
+            const QString name = in.textValue().trimmed();
             tree = Node::make(name.isEmpty() ? "Root" : name);
         }
         switched(model.create(p, std::move(tree)), "Cannot create file");
@@ -3031,7 +3075,7 @@ private:
         bool toClipboard = false;
         connect(copy, &QPushButton::clicked, &dlg, [&] { toClipboard = true; dlg.accept(); });
         showInfo();
-        if (dlg.exec() != QDialog::Accepted || !model.isOpen()) return;
+        if (runBox(dlg) != QDialog::Accepted || !model.isOpen()) return;
 
         const bool whole = area->checkedId() == 1, svg = format->checkedId() == 1 && !toClipboard;
         const double factor = factors[scale->checkedId()];
@@ -3234,7 +3278,7 @@ private:
         connect(list, &QTreeWidget::itemClicked, &dlg, [&](QTreeWidgetItem* it) { choose(it); });
         fill();
         input->setFocus();
-        if (dlg.exec() == QDialog::Accepted && chosen) chosen->trigger();
+        if (runBox(dlg) == QDialog::Accepted && chosen) chosen->trigger();
     }
 
     // ---- clade actions
@@ -3309,7 +3353,7 @@ private:
         for (auto seq : {QKeySequence("Ctrl+Return"), QKeySequence("Ctrl+Enter")})
             connect(new QShortcut(seq, &dlg), &QShortcut::activated, &dlg, [&] { finish(Next::Done); });
         nameEdit->setFocus();
-        if (dlg.exec() != QDialog::Accepted) return std::nullopt;
+        if (runBox(dlg) != QDialog::Accepted) return std::nullopt;
         return NewClade{nameEdit->text().trimmed(), infoEdit->toPlainText(), pics->images, next};
     }
 
@@ -3367,8 +3411,9 @@ private:
         m.addSeparator();
         m.addAction("Custom colour…", this, [this, set, id] {
             const Node* cur = model.find(id);
-            const QColor c = QColorDialog::getColor(QColor(cur && !cur->color.isEmpty() ? cur->color : "#4f8fe0"), this, "Clade colour");
-            if (c.isValid()) set(c.name());
+            QColorDialog cd(QColor(cur && !cur->color.isEmpty() ? cur->color : "#4f8fe0"), this);
+            cd.setWindowTitle("Clade colour");
+            if (runBox(cd) == QDialog::Accepted && cd.selectedColor().isValid()) set(cd.selectedColor().name());
         });
         QAction* inherit = m.addAction(n->parent ? "Same as mother clade" : "Default colours", this, [set] { set({}); });
         inherit->setCheckable(true);
@@ -3414,7 +3459,7 @@ private:
         for (auto seq : {QKeySequence("Ctrl+Return"), QKeySequence("Ctrl+Enter")})
             connect(new QShortcut(seq, &dlg), &QShortcut::activated, &dlg, acceptIfValid);
         nameEdit->setFocus();
-        if (dlg.exec() != QDialog::Accepted || !(n = model.find(id))) return;
+        if (runBox(dlg) != QDialog::Accepted || !(n = model.find(id))) return;
 
         const QString newName = nameEdit->text().trimmed(), newInfo = infoEdit->toPlainText();
         if (newName.isEmpty() || (newName == n->name && newInfo == n->info && pics->images == n->images)) return;
@@ -3442,7 +3487,7 @@ private:
                                        .arg(inside + 1).arg(n->name).arg(inside));
             QPushButton* del = box.addButton("Delete", QMessageBox::DestructiveRole);
             box.setDefaultButton(QMessageBox::Cancel);
-            box.exec();
+            runBox(box);
             if (box.clickedButton() != del || !(n = model.find(id))) return;
         }
         const QString parentId = n->parent ? n->parent->id : QString();
