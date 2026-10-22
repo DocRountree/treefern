@@ -153,6 +153,7 @@ A cladogram is a JSON object with the id of the root clade and a flat list of cl
 | `name` | string | Display name |
 | `info` | string | Free-form notes, shown in the side panel |
 | `collapsed` | boolean | Whether the clade's descendants are hidden |
+| `title` | string | Optional, at the top level: the name the web app's Samples menu shows for a file in `samples/` (otherwise the root clade's name) |
 | `color` | string | Optional colour as `"#rrggbb"`, inherited by the clade's descendants; omitted when the clade uses its mother clade's colour |
 
 Because the format is plain JSON, files can be generated or edited by scripts and other tools while TreeFern is open; it reloads them automatically. Clades whose parent chain does not reach the root are ignored when a file is loaded.
