@@ -2090,11 +2090,26 @@ static QList<QImage> imagesFromMime(const QMimeData* m) {
 }
 
 // A row of thumbnails; clicking one opens it.
-static QListWidget* thumbnailList() {
+// carousel: one row that scrolls sideways (also with an ordinary mouse wheel).
+static QListWidget* thumbnailList(bool carousel = false) {
     auto list = new QListWidget;
     list->setViewMode(QListView::IconMode);
     list->setFlow(QListView::LeftToRight);
-    list->setWrapping(true);
+    list->setWrapping(!carousel);
+    list->setProperty("carousel", carousel);
+    if (carousel) {
+        list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        list->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+        auto wheel = new EventHook([list](QObject*, QEvent* e) {
+            if (e->type() != QEvent::Wheel) return false;
+            const QPoint d = static_cast<QWheelEvent*>(e)->angleDelta();
+            if (d.x() || !d.y()) return false;
+            list->horizontalScrollBar()->setValue(list->horizontalScrollBar()->value() - d.y());
+            return true;
+        });
+        wheel->setParent(list);
+        list->viewport()->installEventFilter(wheel);
+    }
     list->setResizeMode(QListView::Adjust);
     list->setMovement(QListView::Static);
     list->setSelectionMode(QAbstractItemView::NoSelection);
@@ -2146,6 +2161,10 @@ static void fillThumbnails(QListWidget* list, const QStringList& images,
     // Tall enough for the rows the thumbnails fill at the current width, up to
     // two; beyond that the list scrolls.
     const int cellW = W + 2 * PAD + 2 * list->spacing(), cellH = H + 2 * PAD + 2 * list->spacing();
+    if (list->property("carousel").toBool()) {  // one row, plus room for its scroll bar
+        list->setFixedHeight(cellH + list->horizontalScrollBar()->sizeHint().height() + 2 * list->frameWidth() + 4);
+        return;
+    }
     const int perRow = std::max(1, (list->width() - 2 * list->frameWidth()) / cellW);
     const int rows = std::min(2, int(images.size() + perRow - 1) / perRow);
     list->setFixedHeight(rows * cellH + 2 * list->frameWidth() + 4);
@@ -2466,6 +2485,9 @@ public:
             addImages(imgs);
         });
         refill();
+        connect(list->horizontalScrollBar(), &QScrollBar::rangeChanged, this, [this](int, int max) {
+            if (toEnd) list->horizontalScrollBar()->setValue(max);
+        });
         // The text fields would take a dropped file as text, so drops go to the dialog.
         dlg->setAcceptDrops(true);
         dlg->installEventFilter(&hook);
@@ -2479,7 +2501,11 @@ public:
     void addImages(const QList<QImage>& imgs) {
         for (const QImage& img : imgs)
             if (const QString url = imageToDataUrl(img); !url.isEmpty()) images << url;
+        // Show what was just added: the row is laid out again in steps, so follow
+        // its end for a moment.
+        toEnd = true;
         refill();
+        QTimer::singleShot(300, this, [this] { toEnd = false; });
     }
 
     void refill() {
@@ -2488,7 +2514,8 @@ public:
     }
 
 private:
-    QListWidget* list = thumbnailList();
+    QListWidget* list = thumbnailList(true);
+    bool toEnd = false;
     QDialog* dlg = nullptr;
     EventHook hook{[this](QObject* o, QEvent* e) {
         switch (e->type()) {

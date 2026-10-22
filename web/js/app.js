@@ -434,7 +434,18 @@ function renderEditPics() {
 async function addEditPics(files) {
     dlgImages.push(...await readPictures(files));
     renderEditPics();
+    // show what was just added, once its thumbnail has loaded and the row its full width
+    const box = $('editPics'), last = box.lastElementChild?.querySelector('img');
+    const toEnd = () => { box.scrollLeft = box.scrollWidth; };
+    toEnd();
+    last?.addEventListener('load', toEnd, { once: true });
 }
+// An ordinary mouse wheel scrolls the row sideways.
+$('editPics').addEventListener('wheel', e => {
+    if (e.deltaX || !e.deltaY || e.ctrlKey) return;
+    e.preventDefault();
+    $('editPics').scrollLeft += e.deltaY * (e.deltaMode === 1 ? 40 : 1);
+}, { passive: false });
 $('editAddPics').addEventListener('click', () => { $('picInput').onchange = () => addEditPics([...$('picInput').files]); $('picInput').value = ''; $('picInput').click(); });
 $('editDlg').addEventListener('paste', e => {
     const files = imageFiles(e.clipboardData);
