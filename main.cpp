@@ -2189,12 +2189,13 @@ static void fillThumbnails(QListWidget* list, const QStringList& images,
         pic->setGeometry(PAD + (W - px.width()) / 2, PAD + (H - px.height()) / 2, px.width(), px.height());
         pic->setCursor(Qt::PointingHandCursor);
         pic->setToolTip("View this picture");
-        (new EventHook([open, i](QObject*, QEvent* e) {
+        auto click = new EventHook([open, i](QObject*, QEvent* e) {
             if (e->type() != QEvent::MouseButtonRelease || static_cast<QMouseEvent*>(e)->button() != Qt::LeftButton) return false;
             open(i);
             return true;
-        }))->setParent(pic);
-        pic->installEventFilter(pic->findChild<EventHook*>());
+        });
+        click->setParent(pic);
+        pic->installEventFilter(click);
         QToolButton* x = roundButton(cell, "×", X, "background: black; color: white;");
         x->setToolTip("Remove this picture");
         x->move(pic->geometry().right() - X - 1, pic->geometry().top() + 3);
