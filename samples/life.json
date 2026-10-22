@@ -610,6 +610,245 @@
         },
         {
             "collapsed": false,
+            "id": "a8ee8855f5",
+            "info": "",
+            "name": "Chelicerata",
+            "parent": "046ccb8600"
+        },
+        {
+            "collapsed": false,
+            "id": "910d2ac402",
+            "info": "",
+            "name": "Pycnogonida (Sea Spiders)",
+            "parent": "a8ee8855f5"
+        },
+        {
+            "collapsed": false,
+            "id": "a53e94d16f",
+            "info": "",
+            "name": "Euchelicerata",
+            "parent": "a8ee8855f5"
+        },
+        {
+            "collapsed": false,
+            "color": "#e5534b",
+            "id": "edc909c1f3",
+            "info": "(extinct)",
+            "name": "Offacolidae",
+            "parent": "a53e94d16f"
+        },
+        {
+            "collapsed": false,
+            "id": "884e88e363",
+            "info": "",
+            "name": "Prosomapoda",
+            "parent": "a53e94d16f"
+        },
+        {
+            "collapsed": false,
+            "id": "a389fc30d5",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "884e88e363"
+        },
+        {
+            "collapsed": false,
+            "id": "d88ed6d8fd",
+            "info": "",
+            "name": "Harvestmen",
+            "parent": "a389fc30d5"
+        },
+        {
+            "collapsed": false,
+            "id": "c6138d3cb1",
+            "info": "",
+            "name": "Ticks",
+            "parent": "a389fc30d5"
+        },
+        {
+            "collapsed": false,
+            "id": "9dc5986f54",
+            "info": "",
+            "name": "Arachnopulmonata",
+            "parent": "884e88e363"
+        },
+        {
+            "collapsed": false,
+            "id": "0da9562592",
+            "info": "",
+            "name": "Panscorpiones",
+            "parent": "9dc5986f54"
+        },
+        {
+            "collapsed": false,
+            "id": "d60724c599",
+            "info": "",
+            "name": "Scorpions",
+            "parent": "0da9562592"
+        },
+        {
+            "collapsed": false,
+            "id": "e7106f5230",
+            "info": "",
+            "name": "Pseudoscorpions",
+            "parent": "0da9562592"
+        },
+        {
+            "collapsed": false,
+            "id": "2bda914e24",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "9dc5986f54"
+        },
+        {
+            "collapsed": false,
+            "id": "c1aa1b35d1",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "2bda914e24"
+        },
+        {
+            "collapsed": false,
+            "id": "45d79067d4",
+            "info": "",
+            "name": "Horseshoe Crabs",
+            "parent": "c1aa1b35d1"
+        },
+        {
+            "collapsed": false,
+            "id": "9d5d181d78",
+            "info": "",
+            "name": "Ricinulei",
+            "parent": "c1aa1b35d1"
+        },
+        {
+            "collapsed": false,
+            "id": "832e0959cc",
+            "info": "",
+            "name": "Tetrapulmonata",
+            "parent": "2bda914e24"
+        },
+        {
+            "collapsed": false,
+            "id": "1c4e20da36",
+            "info": "",
+            "name": "Spiders",
+            "parent": "832e0959cc"
+        },
+        {
+            "collapsed": false,
+            "id": "14d519e032",
+            "info": "",
+            "name": "Pedipalpi",
+            "parent": "832e0959cc"
+        },
+        {
+            "collapsed": false,
+            "id": "cfe97e6447",
+            "info": "",
+            "name": "Whip Spiders",
+            "parent": "14d519e032"
+        },
+        {
+            "collapsed": false,
+            "id": "f924c37f03",
+            "info": "",
+            "name": "Schizotarsata",
+            "parent": "14d519e032"
+        },
+        {
+            "collapsed": false,
+            "id": "2fe1208d59",
+            "info": "",
+            "name": "Vinegaroons",
+            "parent": "f924c37f03"
+        },
+        {
+            "collapsed": false,
+            "id": "2dc08dad03",
+            "info": "",
+            "name": "Sprickets",
+            "parent": "f924c37f03"
+        },
+        {
+            "collapsed": false,
+            "id": "18edee2f01",
+            "info": "",
+            "name": "Mandibulata",
+            "parent": "046ccb8600"
+        },
+        {
+            "collapsed": false,
+            "id": "b7ac9675a8",
+            "info": "",
+            "name": "Myriapoda",
+            "parent": "18edee2f01"
+        },
+        {
+            "collapsed": false,
+            "id": "ab3b1da67b",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "b7ac9675a8"
+        },
+        {
+            "collapsed": false,
+            "id": "233ab56da5",
+            "info": "",
+            "name": "Pauropoda",
+            "parent": "ab3b1da67b"
+        },
+        {
+            "collapsed": false,
+            "id": "82937ce612",
+            "info": "",
+            "name": "Symphyla",
+            "parent": "ab3b1da67b"
+        },
+        {
+            "collapsed": false,
+            "id": "d3257aa574",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "b7ac9675a8"
+        },
+        {
+            "collapsed": false,
+            "id": "8fd8561f53",
+            "info": "",
+            "name": "Chilopoda",
+            "parent": "d3257aa574"
+        },
+        {
+            "collapsed": false,
+            "id": "cb71e0a106",
+            "info": "",
+            "name": "Diplopoda",
+            "parent": "d3257aa574"
+        },
+        {
+            "collapsed": false,
+            "id": "58a917f322",
+            "info": "",
+            "name": "Pancrustacea",
+            "parent": "18edee2f01"
+        },
+        {
+            "collapsed": false,
+            "id": "f20577cc53",
+            "info": "",
+            "name": "Oligostraca",
+            "parent": "58a917f322"
+        },
+        {
+            "collapsed": false,
+            "id": "9cdfaec4b0",
+            "info": "",
+            "name": "Altocrustacea",
+            "parent": "58a917f322"
+        },
+        {
+            "collapsed": false,
             "id": "ddd237a16a",
             "info": "",
             "name": "Cryptovermes",
@@ -701,10 +940,52 @@
         },
         {
             "collapsed": false,
+            "id": "d4a9e7c139",
+            "info": "",
+            "name": "Unnamed",
+            "parent": "cf531692e3"
+        },
+        {
+            "collapsed": false,
             "id": "2e63f476fc",
             "info": "",
             "name": "Megalopodifera",
-            "parent": "cf531692e3"
+            "parent": "d4a9e7c139"
+        },
+        {
+            "collapsed": false,
+            "id": "2a97503e59",
+            "info": "",
+            "name": "Gastropoda",
+            "parent": "2e63f476fc"
+        },
+        {
+            "collapsed": false,
+            "id": "20d2a4b70b",
+            "info": "",
+            "name": "Diasoma",
+            "parent": "2e63f476fc"
+        },
+        {
+            "collapsed": false,
+            "id": "c9254c570f",
+            "info": "",
+            "name": "Cephalopoda",
+            "parent": "d4a9e7c139"
+        },
+        {
+            "collapsed": false,
+            "id": "8ec5a6e4e3",
+            "info": "",
+            "name": "Nautilodea",
+            "parent": "c9254c570f"
+        },
+        {
+            "collapsed": false,
+            "id": "f80833898e",
+            "info": "insects",
+            "name": "Coleoidea",
+            "parent": "c9254c570f"
         },
         {
             "collapsed": false,
