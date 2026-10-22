@@ -36,11 +36,11 @@ jobs:
 
       - name: Assemble site
         run: |
-          # This run's own checkout supplies the build script, so both copies are built the same way.
-          build=${{ github.ref_name == 'development' && 'development' || 'main' }}/web/build-site.sh
-          [ -f "$build" ] || build=development/web/build-site.sh
-          sh "$build" main _site
-          sh "$build" development _site/dev dev
+          # Each copy is built by its own branch's script (the other's if it has none),
+          # so a change to the build reaches a branch together with the app it builds.
+          script() { [ -f "$1/web/build-site.sh" ] && echo "$1/web/build-site.sh" || echo "$2/web/build-site.sh"; }
+          sh "$(script main development)" main _site
+          sh "$(script development main)" development _site/dev dev
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
