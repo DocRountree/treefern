@@ -2090,6 +2090,18 @@ static QList<QImage> imagesFromMime(const QMimeData* m) {
 }
 
 // A row of thumbnails; clicking one opens it.
+// A round mark in a corner: a little white x in a black circle on thumbnails,
+// a larger black mark in a translucent grey circle in the viewer.
+static QToolButton* roundButton(QWidget* parent, const QString& text, int size, const char* colours) {
+    auto b = new QToolButton(parent);
+    b->setText(text);
+    b->setFixedSize(size, size);
+    b->setCursor(Qt::PointingHandCursor);
+    b->setStyleSheet(QString("QToolButton { %1 border: none; border-radius: %2px; padding: 0; font-size: %3px; font-weight: bold; }")
+                         .arg(colours).arg(size / 2).arg(size * 2 / 3));
+    return b;
+}
+
 // carousel: one row that scrolls sideways (also with an ordinary mouse wheel).
 static QListWidget* thumbnailList(bool carousel = false) {
     auto list = new QListWidget;
@@ -2109,24 +2121,57 @@ static QListWidget* thumbnailList(bool carousel = false) {
         });
         wheel->setParent(list);
         list->viewport()->installEventFilter(wheel);
+        // Arrows on the middle of each edge, shown while the row can scroll that
+        // way; each moves it by one picture, lining the next (or previous) one up
+        // with the start.
+        const char* grey = "background: rgba(128, 128, 128, 160); color: black;";
+        QToolButton* back = roundButton(list, "‹", 24, grey);
+        QToolButton* next = roundButton(list, "›", 24, grey);
+        back->setToolTip("Previous picture");
+        next->setToolTip("Next picture");
+        QScrollBar* bar = list->horizontalScrollBar();
+        auto place = [list, back, next, bar] {
+            const QRect v = list->viewport()->geometry();
+            const int y = v.top() + (v.height() - back->height()) / 2;
+            back->move(v.left() + 4, y);
+            next->move(v.right() - 3 - next->width(), y);
+            back->setVisible(bar->value() > bar->minimum());
+            next->setVisible(bar->value() < bar->maximum());
+            back->raise();
+            next->raise();
+        };
+        QObject::connect(bar, &QScrollBar::valueChanged, list, place);
+        QObject::connect(bar, &QScrollBar::rangeChanged, list, place);
+        auto resized = new EventHook([place](QObject*, QEvent* e) {
+            if (e->type() == QEvent::Resize || e->type() == QEvent::Show) place();
+            return false;
+        });
+        resized->setParent(list);
+        list->installEventFilter(resized);
+        auto step = [list, bar](int dir) {
+            // A picture lined up with the row's start is at x = 0 (the first one at
+            // the spacing, before anything has scrolled).
+            const int pad = list->spacing();
+            int to = dir > 0 ? bar->maximum() : bar->minimum();
+            for (int i = 0; i < list->count(); ++i) {
+                const int x = list->visualItemRect(list->item(i)).left();
+                if (dir > 0 && x > pad + 1) { to = bar->value() + x; break; }
+                if (dir < 0 && x < -1) to = bar->value() + x;
+            }
+            if (to <= pad) to = bar->minimum();
+            auto anim = new QPropertyAnimation(bar, "value", bar);
+            anim->setDuration(180);
+            anim->setEndValue(std::clamp(to, bar->minimum(), bar->maximum()));
+            anim->start(QAbstractAnimation::DeleteWhenStopped);
+        };
+        QObject::connect(back, &QToolButton::clicked, list, [step] { step(-1); });
+        QObject::connect(next, &QToolButton::clicked, list, [step] { step(1); });
     }
     list->setResizeMode(QListView::Adjust);
     list->setMovement(QListView::Static);
     list->setSelectionMode(QAbstractItemView::NoSelection);
     list->setSpacing(4);
     return list;
-}
-
-// A round mark in a corner: a little white x in a black circle on thumbnails,
-// a larger black mark in a translucent grey circle in the viewer.
-static QToolButton* roundButton(QWidget* parent, const QString& text, int size, const char* colours) {
-    auto b = new QToolButton(parent);
-    b->setText(text);
-    b->setFixedSize(size, size);
-    b->setCursor(Qt::PointingHandCursor);
-    b->setStyleSheet(QString("QToolButton { %1 border: none; border-radius: %2px; padding: 0; font-size: %3px; font-weight: bold; }")
-                         .arg(colours).arg(size / 2).arg(size * 2 / 3));
-    return b;
 }
 
 // Thumbnails of `images`: clicking one calls open(i), its corner x remove(i).

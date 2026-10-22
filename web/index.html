@@ -90,7 +90,11 @@
     <label>Name <input id="editName" required autocomplete="off"></label>
     <label id="editInfoRow">Info <textarea id="editInfo" rows="7" placeholder="(no info)"></textarea></label>
     <div id="editPicsRow" class="edit-pics-row">
-      <div id="editPics" class="pics"></div>
+      <div class="carousel">
+        <div id="editPics" class="pics"></div>
+        <button type="button" id="carBack" class="car-btn back" aria-label="Previous picture" hidden>‹</button>
+        <button type="button" id="carNext" class="car-btn next" aria-label="Next picture" hidden>›</button>
+      </div>
       <button type="button" id="editAddPics" class="link-btn">Add pictures…</button>
       <span class="dlg-hint">or drop or paste them here</span>
     </div>

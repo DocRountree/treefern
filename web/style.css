@@ -161,7 +161,14 @@ button { cursor: pointer; }
 .edit-pics-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .edit-pics-row .pics { width: 100%; }
 /* the edit box shows its pictures as one row that scrolls sideways */
-#editPics { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; padding-bottom: 4px; }
+.edit-pics-row .carousel { position: relative; width: 100%; }
+#editPics { position: relative; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; padding-bottom: 4px; }
+/* arrows on the middle of each edge, shown while the row can scroll that way */
+.car-btn { position: absolute; top: calc(50% - 14px); width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+           background: rgba(128, 128, 128, .6); color: #000; font-size: 18px; line-height: 24px; }
+.car-btn:hover { background: rgba(160, 160, 160, .85); }
+.car-btn.back { left: 4px; }
+.car-btn.next { right: 4px; }
 #editPics .pic { flex: none; scroll-snap-align: start; }
 #editDlg.drop-target { outline: 2px dashed var(--accent); }
 /* the picture viewer is the size of the edit box, whose place it takes when opened from it */

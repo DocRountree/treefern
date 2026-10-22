@@ -293,6 +293,7 @@ function openEditDialog({ title, name = '', info = '', images = [], withInfo = t
     $('editSister').hidden = $('editDaughter').hidden = !rapid;
     $('editOk').textContent = rapid ? 'Add' : 'OK';
     dlg.showModal();
+    updateCarousel();  // its size is known only now
     $('editName').focus();
     $('editName').select();
     return new Promise(res => { dlgResolve = res; });
@@ -430,7 +431,25 @@ function renderPics(box, get, remove) {
 
 function renderEditPics() {
     renderPics($('editPics'), () => dlgImages, i => { dlgImages.splice(i, 1); renderEditPics(); });
+    for (const img of $('editPics').querySelectorAll('img')) img.addEventListener('load', updateCarousel, { once: true });
+    updateCarousel();
 }
+// The carousel's arrows show only while it can scroll their way; each moves it
+// by one picture, lining the next (or previous) one up with the start.
+function updateCarousel() {
+    const b = $('editPics'), max = b.scrollWidth - b.clientWidth;
+    $('carBack').hidden = b.scrollLeft <= 1;
+    $('carNext').hidden = b.scrollLeft >= max - 1;
+}
+function stepCarousel(dir) {
+    const b = $('editPics'), at = b.scrollLeft, starts = [...b.children].map(c => c.offsetLeft);
+    const to = dir > 0 ? starts.find(x => x > at + 1) : starts.filter(x => x < at - 1).at(-1);
+    b.scrollTo({ left: to ?? (dir > 0 ? b.scrollWidth : 0), behavior: 'smooth' });
+}
+$('editPics').addEventListener('scroll', updateCarousel);
+addEventListener('resize', () => { if ($('editDlg').open) updateCarousel(); });
+$('carBack').addEventListener('click', () => stepCarousel(-1));
+$('carNext').addEventListener('click', () => stepCarousel(1));
 async function addEditPics(files) {
     dlgImages.push(...await readPictures(files));
     renderEditPics();
