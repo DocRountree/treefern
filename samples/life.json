@@ -1,5 +1,4 @@
 {
-    "title": "Tree of life",
     "nodes": [
         {
             "collapsed": false,
@@ -576,10 +575,59 @@
         },
         {
             "collapsed": false,
+            "id": "78acf1c2ce",
+            "info": "",
+            "name": "Panarthropoda",
+            "parent": "5e9d65b820"
+        },
+        {
+            "collapsed": false,
+            "id": "3d0d636630",
+            "info": "",
+            "name": "Tardigrada",
+            "parent": "78acf1c2ce"
+        },
+        {
+            "collapsed": false,
+            "id": "7b36dc7e3b",
+            "info": "",
+            "name": "Lobopodia",
+            "parent": "78acf1c2ce"
+        },
+        {
+            "collapsed": false,
+            "id": "afb2c8a77a",
+            "info": "",
+            "name": "Onychophora",
+            "parent": "7b36dc7e3b"
+        },
+        {
+            "collapsed": false,
             "id": "046ccb8600",
             "info": "",
             "name": "Arthropoda",
+            "parent": "7b36dc7e3b"
+        },
+        {
+            "collapsed": false,
+            "id": "ddd237a16a",
+            "info": "",
+            "name": "Cryptovermes",
             "parent": "5e9d65b820"
+        },
+        {
+            "collapsed": false,
+            "id": "dbb6bb9be3",
+            "info": "",
+            "name": "Nematoida",
+            "parent": "ddd237a16a"
+        },
+        {
+            "collapsed": false,
+            "id": "faf163c15f",
+            "info": "",
+            "name": "Scalidophora",
+            "parent": "ddd237a16a"
         },
         {
             "collapsed": false,
@@ -590,13 +638,6 @@
         },
         {
             "collapsed": false,
-            "id": "23ff11be0a",
-            "info": "",
-            "name": "Mollusca",
-            "parent": "76941a178b"
-        },
-        {
-            "collapsed": false,
             "id": "1e4c36f424",
             "info": "",
             "name": "Gnathifera",
@@ -604,10 +645,94 @@
         },
         {
             "collapsed": false,
+            "id": "1d9c8a2eab",
+            "info": "",
+            "name": "Platytrochozoa",
+            "parent": "76941a178b"
+        },
+        {
+            "collapsed": false,
             "id": "3b018ba91c",
             "info": "",
+            "name": "Lophotrochozoa",
+            "parent": "1d9c8a2eab"
+        },
+        {
+            "collapsed": false,
+            "id": "ffebd4f649",
+            "info": "",
             "name": "Trochozoa",
-            "parent": "76941a178b"
+            "parent": "3b018ba91c"
+        },
+        {
+            "collapsed": false,
+            "id": "16e31ec265",
+            "info": "",
+            "name": "Eutrochozoa",
+            "parent": "ffebd4f649"
+        },
+        {
+            "collapsed": false,
+            "id": "23ff11be0a",
+            "info": "",
+            "name": "Mollusca",
+            "parent": "16e31ec265"
+        },
+        {
+            "collapsed": false,
+            "id": "f1a42f7891",
+            "info": "",
+            "name": "Aculifera",
+            "parent": "23ff11be0a"
+        },
+        {
+            "collapsed": false,
+            "id": "cf531692e3",
+            "info": "",
+            "name": "Conchifera",
+            "parent": "23ff11be0a"
+        },
+        {
+            "collapsed": false,
+            "id": "d0a51f8e82",
+            "info": "",
+            "name": "Monoplacophora",
+            "parent": "cf531692e3"
+        },
+        {
+            "collapsed": false,
+            "id": "2e63f476fc",
+            "info": "",
+            "name": "Megalopodifera",
+            "parent": "cf531692e3"
+        },
+        {
+            "collapsed": false,
+            "id": "218a586a4d",
+            "info": "",
+            "name": "Kryptotrochozoa",
+            "parent": "16e31ec265"
+        },
+        {
+            "collapsed": false,
+            "id": "031eb2e27b",
+            "info": "",
+            "name": "Brachiozoa",
+            "parent": "ffebd4f649"
+        },
+        {
+            "collapsed": false,
+            "id": "6dba00eb5f",
+            "info": "",
+            "name": "Polyzoa",
+            "parent": "3b018ba91c"
+        },
+        {
+            "collapsed": false,
+            "id": "3d89f93ed0",
+            "info": "",
+            "name": "Rouphozoa",
+            "parent": "1d9c8a2eab"
         },
         {
             "collapsed": false,
