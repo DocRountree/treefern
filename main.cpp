@@ -3109,10 +3109,15 @@ private:
     // replace the tree, so nodes are re-looked-up by id afterwards.
 
     enum class Next { Done, Daughter, Sister };
+    // Qt reports Shift+Tab as Backtab.
+    static bool isShiftTab(const QKeyEvent* e) {
+        return (e->key() == Qt::Key_Backtab || e->key() == Qt::Key_Tab) && e->modifiers() == Qt::ShiftModifier;
+    }
+
     struct NewClade { QString name, info; QStringList images; Next next; };
 
     // Name (and info) of one new clade. Enter in the name or Add: add it and
-    // stop; Shift+Enter: add it, then a daughter of it; Ctrl+Tab: add it, then a
+    // stop; Shift+Enter: add it, then a daughter of it; Shift+Tab: add it, then a
     // sister. Tab moves on to the info as usual.
     // An empty name, Esc or Cancel stops.
     std::optional<NewClade> askNewClade(const QString& parentName) {
@@ -3123,7 +3128,7 @@ private:
         auto infoEdit = new QPlainTextEdit;
         infoEdit->setPlaceholderText("(no info)");
         auto hint = new QLabel("Enter or Add: add it and stop   ·   Shift+Enter: add it, then a daughter of it   ·   "
-                               "Ctrl+Tab: add it, then a sister   ·   Tab: to the info   ·   Esc: stop");
+                               "Shift+Tab: add it, then a sister   ·   Tab: to the info   ·   Esc: stop");
         hint->setWordWrap(true);
         hint->setStyleSheet(colorCss(T.dim));
         auto buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
@@ -3149,7 +3154,7 @@ private:
         };
         KeyHook hook([&](QKeyEvent* e) {
             const auto mods = e->modifiers();
-            if (e->key() == Qt::Key_Tab && mods == Qt::ControlModifier) { finish(Next::Sister); return true; }
+            if (isShiftTab(e)) { finish(Next::Sister); return true; }
             if (mods & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) return false;
             if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) {
                 finish(mods & Qt::ShiftModifier ? Next::Daughter : Next::Done);
@@ -3158,8 +3163,8 @@ private:
             return false;
         });
         nameEdit->installEventFilter(&hook);
-        KeyHook infoHook([&](QKeyEvent* e) {  // Ctrl+Tab from the info too
-            if (e->key() != Qt::Key_Tab || e->modifiers() != Qt::ControlModifier) return false;
+        KeyHook infoHook([&](QKeyEvent* e) {  // Shift+Tab from the info too
+            if (!isShiftTab(e)) return false;
             finish(Next::Sister);
             return true;
         });

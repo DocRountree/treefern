@@ -277,7 +277,7 @@ function navigate(d) {
 // ---------------------------------------------------------------- editing
 let dlgResolve = null, dlgRapid = false, dlgImages = [];
 const EDIT_HINT = 'Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.';
-const RAPID_HINT = 'Enter or Add: add it and stop. Shift+Enter: add it, then a daughter of it. Ctrl+Tab: add it, then a sister. Tab: to the info. Esc: stop.';
+const RAPID_HINT = 'Enter or Add: add it and stop. Shift+Enter: add it, then a daughter of it. Shift+Tab: add it, then a sister. Tab: to the info. Esc: stop.';
 // rapid: adding clades one after another; resolves with next = 'child', 'sister' or 'done'.
 function openEditDialog({ title, name = '', info = '', images = [], withInfo = true, rapid = false }) {
     const dlg = $('editDlg');
@@ -308,10 +308,9 @@ $('editName').addEventListener('keydown', e => {
     if (!dlgRapid || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
     if (e.key === 'Enter') { e.preventDefault(); finishEdit(true, e.shiftKey ? 'child' : 'done'); }
 });
-// Ctrl+Tab: add it, then a sister. Browser tabs keep Ctrl+Tab for themselves; an
-// installed app's window passes it on. Plain Tab moves on to the info as usual.
+// Shift+Tab: add it, then a sister. Plain Tab moves on to the info as usual.
 $('editDlg').addEventListener('keydown', e => {
-    if (dlgRapid && e.key === 'Tab' && e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); finishEdit(true, 'sister'); }
+    if (dlgRapid && e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) { e.preventDefault(); finishEdit(true, 'sister'); }
 });
 function finishEdit(ok, next = 'done') {
     const name = $('editName').value.trim(), info = $('editInfo').value;
