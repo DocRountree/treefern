@@ -73,6 +73,9 @@
       <ul id="kids" class="kids"></ul>
       <h3>Info</h3>
       <div id="info" class="info"></div>
+      <h3>Pictures</h3>
+      <div id="pics" class="pics"></div>
+      <p class="pics-hint" id="picsHint">Drop pictures here, or onto a clade in the tree.</p>
     </div>
   </section>
 </aside>
@@ -87,6 +90,11 @@
     <h2 id="editTitle">Edit clade</h2>
     <label>Name <input id="editName" required autocomplete="off"></label>
     <label id="editInfoRow">Info <textarea id="editInfo" rows="7" placeholder="(no info)"></textarea></label>
+    <div id="editPicsRow" class="edit-pics-row">
+      <div id="editPics" class="pics"></div>
+      <button type="button" id="editAddPics" class="link-btn">Add pictures…</button>
+      <span class="dlg-hint">or drop or paste them here</span>
+    </div>
     <p class="dlg-hint" id="editHint">Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.</p>
     <div class="dlg-buttons">
       <button type="button" id="editCancel">Cancel</button>
@@ -123,6 +131,21 @@
   </form>
 </dialog>
 
+<dialog id="picDlg" class="pic-dlg">
+  <form method="dialog">
+    <img id="picBig" alt="">
+    <p class="dlg-hint" id="picCaption"></p>
+    <div class="dlg-buttons">
+      <button type="button" id="picPrev">‹ Previous</button>
+      <button type="button" id="picNext">Next ›</button>
+      <button type="button" id="picRemove" class="danger-text">Remove</button>
+      <button value="close" class="primary">Close</button>
+    </div>
+  </form>
+</dialog>
+
+<input type="file" id="picInput" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple hidden>
+
 <dialog id="confirmDlg">
   <form method="dialog" id="confirmForm">
     <h2 id="confirmTitle"></h2>
@@ -158,6 +181,7 @@
       <tr><td>Click / double-click</td><td>Select / edit a clade</td></tr>
       <tr><td>Right-click</td><td>Clade menu</td></tr>
       <tr><td>Hover</td><td>Show a clade's info</td></tr>
+      <tr><td>Drag a picture</td><td>Onto a clade in the tree, the side panel or the Edit box, to add it to the notes</td></tr>
       <tr><td>Drag / wheel</td><td>Pan / zoom (Shift: faster)</td></tr>
     </table>
     <h3>Keyboard</h3>

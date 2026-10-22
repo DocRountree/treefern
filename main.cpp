@@ -15,8 +15,9 @@
 //    a child or the parent while zooming; all other frames are derived from it,
 //    so coordinates stay in pixel range and zoom depth is effectively unlimited.
 //
-// File format: {"root": id, "nodes": [{id, parent?, name, info, collapsed, color?}, …]}
-// color is an optional "#rrggbb" that the clade's subtree inherits.
+// File format: {"root": id, "nodes": [{id, parent?, name, info, collapsed, color?, images?}, …]}
+// color is an optional "#rrggbb" that the clade's subtree inherits; images are
+// optional pictures for the notes, as PNG or JPEG data URLs.
 
 #include <QSvgGenerator>
 #include <QtWidgets>
@@ -41,6 +42,10 @@ constexpr double ZOOM_STEP = 1.15, FAST_ZOOM_STEP = 2.0;
 constexpr int ANIM_MS = 380;  // relayout animation; camera flights take twice as long
 constexpr int MAX_LABELS = 400, MAX_RECENT = 10, MAX_SEARCH = 200;
 constexpr int CONFIRM_DELETE_OVER = 30;  // ask before deleting more clades than this
+// pictures in the notes
+constexpr int IMAGE_MAX_SIDE = 1200;     // px; larger pictures are scaled down
+constexpr int IMAGE_QUALITY = 85;        // JPEG quality
+constexpr qsizetype MAX_UNDO_PICTURE_BYTES = qsizetype(256) << 20;  // picture data the undo history may hold
 // export
 constexpr int MAX_EXPORT_SIDE = 16384;          // px
 constexpr double MAX_EXPORT_PIXELS = 40e6;      // about 160 MB of image memory
@@ -140,6 +145,7 @@ struct Node {
     QString id, name, info;
     bool collapsed = false;
     QString color;  // "#rrggbb" or empty: inherit
+    QStringList images;  // pictures for the notes, as data URLs
     std::vector<std::unique_ptr<Node>> kids;
     Node* parent = nullptr;
 
@@ -283,9 +289,11 @@ public:
         return {};
     }
     void commit() {
-        undo_.push_back(std::exchange(current_, toJson(root_.get())));
-        if (undo_.size() > 200) undo_.erase(undo_.begin());
+        undo_.push_back(std::exchange(current_, snapshot()));
         redo_.clear();
+        // Every snapshot copies the pictures, so the history also has a size budget.
+        auto bytes = [this] { qsizetype b = 0; for (const Snapshot& s : undo_) b += s.bytes; return b; };
+        while (undo_.size() > 200 || (undo_.size() > 1 && bytes() > MAX_UNDO_PICTURE_BYTES)) undo_.erase(undo_.begin());
         reindex();
         save();
         emit treeChanged();
@@ -303,19 +311,28 @@ private:
     QDateTime lastMtime_;
     QFileSystemWatcher watcher_;
     // Undo history: whole-tree snapshots. current_ is the tree as of the last commit.
-    QJsonObject current_;
-    std::vector<QJsonObject> undo_, redo_;
+    struct Snapshot { QJsonObject json; qsizetype bytes = 0; };  // bytes: the picture data it holds
+    Snapshot current_;
+    std::vector<Snapshot> undo_, redo_;
+
+    Snapshot snapshot() const { return {toJson(root_.get()), pictureBytes(root_.get())}; }
+    static qsizetype pictureBytes(const Node* n) {
+        qsizetype b = 0;
+        for (const QString& s : n->images) b += s.size();
+        for (auto& k : n->kids) b += pictureBytes(k.get());
+        return b;
+    }
 
     void resetHistory() {
-        current_ = toJson(root_.get());
+        current_ = snapshot();
         undo_.clear();
         redo_.clear();
     }
 
-    QString step(std::vector<QJsonObject>& from, std::vector<QJsonObject>& to, const char* done) {
+    QString step(std::vector<Snapshot>& from, std::vector<Snapshot>& to, const char* done) {
         if (from.empty()) return QString("Nothing to %1").arg(&from == &undo_ ? "undo" : "redo");
         QString err;
-        auto tree = fromJson(from.back(), err);
+        auto tree = fromJson(from.back().json, err);
         if (!tree) return err;
         to.push_back(std::exchange(current_, from.back()));
         from.pop_back();
@@ -349,6 +366,14 @@ private:
         if (root_) root_->walk([this](Node* n) { index_[n->id] = n; });
     }
 
+    static QStringList readImages(const QJsonValue& v) {
+        static const QRegularExpression re("^data:image/(png|jpeg);base64,[A-Za-z0-9+/]+=*$");
+        QStringList out;
+        for (const auto& x : v.toArray())
+            if (const QString s = x.toString(); re.match(s).hasMatch()) out << s;
+        return out;
+    }
+
     static QString readColor(const QString& c) {
         static const QRegularExpression re("^#[0-9a-fA-F]{6}$");
         return re.match(c).hasMatch() ? c.toLower() : QString();
@@ -379,7 +404,8 @@ private:
             recs.push_back({std::unique_ptr<Node>(new Node{id, o.value("name").toString("Unnamed"),
                                                            o.value("info").toString(),
                                                            o.value("collapsed").toBool(false),
-                                                           readColor(o.value("color").toString())}),
+                                                           readColor(o.value("color").toString()),
+                                                           readImages(o.value("images"))}),
                             o.value("parent").toString()});
         }
         const QString rootId = top.value("root").toString();
@@ -423,6 +449,7 @@ private:
             QJsonObject o{{"id", n->id}, {"name", n->name}, {"info", n->info}, {"collapsed", n->collapsed}};
             if (n->parent) o["parent"] = n->parent->id;
             if (!n->color.isEmpty()) o["color"] = n->color;
+            if (!n->images.isEmpty()) o["images"] = QJsonArray::fromStringList(n->images);
             nodes.append(o);
             for (auto it = n->kids.rbegin(); it != n->kids.rend(); ++it) stack.push_back(it->get());
         }
@@ -999,6 +1026,12 @@ public:
         });
         connect(&camAnim, &QVariantAnimation::finished, this, [this] { reanchor(); viewUpdated(); });
         relayout(false);
+    }
+
+    // Dropping pictures: the clade under p, highlighted while dragging over it.
+    const Node* nodeAt(QPointF p) const { return hitTest(p); }
+    void setDragHover(const QString& id) {
+        if (id != hoverId) { hoverId = id; update(); }
     }
 
     bool disks() const { return lay.style == Layout::Disks; }
@@ -2001,6 +2034,111 @@ void Canvas::drawCladoLabels(QPainter& p, const std::vector<Seg>& segs) {
     }
 }
 
+// ----------------------------------------------------------- pictures ---
+// Pictures are kept in the file with the notes, so they are scaled to at most
+// IMAGE_MAX_SIDE px and stored as JPEG, or as PNG when they have transparency.
+static QString imageToDataUrl(QImage img) {
+    if (img.isNull()) return {};
+    if (std::max(img.width(), img.height()) > IMAGE_MAX_SIDE)
+        img = img.scaled(IMAGE_MAX_SIDE, IMAGE_MAX_SIDE, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    bool alpha = false;
+    if (img.hasAlphaChannel()) {
+        const QImage a = img.convertToFormat(QImage::Format_ARGB32);
+        for (int y = 0; y < a.height() && !alpha; ++y) {
+            const QRgb* row = reinterpret_cast<const QRgb*>(a.constScanLine(y));
+            for (int x = 0; x < a.width(); ++x)
+                if (qAlpha(row[x]) < 255) { alpha = true; break; }
+        }
+    }
+    QByteArray bytes;
+    QBuffer buf(&bytes);
+    buf.open(QIODevice::WriteOnly);
+    const bool ok = alpha ? img.save(&buf, "PNG") : img.convertToFormat(QImage::Format_RGB32).save(&buf, "JPG", IMAGE_QUALITY);
+    if (!ok) return {};
+    return QString("data:image/%1;base64,").arg(alpha ? "png" : "jpeg") + QString::fromLatin1(bytes.toBase64());
+}
+
+static QImage imageFromDataUrl(const QString& url) {
+    return QImage::fromData(QByteArray::fromBase64(url.mid(url.indexOf(',') + 1).toLatin1()));
+}
+
+// Pictures in dropped or pasted data: image files, or the image itself.
+static bool mimeHasImages(const QMimeData* m) {
+    if (!m) return false;
+    if (m->hasImage()) return true;
+    for (const QUrl& u : m->urls())
+        if (u.isLocalFile() && !QImageReader::imageFormat(u.toLocalFile()).isEmpty()) return true;
+    return false;
+}
+static QList<QImage> imagesFromMime(const QMimeData* m) {
+    QList<QImage> out;
+    for (const QUrl& u : m->urls())
+        if (u.isLocalFile())
+            if (QImage img(u.toLocalFile()); !img.isNull()) out << img;
+    if (out.isEmpty() && m->hasImage()) out << qvariant_cast<QImage>(m->imageData());
+    return out;
+}
+
+// A row of thumbnails; double-clicking one opens it.
+static QListWidget* thumbnailList() {
+    auto list = new QListWidget;
+    list->setViewMode(QListView::IconMode);
+    list->setIconSize(QSize(96, 72));
+    list->setFlow(QListView::LeftToRight);
+    list->setWrapping(true);
+    list->setResizeMode(QListView::Adjust);
+    list->setMovement(QListView::Static);
+    list->setSpacing(4);
+    list->setMaximumHeight(180);
+    return list;
+}
+static void fillThumbnails(QListWidget* list, const QStringList& images) {
+    list->clear();
+    for (const QString& s : images)
+        new QListWidgetItem(QIcon(QPixmap::fromImage(imageFromDataUrl(s).scaled(192, 144, Qt::KeepAspectRatio, Qt::SmoothTransformation))), {}, list);
+    list->setVisible(!images.isEmpty());
+}
+
+// Shows the pictures get() one at a time from `start`; remove(i) deletes picture i.
+static void showPictures(QWidget* parent, const std::function<QStringList()>& get, int start, const std::function<void(int)>& remove) {
+    QDialog dlg(parent);
+    dlg.setWindowTitle("Picture");
+    auto img = new QLabel;
+    img->setAlignment(Qt::AlignCenter);
+    img->setMinimumSize(320, 240);
+    auto caption = new QLabel;
+    caption->setStyleSheet(colorCss(T.dim));
+    auto buttons = new QDialogButtonBox(QDialogButtonBox::Close);
+    QPushButton* prev = buttons->addButton("‹ Previous", QDialogButtonBox::ActionRole);
+    QPushButton* next = buttons->addButton("Next ›", QDialogButtonBox::ActionRole);
+    QPushButton* del = buttons->addButton("Remove", QDialogButtonBox::DestructiveRole);
+    auto v = new QVBoxLayout(&dlg);
+    v->addWidget(img, 1);
+    v->addWidget(caption);
+    v->addWidget(buttons);
+    int i = start;
+    auto draw = [&] {
+        const QStringList list = get();
+        if (list.isEmpty()) return dlg.reject();
+        i = std::clamp(i, 0, int(list.size()) - 1);
+        const QPixmap px = QPixmap::fromImage(imageFromDataUrl(list[i]));
+        const QSize room = (parent->screen() ? parent->screen()->availableSize() : QSize(1280, 800)) * 0.75;
+        img->setPixmap(px.width() > room.width() || px.height() > room.height()
+                           ? px.scaled(room, Qt::KeepAspectRatio, Qt::SmoothTransformation) : px);
+        caption->setText(QString("Picture %1 of %2").arg(i + 1).arg(list.size()));
+        prev->setEnabled(i > 0);
+        next->setEnabled(i + 1 < list.size());
+    };
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    QObject::connect(prev, &QPushButton::clicked, &dlg, [&] { --i; draw(); });
+    QObject::connect(next, &QPushButton::clicked, &dlg, [&] { ++i; draw(); });
+    QObject::connect(del, &QPushButton::clicked, &dlg, [&] { remove(i); draw(); });
+    QObject::connect(new QShortcut(Qt::Key_Left, &dlg), &QShortcut::activated, &dlg, [&] { if (prev->isEnabled()) prev->click(); });
+    QObject::connect(new QShortcut(Qt::Key_Right, &dlg), &QShortcut::activated, &dlg, [&] { if (next->isEnabled()) next->click(); });
+    draw();
+    dlg.exec();
+}
+
 // --------------------------------------------------------- info panel ---
 // Side panel: clade search plus details and actions for the selected clade.
 class InfoPanel : public QWidget {
@@ -2025,6 +2163,8 @@ public:
         up->setFlat(true);
         info->setPlaceholderText("(no info — press E, double-click the node, or click 'Edit')");
         empty->setWordWrap(true);
+        picsHint->setWordWrap(true);
+        setAcceptDrops(true);
 
         auto grid = new QGridLayout;
         for (int i = 0; i < acts.size(); ++i) {
@@ -2045,6 +2185,9 @@ public:
         nv->addWidget(up);
         nv->addWidget(new QLabel("Info:"));
         nv->addWidget(info, 1);
+        nv->addWidget(new QLabel("Pictures:"));
+        nv->addWidget(pics);
+        nv->addWidget(picsHint);
         auto v = new QVBoxLayout(this);
         v->addWidget(search);
         v->addWidget(results);
@@ -2056,6 +2199,7 @@ public:
         connect(kids, &QListWidget::itemClicked, this,
                 [this](QListWidgetItem* it) { emit selectRequested(it->data(Qt::UserRole).toString()); });
         connect(up, &QPushButton::clicked, this, [this] { emit selectRequested(upId); });
+        connect(pics, &QListWidget::itemActivated, this, [this](QListWidgetItem* it) { emit pictureOpened(pics->row(it)); });
         connect(crumbs, &QLabel::linkActivated, this, [this](const QString& link) {
             if (link != "more") return emit selectRequested(link);
             crumbsOpen = shownId;
@@ -2069,6 +2213,7 @@ public:
         title->setStyleSheet(colorCss(T.accent));
         meta->setStyleSheet(colorCss(T.dim));
         empty->setStyleSheet(colorCss(T.dim));
+        picsHint->setStyleSheet(colorCss(T.dim));
         up->setStyleSheet("text-align:left; " + colorCss(T.link));
         if (const Node* n = model->find(shownId); n && nodeBox->isVisible()) setCrumbs(n);
     }
@@ -2091,6 +2236,7 @@ public:
         up->setVisible(n->parent);
         if (n->parent) up->setText("‹ up to " + n->parent->name);
         info->setPlainText(n->info);
+        if (n->images != shownImages) fillThumbnails(pics, shownImages = n->images);
     }
 
     // The clades above n, root first; a long trail folds its middle into a "…"
@@ -2151,8 +2297,21 @@ public:
 signals:
     void selectRequested(const QString& id);
     void searchChosen(const QString& id);
+    void picturesDropped(const QList<QImage>& images);  // onto the panel: for the shown clade
+    void pictureOpened(int index);
 
 protected:
+    void dragEnterEvent(QDragEnterEvent* e) override {
+        if (nodeBox->isVisible() && mimeHasImages(e->mimeData())) e->acceptProposedAction();
+    }
+    void dropEvent(QDropEvent* e) override {
+        if (!nodeBox->isVisible()) return;
+        if (const auto imgs = imagesFromMime(e->mimeData()); !imgs.isEmpty()) {
+            e->acceptProposedAction();
+            emit picturesDropped(imgs);
+        }
+    }
+
     // Up/Down/Enter in the search box drive the result list; Esc clears it.
     // Claiming these as ShortcutOverride stops the window's single-key
     // shortcuts (navigation, deselect) from firing while typing.
@@ -2185,6 +2344,9 @@ private:
     QListWidget* kids = new QListWidget;
     QPushButton* up = new QPushButton;
     QTextBrowser* info = new QTextBrowser;
+    QListWidget* pics = thumbnailList();
+    QLabel* picsHint = new QLabel("Drop pictures here, or onto a clade in the tree; double-click one to view or remove it.");
+    QStringList shownImages;
     QString upId, shownId, crumbsOpen;  // crumbsOpen: the clade whose trail is unfolded
 
     void choose(QListWidgetItem* it) {
@@ -2205,6 +2367,92 @@ protected:
     }
 private:
     std::function<bool(QKeyEvent*)> f_;
+};
+
+// Lets an object handle another's events first; the handler returns true to consume one.
+class EventHook : public QObject {
+public:
+    explicit EventHook(std::function<bool(QObject*, QEvent*)> f) : f_(std::move(f)) {}
+protected:
+    bool eventFilter(QObject* o, QEvent* e) override { return f_(o, e) || QObject::eventFilter(o, e); }
+private:
+    std::function<bool(QObject*, QEvent*)> f_;
+};
+
+// The pictures of a clade being edited: thumbnails with Add and Remove, and
+// pictures dropped anywhere on its dialog or pasted into its text fields.
+class PicStrip : public QWidget {
+public:
+    QStringList images;
+
+    PicStrip(QDialog* dlg, const QStringList& start, std::initializer_list<QWidget*> edits) : images(start) {
+        auto add = new QPushButton("Add pictures…");
+        auto del = new QPushButton("Remove picture");
+        auto hint = new QLabel("or drop or paste them here");
+        hint->setStyleSheet(colorCss(T.dim));
+        auto row = new QHBoxLayout;
+        row->addWidget(add);
+        row->addWidget(del);
+        row->addWidget(hint, 1);
+        auto v = new QVBoxLayout(this);
+        v->setContentsMargins(0, 0, 0, 0);
+        v->addWidget(list);
+        v->addLayout(row);
+        connect(add, &QPushButton::clicked, this, [this] {
+            QList<QImage> imgs;
+            for (const QString& p : QFileDialog::getOpenFileNames(this, "Add pictures", {}, "Images (*.png *.jpg *.jpeg *.gif *.bmp *.webp)"))
+                if (QImage img(p); !img.isNull()) imgs << img;
+            addImages(imgs);
+        });
+        connect(del, &QPushButton::clicked, this, [this] {
+            if (const int i = list->currentRow(); i >= 0) { images.removeAt(i); fillThumbnails(list, images); }
+        });
+        connect(list, &QListWidget::itemActivated, this, [this](QListWidgetItem* it) {
+            showPictures(this, [this] { return images; }, list->row(it), [this](int i) { images.removeAt(i); fillThumbnails(list, images); });
+        });
+        fillThumbnails(list, images);
+        // The text fields would take a dropped file as text, so drops go to the dialog.
+        dlg->setAcceptDrops(true);
+        dlg->installEventFilter(&hook);
+        for (QWidget* w : edits) {
+            w->setAcceptDrops(false);
+            w->installEventFilter(&hook);
+        }
+        this->dlg = dlg;
+    }
+
+    void addImages(const QList<QImage>& imgs) {
+        for (const QImage& img : imgs)
+            if (const QString url = imageToDataUrl(img); !url.isEmpty()) images << url;
+        fillThumbnails(list, images);
+    }
+
+private:
+    QListWidget* list = thumbnailList();
+    QDialog* dlg = nullptr;
+    EventHook hook{[this](QObject* o, QEvent* e) {
+        switch (e->type()) {
+        case QEvent::DragEnter:
+        case QEvent::DragMove:
+            if (o != dlg || !mimeHasImages(static_cast<QDropEvent*>(e)->mimeData())) return false;
+            static_cast<QDropEvent*>(e)->acceptProposedAction();
+            return true;
+        case QEvent::Drop:
+            if (o != dlg || !mimeHasImages(static_cast<QDropEvent*>(e)->mimeData())) return false;
+            static_cast<QDropEvent*>(e)->acceptProposedAction();
+            addImages(imagesFromMime(static_cast<QDropEvent*>(e)->mimeData()));
+            return true;
+        case QEvent::KeyPress:
+            if (o != dlg && static_cast<QKeyEvent*>(e)->matches(QKeySequence::Paste))
+                if (const QMimeData* m = QGuiApplication::clipboard()->mimeData(); mimeHasImages(m)) {
+                    addImages(imagesFromMime(m));
+                    return true;
+                }
+            return false;
+        default:
+            return false;
+        }
+    }};
 };
 
 // -------------------------------------------------------- main window ---
@@ -2323,6 +2571,18 @@ public:
         connect(canvas, &Canvas::clicked, this, &MainWindow::select);
         connect(panel, &InfoPanel::selectRequested, this, &MainWindow::select);
         connect(panel, &InfoPanel::searchChosen, this, &MainWindow::jumpTo);
+        connect(panel, &InfoPanel::picturesDropped, this, [this](const QList<QImage>& imgs) { addPictures(canvas->selId, imgs); });
+        connect(panel, &InfoPanel::pictureOpened, this, [this](int i) {
+            const QString id = canvas->selId;
+            showPictures(this, [this, id] { const Node* n = model.find(id); return n ? n->images : QStringList(); }, i, [this, id](int k) {
+                Node* n = model.find(id);
+                if (!n || k >= n->images.size()) return;
+                n->images.removeAt(k);
+                model.commit();
+                model.status = QString("Removed a picture from '%1'").arg(n->name);
+                updateHud();
+            });
+        });
         connect(canvas, &Canvas::doubleClicked, this, [this](const QString& id) { select(id); actEdit(); });
         connect(canvas, &Canvas::contextMenu, this, [this](const QString& id, const QPoint& g) {
             if (!id.isEmpty()) select(id);
@@ -2367,9 +2627,25 @@ public:
 
 protected:
     void dragEnterEvent(QDragEnterEvent* e) override {
-        if (e->mimeData()->hasUrls()) e->acceptProposedAction();
+        if (e->mimeData()->hasUrls() || mimeHasImages(e->mimeData())) e->acceptProposedAction();
     }
+    // Pictures dragged over the tree highlight the clade they would be added to.
+    void dragMoveEvent(QDragMoveEvent* e) override {
+        e->acceptProposedAction();
+        const Node* n = mimeHasImages(e->mimeData()) ? pictureTarget(e->position()) : nullptr;
+        canvas->setDragHover(n ? n->id : QString());
+    }
+    void dragLeaveEvent(QDragLeaveEvent*) override { canvas->setDragHover({}); }
     void dropEvent(QDropEvent* e) override {
+        canvas->setDragHover({});
+        if (mimeHasImages(e->mimeData())) {
+            if (const Node* n = pictureTarget(e->position())) addPictures(n->id, imagesFromMime(e->mimeData()));
+            else {
+                model.status = "Drop pictures onto a clade to add them to its notes";
+                updateHud();
+            }
+            return;
+        }
         const auto urls = e->mimeData()->urls();
         if (!urls.isEmpty() && urls.first().isLocalFile()) openPath(urls.first().toLocalFile());
     }
@@ -2387,6 +2663,28 @@ private:
     std::vector<QAction*> styleActs;  // indexed by Layout::Style
 
     Node* sel() const { return model.find(canvas->selId); }
+
+    // The clade a picture dropped at window position p goes to: the one under
+    // it in the tree, else the selection.
+    const Node* pictureTarget(QPointF p) const {
+        const QPointF q = canvas->mapFrom(this, p.toPoint());
+        if (canvas->rect().contains(q.toPoint()))
+            if (const Node* n = canvas->nodeAt(q)) return n;
+        return sel();
+    }
+
+    void addPictures(const QString& id, const QList<QImage>& imgs) {
+        Node* n = model.find(id);
+        if (!n) return;
+        QStringList urls;
+        for (const QImage& img : imgs)
+            if (const QString u = imageToDataUrl(img); !u.isEmpty()) urls << u;
+        if (urls.isEmpty()) return;
+        n->images += urls;
+        model.commit();
+        model.status = QString("Added %1 to '%2'").arg(urls.size() == 1 ? QString("a picture") : QString("%1 pictures").arg(urls.size()), n->name);
+        updateHud();
+    }
     void select(const QString& id) { canvas->selId = id; refresh(); }
 
     void fillCladeMenu(QMenu* m, QAction* extra = nullptr) {
@@ -2797,7 +3095,7 @@ private:
     // replace the tree, so nodes are re-looked-up by id afterwards.
 
     enum class Next { Done, Daughter, Sister };
-    struct NewClade { QString name, info; Next next; };
+    struct NewClade { QString name, info; QStringList images; Next next; };
 
     // Name (and info) of one new clade. Enter in the name or Add: add it and
     // stop; Shift+Enter: add it, then a daughter of it; Tab: add it, then a sister.
@@ -2824,6 +3122,8 @@ private:
         form->addSpacing(6);
         form->addWidget(new QLabel("Info:"));
         form->addWidget(infoEdit, 1);
+        auto pics = new PicStrip(&dlg, {}, {nameEdit, infoEdit});
+        form->addWidget(pics);
         form->addWidget(hint);
         form->addWidget(buttons);
 
@@ -2850,7 +3150,7 @@ private:
             connect(new QShortcut(seq, &dlg), &QShortcut::activated, &dlg, [&] { finish(Next::Done); });
         nameEdit->setFocus();
         if (dlg.exec() != QDialog::Accepted) return std::nullopt;
-        return NewClade{nameEdit->text().trimmed(), infoEdit->toPlainText(), next};
+        return NewClade{nameEdit->text().trimmed(), infoEdit->toPlainText(), pics->images, next};
     }
 
     // Adds clades until the user stops; each is its own undo step. sister:
@@ -2865,6 +3165,7 @@ private:
             const auto r = askNewClade(p->name);
             if (!r || !(p = model.find(parentId))) return;
             Node* c = p->addChild(Node::make(r->name, r->info));
+            c->images = r->images;
             p->collapsed = false;
             canvas->selId = c->id;
             model.commit();
@@ -2939,6 +3240,8 @@ private:
         form->addSpacing(6);
         form->addWidget(new QLabel("Info:"));
         form->addWidget(infoEdit, 1);
+        auto pics = new PicStrip(&dlg, n->images, {nameEdit, infoEdit});
+        form->addWidget(pics);
         form->addWidget(hint);
         form->addWidget(buttons);
 
@@ -2954,9 +3257,10 @@ private:
         if (dlg.exec() != QDialog::Accepted || !(n = model.find(id))) return;
 
         const QString newName = nameEdit->text().trimmed(), newInfo = infoEdit->toPlainText();
-        if (newName.isEmpty() || (newName == n->name && newInfo == n->info)) return;
+        if (newName.isEmpty() || (newName == n->name && newInfo == n->info && pics->images == n->images)) return;
         n->name = newName;
         n->info = newInfo;
+        n->images = pics->images;
         model.commit();
     }
 

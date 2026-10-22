@@ -151,6 +151,19 @@ button { cursor: pointer; }
 .kids li:hover { background: var(--btn); }
 .info { white-space: pre-wrap; overflow-wrap: anywhere; }
 .info.none { color: var(--dim); font-style: italic; }
+.pics { display: flex; flex-wrap: wrap; gap: 6px; }
+.pics:empty { display: none; }
+.pics .pic { position: relative; }
+.pics img { display: block; height: 72px; max-width: 140px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); cursor: zoom-in; background: var(--chrome-2); }
+.pics .pic button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; line-height: 20px; }
+.pics-hint { color: var(--dim); font-size: 12px; margin: 4px 0 0; }
+.panel.drop-target { outline: 2px dashed var(--accent); outline-offset: -6px; }
+.edit-pics-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.edit-pics-row .pics { width: 100%; }
+#editDlg.drop-target { outline: 2px dashed var(--accent); }
+.pic-dlg { width: min(960px, calc(100vw - 24px)); }
+.pic-dlg img { display: block; max-width: 100%; max-height: calc(100vh - 180px); margin: 0 auto; border-radius: 6px; }
+.dlg-buttons button.danger-text { color: var(--danger); }
 
 /* ---- popup menus */
 .menu-pop {

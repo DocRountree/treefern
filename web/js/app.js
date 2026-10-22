@@ -2,7 +2,7 @@
 import { Doc, fromJson, toJson, makeNode, walk, depth, countDesc, contains } from './model.js';
 import { TreeView, THEMES } from './view.js';
 import { STANDARD, STYLES, STYLE_NAMES, DEFAULT_SPREAD, DEFAULT_SHRINK, DEFAULT_CURL } from './layout.js';
-import { DEG } from './geom.js';
+import { DEG, C, clamp } from './geom.js';
 
 let SAMPLES = [];  // [{file, title}], listed from samples/ when the site is built (see build-site.sh)
 const MAX_SEARCH = 200, MAX_RECENT = 8;
@@ -188,6 +188,14 @@ function renderPanel() {
     const info = $('info');
     info.textContent = n.info || 'No info yet. Use Edit to add some.';
     info.classList.toggle('none', !n.info);
+    const id = n.id;
+    renderPics($('pics'), () => doc.find(id)?.images || [], i => {
+        const m = doc.find(id);
+        if (!m) return;
+        m.images = m.images.filter((_, j) => j !== i);
+        doc.commit();
+        setStatus(`Removed a picture from '${m.name}'`);
+    });
 }
 
 // The clades above the selection, root first; long trails fold their middle
@@ -267,13 +275,16 @@ function navigate(d) {
 }
 
 // ---------------------------------------------------------------- editing
-let dlgResolve = null, dlgRapid = false;
+let dlgResolve = null, dlgRapid = false, dlgImages = [];
 const EDIT_HINT = 'Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.';
 const RAPID_HINT = 'Enter or Add: add it and stop. Shift+Enter: add it, then a daughter of it. Tab: add it, then a sister. Esc: stop.';
 // rapid: adding clades one after another; resolves with next = 'child', 'sister' or 'done'.
-function openEditDialog({ title, name = '', info = '', withInfo = true, rapid = false }) {
+function openEditDialog({ title, name = '', info = '', images = [], withInfo = true, rapid = false }) {
     const dlg = $('editDlg');
     dlgRapid = rapid;
+    dlgImages = images.slice();
+    renderEditPics();
+    $('editPicsRow').hidden = !withInfo;
     $('editTitle').textContent = title;
     $('editName').value = name;
     $('editInfo').value = info;
@@ -307,7 +318,7 @@ function finishEdit(ok, next = 'done') {
     $('editDlg').close();
     const r = dlgResolve;
     dlgResolve = null;
-    r?.(ok ? { name, info, next } : null);
+    r?.(ok ? { name, info, next, images: dlgImages.slice() } : null);
 }
 $('editDlg').addEventListener('cancel', e => { e.preventDefault(); finishEdit(false); });
 $('editDlg').addEventListener('keydown', e => {
@@ -329,7 +340,7 @@ async function actAdd(sister = false) {
         if (!p) return;
         const r = await openEditDialog({ title: `New clade under '${p.name}'`, rapid: true });
         if (!r || !(p = doc.find(parentId))) return;
-        const c = doc.addChild(p, r.name, r.info);
+        const c = doc.addChild(p, r.name, r.info, r.images);
         view.selId = c.id;
         refresh();
         if (r.next === 'done') return;
@@ -341,13 +352,144 @@ async function actEdit() {
     let n = sel();
     if (!n) return;
     const id = n.id;
-    const r = await openEditDialog({ title: 'Edit clade', name: n.name, info: n.info });
+    const r = await openEditDialog({ title: 'Edit clade', name: n.name, info: n.info, images: n.images });
     if (!r || !(n = doc.find(id))) return;
-    if (r.name === n.name && r.info === n.info) return;
+    const samePics = r.images.length === n.images.length && r.images.every((s, i) => s === n.images[i]);
+    if (r.name === n.name && r.info === n.info && samePics) return;
     n.name = r.name;
     n.info = r.info;
+    if (!samePics) n.images = r.images;
     doc.commit();
 }
+
+// ---------------------------------------------------------------- pictures
+// Pictures are kept in the file with the notes, so they are scaled to at most
+// IMAGE_MAX_SIDE px and stored as JPEG, or as PNG when they have transparency.
+const IMAGE_MAX_SIDE = 1200, IMAGE_QUALITY = 0.85;
+const isImage = f => /^image\/(png|jpeg|gif|webp|bmp)$/.test(f.type);
+const imageFiles = dt => [...(dt?.files || [])].filter(isImage);
+const dragHasImages = dt => [...(dt?.items || [])].some(i => i.kind === 'file' && i.type.startsWith('image/'));
+
+async function toDataUrl(file) {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, IMAGE_MAX_SIDE / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(bmp.width * k));
+    c.height = Math.max(1, Math.round(bmp.height * k));
+    const g = c.getContext('2d');
+    g.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    let alpha = false;
+    if (file.type !== 'image/jpeg') {
+        const px = g.getImageData(0, 0, c.width, c.height).data;
+        for (let i = 3; i < px.length; i += 4) if (px[i] < 255) { alpha = true; break; }
+    }
+    return alpha ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', IMAGE_QUALITY);
+}
+
+// The pictures among `files`, converted; unreadable ones are reported and skipped.
+async function readPictures(files) {
+    const urls = [];
+    for (const f of files)
+        if (isImage(f)) {
+            try { urls.push(await toDataUrl(f)); }
+            catch { setStatus(`Cannot read the picture ${f.name}`, true); }
+        }
+    return urls;
+}
+
+async function addPictures(id, files) {
+    const urls = await readPictures(files);
+    const n = doc.find(id);
+    if (!n || !urls.length) return;
+    n.images = [...n.images, ...urls];
+    doc.commit();
+    setStatus(`Added ${urls.length === 1 ? 'a picture' : urls.length + ' pictures'} to '${n.name}'`);
+}
+
+// Thumbnails of get() in box; clicking one opens the viewer, which can remove it.
+function renderPics(box, get, remove) {
+    box.replaceChildren();
+    get().forEach((src, i) => {
+        const d = document.createElement('div'), img = document.createElement('img');
+        d.className = 'pic';
+        img.src = src;
+        img.alt = `Picture ${i + 1}`;
+        img.addEventListener('click', () => showPicture(get, i, remove));
+        d.append(img);
+        box.append(d);
+    });
+}
+
+function renderEditPics() {
+    const remove = i => { dlgImages.splice(i, 1); renderEditPics(); };
+    renderPics($('editPics'), () => dlgImages, remove);
+    [...$('editPics').children].forEach((d, i) => {
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.textContent = '×';
+        x.title = 'Remove this picture';
+        x.addEventListener('click', () => remove(i));
+        d.append(x);
+    });
+}
+async function addEditPics(files) {
+    dlgImages.push(...await readPictures(files));
+    renderEditPics();
+}
+$('editAddPics').addEventListener('click', () => { $('picInput').onchange = () => addEditPics([...$('picInput').files]); $('picInput').value = ''; $('picInput').click(); });
+$('editDlg').addEventListener('paste', e => {
+    const files = imageFiles(e.clipboardData);
+    if (!files.length) return;
+    e.preventDefault();
+    addEditPics(files);
+});
+
+// Drop targets: the edit box (its pending pictures), the side panel (the
+// selected clade) and, in the global handler below, the clade under the pointer.
+for (const [el, drop] of [[$('editDlg'), files => addEditPics(files)],
+                          [$('panel'), files => { const n = sel(); if (n) addPictures(n.id, files); }]]) {
+    el.addEventListener('dragover', e => {
+        if (!dragHasImages(e.dataTransfer) || (el === $('panel') && !sel())) return;
+        e.preventDefault();
+        e.stopPropagation();
+        el.classList.add('drop-target');
+    });
+    el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) el.classList.remove('drop-target'); });
+    el.addEventListener('drop', e => {
+        el.classList.remove('drop-target');
+        const files = imageFiles(e.dataTransfer);
+        if (!files.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragDepth = 0;
+        $('dropZone').hidden = true;
+        drop(files);
+    });
+}
+
+let picView = null;  // the viewer's {get, i, remove}
+function showPicture(get, i, remove) {
+    picView = { get, i, remove };
+    drawPicture();
+    if (!$('picDlg').open) $('picDlg').showModal();
+}
+function drawPicture() {
+    const list = picView.get();
+    if (!list.length) return $('picDlg').close();
+    picView.i = clamp(picView.i, 0, list.length - 1);
+    $('picBig').src = list[picView.i];
+    $('picCaption').textContent = `Picture ${picView.i + 1} of ${list.length}`;
+    $('picPrev').disabled = picView.i === 0;
+    $('picNext').disabled = picView.i === list.length - 1;
+}
+$('picPrev').addEventListener('click', () => { --picView.i; drawPicture(); });
+$('picNext').addEventListener('click', () => { ++picView.i; drawPicture(); });
+$('picRemove').addEventListener('click', () => { picView.remove(picView.i); drawPicture(); });
+$('picDlg').addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft' && !$('picPrev').disabled) { $('picPrev').click(); e.preventDefault(); }
+    if (e.key === 'ArrowRight' && !$('picNext').disabled) { $('picNext').click(); e.preventDefault(); }
+});
 
 function actCollapse() {
     const n = sel();
@@ -731,13 +873,32 @@ async function newDoc() {
 
 // Drag and drop a file anywhere on the page.
 let dragDepth = 0;
-addEventListener('dragenter', e => { if (e.dataTransfer?.types.includes('Files')) { ++dragDepth; $('dropZone').hidden = false; } });
-addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('dropZone').hidden = true; } });
-addEventListener('dragover', e => e.preventDefault());
+// Pictures dragged over the tree highlight the clade they would be added to.
+const treePoint = e => { const r = $('tree').getBoundingClientRect(); return C(e.clientX - r.left, e.clientY - r.top); };
+const overTree = e => $('tree').contains(e.target);
+function dragHover(id) { if (view.hoverId !== id) { view.hoverId = id; view.draw(); } }
+addEventListener('dragenter', e => {
+    if (!e.dataTransfer?.types.includes('Files')) return;
+    ++dragDepth;
+    if (!dragHasImages(e.dataTransfer)) $('dropZone').hidden = false;
+});
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; $('dropZone').hidden = true; dragHover(''); } });
+addEventListener('dragover', e => {
+    e.preventDefault();
+    if (dragHasImages(e.dataTransfer)) dragHover(overTree(e) ? view.hitTest(treePoint(e), 14)?.id || '' : '');
+});
 addEventListener('drop', async e => {
     e.preventDefault();
     dragDepth = 0;
     $('dropZone').hidden = true;
+    dragHover('');
+    const pics = imageFiles(e.dataTransfer);
+    if (pics.length) {
+        const n = (overTree(e) && view.hitTest(treePoint(e), 14)) || sel();
+        if (n) addPictures(n.id, pics);
+        else setStatus('Drop pictures onto a clade to add them to its notes', true);
+        return;
+    }
     const item = [...(e.dataTransfer?.items || [])].find(i => i.kind === 'file');
     if (!item) return;
     const h = item.getAsFileSystemHandle ? await item.getAsFileSystemHandle().catch(() => null) : null;
