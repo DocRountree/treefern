@@ -161,8 +161,13 @@ button { cursor: pointer; }
 .edit-pics-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .edit-pics-row .pics { width: 100%; }
 #editDlg.drop-target { outline: 2px dashed var(--accent); }
-.pic-dlg { width: min(960px, calc(100vw - 24px)); }
-.pic-dlg img { display: block; max-width: 100%; max-height: calc(100vh - 180px); margin: 0 auto; border-radius: 6px; }
+/* the picture viewer fills the screen; the picture is scaled to fit it */
+.pic-dlg { width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; border: 0; border-radius: 0; background: #000; color: #ddd; }
+.pic-dlg::backdrop { background: #000; }
+.pic-dlg form { height: 100%; padding: 12px; gap: 8px; }
+.pic-dlg img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.pic-dlg .dlg-hint { color: #aaa; text-align: center; }
+.pic-dlg .dlg-buttons { justify-content: center; margin: 0; }
 .dlg-buttons button.danger-text { color: var(--danger); }
 
 /* ---- popup menus */

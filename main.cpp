@@ -2034,6 +2034,16 @@ void Canvas::drawCladoLabels(QPainter& p, const std::vector<Seg>& segs) {
     }
 }
 
+// Lets an object handle another's events first; the handler returns true to consume one.
+class EventHook : public QObject {
+public:
+    explicit EventHook(std::function<bool(QObject*, QEvent*)> f) : f_(std::move(f)) {}
+protected:
+    bool eventFilter(QObject* o, QEvent* e) override { return f_(o, e) || QObject::eventFilter(o, e); }
+private:
+    std::function<bool(QObject*, QEvent*)> f_;
+};
+
 // ----------------------------------------------------------- pictures ---
 // Pictures are kept in the file with the notes, so they are scaled to at most
 // IMAGE_MAX_SIDE px and stored as JPEG, or as PNG when they have transparency.
@@ -2103,9 +2113,11 @@ static void fillThumbnails(QListWidget* list, const QStringList& images) {
 static void showPictures(QWidget* parent, const std::function<QStringList()>& get, int start, const std::function<void(int)>& remove) {
     QDialog dlg(parent);
     dlg.setWindowTitle("Picture");
+    dlg.setStyleSheet("QDialog { background: black; } QLabel { color: #aaa; }");
     auto img = new QLabel;
     img->setAlignment(Qt::AlignCenter);
-    img->setMinimumSize(320, 240);
+    img->setMinimumSize(1, 1);
+    img->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);  // the picture follows the window, not the reverse
     auto caption = new QLabel;
     caption->setStyleSheet(colorCss(T.dim));
     auto buttons = new QDialogButtonBox(QDialogButtonBox::Close);
@@ -2117,14 +2129,22 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
     v->addWidget(caption);
     v->addWidget(buttons);
     int i = start;
+    QPixmap px;
+    auto fit = [&] {  // the picture as large as the window allows
+        if (px.isNull()) return;
+        const double dpr = img->devicePixelRatioF();
+        QPixmap shown = px.scaled(img->size() * dpr, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        shown.setDevicePixelRatio(dpr);
+        img->setPixmap(shown);
+    };
+    EventHook resized([&](QObject*, QEvent* e) { if (e->type() == QEvent::Resize) fit(); return false; });
+    img->installEventFilter(&resized);
     auto draw = [&] {
         const QStringList list = get();
         if (list.isEmpty()) return dlg.reject();
         i = std::clamp(i, 0, int(list.size()) - 1);
-        const QPixmap px = QPixmap::fromImage(imageFromDataUrl(list[i]));
-        const QSize room = (parent->screen() ? parent->screen()->availableSize() : QSize(1280, 800)) * 0.75;
-        img->setPixmap(px.width() > room.width() || px.height() > room.height()
-                           ? px.scaled(room, Qt::KeepAspectRatio, Qt::SmoothTransformation) : px);
+        px = QPixmap::fromImage(imageFromDataUrl(list[i]));
+        fit();
         caption->setText(QString("Picture %1 of %2").arg(i + 1).arg(list.size()));
         prev->setEnabled(i > 0);
         next->setEnabled(i + 1 < list.size());
@@ -2136,6 +2156,8 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
     QObject::connect(new QShortcut(Qt::Key_Left, &dlg), &QShortcut::activated, &dlg, [&] { if (prev->isEnabled()) prev->click(); });
     QObject::connect(new QShortcut(Qt::Key_Right, &dlg), &QShortcut::activated, &dlg, [&] { if (next->isEnabled()) next->click(); });
     draw();
+    if (QScreen* sc = parent->screen()) dlg.setGeometry(sc->availableGeometry());  // also without a window manager
+    dlg.setWindowState(Qt::WindowMaximized);
     dlg.exec();
 }
 
@@ -2367,16 +2389,6 @@ protected:
     }
 private:
     std::function<bool(QKeyEvent*)> f_;
-};
-
-// Lets an object handle another's events first; the handler returns true to consume one.
-class EventHook : public QObject {
-public:
-    explicit EventHook(std::function<bool(QObject*, QEvent*)> f) : f_(std::move(f)) {}
-protected:
-    bool eventFilter(QObject* o, QEvent* e) override { return f_(o, e) || QObject::eventFilter(o, e); }
-private:
-    std::function<bool(QObject*, QEvent*)> f_;
 };
 
 // The pictures of a clade being edited: thumbnails with Add and Remove, and
