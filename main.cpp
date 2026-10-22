@@ -2081,8 +2081,11 @@ static int runBox(QDialog& d) {
         if ((t == QEvent::MouseButtonPress || t == QEvent::TouchBegin || t == QEvent::TabletPress)
             && (!last.isValid() || last.elapsed() > 50)) {
             last.start();
-            QKeyEvent esc(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
-            QCoreApplication::sendEvent(&d, &esc);
+            // What Esc does, done directly: a key sent to a box that is not the
+            // active window (as under dwm) would go on to the main window.
+            auto mb = qobject_cast<QMessageBox*>(&d);
+            if (mb && mb->escapeButton()) mb->escapeButton()->click();
+            else d.reject();
         }
         return true;  // the rest of the app waits for the box, as with exec()
     });
