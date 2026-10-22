@@ -2051,23 +2051,36 @@ private:
 // the other windows itself.
 static int runBox(QDialog& d) {
     static QList<QDialog*> open;
-    auto inside = [&d](QWidget* w) {
+    auto inside = [&d](QObject* o) {
+        // Input reaches a window before its widgets, so it is caught there first.
+        QWidget* w = o->isWidgetType() ? static_cast<QWidget*>(o) : nullptr;
+        if (auto win = qobject_cast<QWindow*>(o))
+            for (QWidget* t : QApplication::topLevelWidgets())
+                if (t->windowHandle() == win) w = t;
+        if (!w) return true;  // not a window or widget: let it be
         for (; w; w = w->parentWidget())
             if (w == &d) return true;
         return false;
     };
     EventHook hook([&](QObject* o, QEvent* e) {
-        if (open.isEmpty() || open.last() != &d || !o->isWidgetType()) return false;
-        switch (e->type()) {
+        if (open.isEmpty() || open.last() != &d) return false;
+        const QEvent::Type t = e->type();
+        switch (t) {
         case QEvent::MouseButtonPress: case QEvent::MouseButtonRelease: case QEvent::MouseButtonDblClick:
         case QEvent::MouseMove: case QEvent::Wheel: case QEvent::KeyPress: case QEvent::KeyRelease:
         case QEvent::ShortcutOverride: case QEvent::ContextMenu: case QEvent::DragEnter: case QEvent::Drop:
+        case QEvent::TouchBegin: case QEvent::TouchUpdate: case QEvent::TouchEnd:
+        case QEvent::TabletPress: case QEvent::TabletMove: case QEvent::TabletRelease:
             break;
         default:
             return false;
         }
-        if (QApplication::activePopupWidget() || inside(static_cast<QWidget*>(o))) return false;
-        if (e->type() == QEvent::MouseButtonPress) {
+        if (QApplication::activePopupWidget() || inside(o)) return false;
+        // A touch or pen press also arrives again as a mouse press: one close for both.
+        static QElapsedTimer last;
+        if ((t == QEvent::MouseButtonPress || t == QEvent::TouchBegin || t == QEvent::TabletPress)
+            && (!last.isValid() || last.elapsed() > 50)) {
+            last.start();
             QKeyEvent esc(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
             QCoreApplication::sendEvent(&d, &esc);
         }
