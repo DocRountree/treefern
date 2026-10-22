@@ -277,7 +277,7 @@ function navigate(d) {
 // ---------------------------------------------------------------- editing
 let dlgResolve = null, dlgRapid = false, dlgImages = [];
 const EDIT_HINT = 'Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.';
-const RAPID_HINT = 'Enter or Add: add it and stop. Shift+Enter: add it, then a daughter of it. Tab: add it, then a sister. Esc: stop.';
+const RAPID_HINT = 'Enter or Add: add it and stop. Shift+Enter: add it, then a daughter of it. Ctrl+Tab: add it, then a sister. Tab: to the info. Esc: stop.';
 // rapid: adding clades one after another; resolves with next = 'child', 'sister' or 'done'.
 function openEditDialog({ title, name = '', info = '', images = [], withInfo = true, rapid = false }) {
     const dlg = $('editDlg');
@@ -307,7 +307,11 @@ $('editDaughter').addEventListener('click', () => finishEdit(true, 'child'));
 $('editName').addEventListener('keydown', e => {
     if (!dlgRapid || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
     if (e.key === 'Enter') { e.preventDefault(); finishEdit(true, e.shiftKey ? 'child' : 'done'); }
-    else if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); finishEdit(true, 'sister'); }
+});
+// Ctrl+Tab: add it, then a sister. Browser tabs keep Ctrl+Tab for themselves; an
+// installed app's window passes it on. Plain Tab moves on to the info as usual.
+$('editDlg').addEventListener('keydown', e => {
+    if (dlgRapid && e.key === 'Tab' && e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); finishEdit(true, 'sister'); }
 });
 function finishEdit(ok, next = 'done') {
     const name = $('editName').value.trim(), info = $('editInfo').value;
@@ -468,12 +472,26 @@ for (const [el, drop] of [[$('editDlg'), files => addEditPics(files)],
     });
 }
 
-let picView = null;  // the viewer's {get, i, remove}
+let picView = null;  // the viewer's {get, i, remove, back}; back: the edit box it stands in for
 function showPicture(get, i, remove) {
-    picView = { get, i, remove };
+    const back = $('editDlg').open;
+    picView = { get, i, remove, back };
+    const d = $('picDlg');
+    if (back) {  // take the edit box's place and size; it comes back when the viewer closes
+        const r = $('editDlg').getBoundingClientRect();
+        d.style.width = r.width + 'px';
+        d.style.height = r.height + 'px';
+        $('editDlg').close();
+    } else d.style.width = d.style.height = '';
     drawPicture();
-    if (!$('picDlg').open) $('picDlg').showModal();
+    if (!d.open) d.showModal();
 }
+$('picDlg').addEventListener('close', () => {
+    if (!picView?.back) return;
+    picView.back = false;
+    $('editDlg').showModal();
+    $('editInfo').focus();
+});
 function drawPicture() {
     const list = picView.get();
     if (!list.length) return $('picDlg').close();

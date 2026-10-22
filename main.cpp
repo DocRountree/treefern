@@ -2109,11 +2109,11 @@ static void fillThumbnails(QListWidget* list, const QStringList& images) {
     list->setVisible(!images.isEmpty());
 }
 
-// Shows the pictures get() one at a time from `start`; remove(i) deletes picture i.
+// Shows the pictures get() one at a time from `start`, scaled to the window;
+// remove(i) deletes picture i.
 static void showPictures(QWidget* parent, const std::function<QStringList()>& get, int start, const std::function<void(int)>& remove) {
     QDialog dlg(parent);
     dlg.setWindowTitle("Picture");
-    dlg.setStyleSheet("QDialog { background: black; } QLabel { color: #aaa; }");
     auto img = new QLabel;
     img->setAlignment(Qt::AlignCenter);
     img->setMinimumSize(1, 1);
@@ -2156,8 +2156,10 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
     QObject::connect(new QShortcut(Qt::Key_Left, &dlg), &QShortcut::activated, &dlg, [&] { if (prev->isEnabled()) prev->click(); });
     QObject::connect(new QShortcut(Qt::Key_Right, &dlg), &QShortcut::activated, &dlg, [&] { if (next->isEnabled()) next->click(); });
     draw();
-    if (QScreen* sc = parent->screen()) dlg.setGeometry(sc->availableGeometry());  // also without a window manager
-    dlg.setWindowState(Qt::WindowMaximized);
+    // The size of the edit box; opened from one, it sits exactly over it (hiding
+    // it would end its edit), so closing the viewer brings the edit box back.
+    if (auto box = qobject_cast<QDialog*>(parent->window())) dlg.setGeometry(box->geometry());
+    else dlg.resize(560, 420);
     dlg.exec();
 }
 
@@ -3110,7 +3112,8 @@ private:
     struct NewClade { QString name, info; QStringList images; Next next; };
 
     // Name (and info) of one new clade. Enter in the name or Add: add it and
-    // stop; Shift+Enter: add it, then a daughter of it; Tab: add it, then a sister.
+    // stop; Shift+Enter: add it, then a daughter of it; Ctrl+Tab: add it, then a
+    // sister. Tab moves on to the info as usual.
     // An empty name, Esc or Cancel stops.
     std::optional<NewClade> askNewClade(const QString& parentName) {
         QDialog dlg(this);
@@ -3120,7 +3123,7 @@ private:
         auto infoEdit = new QPlainTextEdit;
         infoEdit->setPlaceholderText("(no info)");
         auto hint = new QLabel("Enter or Add: add it and stop   ·   Shift+Enter: add it, then a daughter of it   ·   "
-                               "Tab: add it, then a sister   ·   Esc: stop");
+                               "Ctrl+Tab: add it, then a sister   ·   Tab: to the info   ·   Esc: stop");
         hint->setWordWrap(true);
         hint->setStyleSheet(colorCss(T.dim));
         auto buttons = new QDialogButtonBox(QDialogButtonBox::Cancel);
@@ -3145,15 +3148,22 @@ private:
             nameEdit->text().trimmed().isEmpty() ? dlg.reject() : dlg.accept();
         };
         KeyHook hook([&](QKeyEvent* e) {
-            if (e->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) return false;
+            const auto mods = e->modifiers();
+            if (e->key() == Qt::Key_Tab && mods == Qt::ControlModifier) { finish(Next::Sister); return true; }
+            if (mods & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) return false;
             if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter) {
-                finish(e->modifiers() & Qt::ShiftModifier ? Next::Daughter : Next::Done);
+                finish(mods & Qt::ShiftModifier ? Next::Daughter : Next::Done);
                 return true;
             }
-            if (e->key() == Qt::Key_Tab) { finish(Next::Sister); return true; }
             return false;
         });
         nameEdit->installEventFilter(&hook);
+        KeyHook infoHook([&](QKeyEvent* e) {  // Ctrl+Tab from the info too
+            if (e->key() != Qt::Key_Tab || e->modifiers() != Qt::ControlModifier) return false;
+            finish(Next::Sister);
+            return true;
+        });
+        infoEdit->installEventFilter(&infoHook);
         connect(sister, &QPushButton::clicked, &dlg, [&] { finish(Next::Sister); });
         connect(daughter, &QPushButton::clicked, &dlg, [&] { finish(Next::Daughter); });
         connect(add, &QPushButton::clicked, &dlg, [&] { finish(Next::Done); });
