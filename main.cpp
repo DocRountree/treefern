@@ -2065,8 +2065,18 @@ static int runBox(QDialog& d) {
     EventHook hook([&](QObject* o, QEvent* e) {
         if (open.isEmpty() || open.last() != &d) return false;
         const QEvent::Type t = e->type();
-        if (t == QEvent::Close)  // the window manager closing the main window, say
-            return e->spontaneous() && !inside(o);
+        if (t == QEvent::Close) {
+            // Closing the main window from its title bar: every box is cancelled,
+            // as with Esc, and the window closes once they are gone.
+            if (!e->spontaneous() || inside(o)) return false;
+            for (QDialog* b : QList<QDialog*>(open)) b->reject();
+            QPointer<QObject> win(o);
+            QTimer::singleShot(0, qApp, [win] {
+                if (auto w = qobject_cast<QWindow*>(win.data())) w->close();
+                else if (auto w = qobject_cast<QWidget*>(win.data())) w->close();
+            });
+            return true;
+        }
         switch (t) {
         case QEvent::MouseButtonPress: case QEvent::MouseButtonRelease: case QEvent::MouseButtonDblClick:
         case QEvent::MouseMove: case QEvent::Wheel: case QEvent::KeyPress: case QEvent::KeyRelease:
