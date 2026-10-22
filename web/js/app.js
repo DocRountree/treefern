@@ -9,6 +9,7 @@ const SAMPLES = [
     { file: 'apes.json', title: 'Apes' },
     { file: 'reptiles.json', title: 'Reptiles' },
     { file: 'indo-european.json', title: 'Indo-European languages' },
+    { file: 'christianity.json', title: 'Christian churches' },
 ];
 const MAX_SEARCH = 200, MAX_RECENT = 8;
 const CONFIRM_DELETE_OVER = 30;      // ask before deleting more clades than this
