@@ -4,12 +4,7 @@ import { TreeView, THEMES } from './view.js';
 import { STANDARD, STYLES, STYLE_NAMES, DEFAULT_SPREAD, DEFAULT_SHRINK, DEFAULT_CURL } from './layout.js';
 import { DEG } from './geom.js';
 
-const SAMPLES = [
-    { file: 'life.json', title: 'Tree of life' },
-    { file: 'apes.json', title: 'Apes' },
-    { file: 'reptiles.json', title: 'Reptiles' },
-    { file: 'indo-european.json', title: 'Indo-European languages' },
-];
+let SAMPLES = [];  // [{file, title}], listed from samples/ when the site is built (see build-site.sh)
 const MAX_SEARCH = 200, MAX_RECENT = 8;
 const CONFIRM_DELETE_OVER = 30;      // ask before deleting more clades than this
 const MAX_SVG_CLADES = 20000;        // larger SVGs bring most viewers to a halt
@@ -554,9 +549,17 @@ function loadJsonText(text, name) {
     return true;
 }
 
+// Both are revalidated with the server, so a newly published sample shows at once.
+async function loadSamples() {
+    try {
+        const r = await fetch('samples/index.json', { cache: 'no-cache' });
+        if (r.ok) SAMPLES = (await r.json()).filter(s => s && typeof s.file === 'string' && typeof s.title === 'string');
+    } catch { /* no list: the menu has no samples */ }
+}
+
 async function openSample(s, startup = false) {
     try {
-        const r = await fetch('samples/' + s.file);
+        const r = await fetch('samples/' + s.file, { cache: 'no-cache' });
         if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
         if (startup && launched) return;  // a file arrived through "open with" meanwhile
         if (loadJsonText(await r.text(), s.file)) {
@@ -816,7 +819,7 @@ const MENUS = {
         ...(recent.length ? [{ section: 'Recent' },
                              ...recent.map(e => ({ label: e.name, run: () => openRecent(e) })),
                              { label: 'Clear recent files', run: clearRecent }] : []),
-        { section: 'Samples' },
+        ...(SAMPLES.length ? [{ section: 'Samples' }] : []),
         ...SAMPLES.map(s => ({ label: s.title, run: () => openSample(s) })),
         { sep: true },
         { label: fileHandle ? 'Save' : 'Save / download', key: 'Ctrl+S', run: save, disabled: !doc.root },
@@ -1124,6 +1127,7 @@ view.labelsBeside = !!prefs.beside;
 applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
 
 (async () => {
+    await loadSamples();
     const wanted = new URLSearchParams(location.search).get('sample');
     const sample = SAMPLES.find(s => s.file.replace(/\.json$/, '') === wanted);
     const session = store.get(SESSION_KEY);
@@ -1131,7 +1135,7 @@ applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
     else if (session && session.json && loadJsonText(JSON.stringify(session.json), session.name || 'cladogram.json')) {
         recentKey = session.recentKey || '';
         setStatus('Restored your last session');
-    } else if (!launched) await openSample(SAMPLES[0], true);
+    } else if (!launched && SAMPLES.length) await openSample(SAMPLES[0], true);
     refresh();
     await loadRecent();
 })();

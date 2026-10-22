@@ -1,0 +1,908 @@
+{
+    "title": "Christian churches",
+    "nodes": [
+        {
+            "collapsed": false,
+            "id": "c63ade2dbf",
+            "info": "Founded by Christ on the Apostles, with Peter at their head, and born at Pentecost (c. AD 33). ",
+            "name": "Early Catholic Church"
+        },
+        {
+            "collapsed": false,
+            "id": "7f3dad433e",
+            "info": "1st-4th c. Communities that kept the whole Mosaic Law: the Ebionites, who denied the virginal conception and the divinity of Christ (Irenaeus, Adv. Haer. 1.26.2; Epiphanius, Panarion 30); the Nazarenes, orthodox in their Christology by Jerome's account but cut off by their observance (Panarion 29); and the Elkasaites (Panarion 19, 53). On the gradual separation of Church and Synagogue see Dunn, The Partings of the Ways (1991). Extinct by the 5th century.",
+            "name": "Jewish-Christian sects",
+            "parent": "c63ade2dbf"
+        },
+        {
+            "collapsed": false,
+            "id": "a66184e7ac",
+            "info": "2nd-4th c. Basilideans, Valentinians, Sethians and others, who taught salvation through secret knowledge and a lesser creator god. Refuted by Irenaeus (Against Heresies, c. 180), Hippolytus and Tertullian; their own writings recovered at Nag Hammadi (1945). Williams, Rethinking 'Gnosticism' (1996), and King, What Is Gnosticism? (2003), question whether one movement lay behind the label. Extinct, save the Mandaeans, whose relation to them is disputed.",
+            "name": "Gnostic sects",
+            "parent": "c63ade2dbf"
+        },
+        {
+            "collapsed": false,
+            "id": "35248cdb86",
+            "info": "c. 144. Marcion of Sinope, expelled by the Roman church, rejected the Old Testament and its God and kept a canon of Luke and ten Pauline letters (Tertullian, Adversus Marcionem). Organised as a rival church with its own bishops, surviving in Syria into the 5th century. Harnack, Marcion (1921); Lieu, Marcion and the Making of a Heretic (2015).",
+            "name": "Marcionite Church",
+            "parent": "c63ade2dbf"
+        },
+        {
+            "collapsed": false,
+            "id": "8b18c78c8a",
+            "info": "The catholic communion of the 2nd and 3rd centuries, 'the great church' even to its pagan critic Celsus (Origen, Contra Celsum 5.59), held together by the rule of faith, the episcopate in apostolic succession, and the fourfold Gospel (Irenaeus, Adv. Haer. 3.3, 3.11.8). Bauer's thesis (Orthodoxy and Heresy in Earliest Christianity, 1934) that heresy came first in many regions has been answered region by region (Turner, The Pattern of Christian Truth, 1954; Köstenberger and Kruger, The Heresy of Orthodoxy, 2010), though his picture of early diversity remains influential (Ehrman, Lost Christianities, 2003).",
+            "name": "Great Church (c. 150-313)",
+            "parent": "c63ade2dbf"
+        },
+        {
+            "collapsed": false,
+            "id": "e7652f1ff0",
+            "info": "c. 157-172 (Epiphanius gives 157, Eusebius 172). The New Prophecy of Montanus, Priscilla and Maximilla in Phrygia, claiming the final outpouring of the Paraclete; condemned by Asian synods (Eusebius, HE 5.16). Won Tertullian (c. 207). Survived in Phrygia to the 6th century. Trevett, Montanism (1996); Tabbernee, Fake Prophecy and Polluted Sacraments (2007).",
+            "name": "Montanists",
+            "parent": "8b18c78c8a"
+        },
+        {
+            "collapsed": false,
+            "id": "d18a6b73ef",
+            "info": "c. 190. Asian churches that kept Easter on 14 Nisan; Pope Victor I moved to cut them off, restrained by Irenaeus (Eusebius, HE 5.23-25). The practice was excluded by Nicaea (325) and lingered as a small sect into the 5th century.",
+            "name": "Quartodecimans",
+            "parent": "8b18c78c8a"
+        },
+        {
+            "collapsed": false,
+            "id": "3123b567d9",
+            "info": "217-235. Hippolytus opposed Popes Zephyrinus and Callistus on doctrine and penance and led a rival community at Rome; reconciled when he and Pope Pontian were exiled to Sardinia, and both are venerated as martyrs. Brent, Hippolytus and the Roman Church in the Third Century (1995), argues the 'Hippolytus' writings come from a Roman school.",
+            "name": "Hippolytan schism",
+            "parent": "8b18c78c8a"
+        },
+        {
+            "collapsed": false,
+            "id": "f680af4d52",
+            "info": "251. The rigorist Novatian, consecrated against Pope Cornelius, refused reconciliation to those who lapsed under Decius (Cyprian, Letters 44-55; Eusebius, HE 6.43). A parallel church with bishops across the Empire into the 5th century; Nicaea, canon 8, set terms for their return.",
+            "name": "Novatianists",
+            "parent": "8b18c78c8a"
+        },
+        {
+            "collapsed": false,
+            "id": "b5e6cac432",
+            "info": "From the Edict of Milan (313) through the first four ecumenical councils: Nicaea (325), Constantinople (381), Ephesus (431) and Chalcedon (451), which defined the faith in the Trinity and in Christ.",
+            "name": "Imperial Church (313-451)",
+            "parent": "8b18c78c8a"
+        },
+        {
+            "collapsed": false,
+            "id": "9919a507be",
+            "info": "306. Meletius of Lycopolis ordained in other Egyptian dioceses during Diocletian's persecution and formed a rival hierarchy; Nicaea's settlement failed and Meletian monks survived into the 8th century (Athanasius, Apologia contra Arianos 59; Hauben, Studies on the Melitian Schism, 2012).",
+            "name": "Meletian schism",
+            "parent": "b5e6cac432"
+        },
+        {
+            "collapsed": false,
+            "id": "e403dd7012",
+            "info": "311-312. North African schism over the consecration of Caecilian of Carthage by an alleged traditor; rebaptised Catholics. Condemned at Rome (313) and Arles (314), answered by Augustine, and ruled against at the Conference of Carthage (411); survived into the 7th century. Frend, The Donatist Church (1952); Shaw, Sacred Violence (2011).",
+            "name": "Donatists",
+            "parent": "b5e6cac432"
+        },
+        {
+            "collapsed": false,
+            "id": "95ba6a2c61",
+            "info": "318-381. The heresy of Arius of Alexandria that the Son is a creature, condemned at Nicaea (325) and finally at Constantinople (381) after half a century in which non-Nicene bishops held most Eastern sees. Hanson, The Search for the Christian Doctrine of God (1988), Williams, Arius (1987), and Ayres, Nicaea and Its Legacy (2004) treat 'Arianism' as a polemical label for several non-Nicene theologies.",
+            "name": "Arians",
+            "parent": "b5e6cac432"
+        },
+        {
+            "collapsed": false,
+            "id": "965d07a30d",
+            "info": "From Ulfilas, consecrated c. 341, the Goths, Vandals, Burgundians and Lombards received a Homoian creed. The Vandal and Ostrogothic churches ended with their kingdoms' conquest by Justinian (534, 553); the Burgundians converted to the Catholic faith c. 516, the Visigoths at the Third Council of Toledo (589) and the Lombards in the 7th century.",
+            "name": "Homoian churches of the Germanic peoples",
+            "parent": "95ba6a2c61"
+        },
+        {
+            "collapsed": false,
+            "id": "1fdfced00d",
+            "info": "c. 375. Apollinaris of Laodicea denied Christ a human mind; condemned at Rome (377) and Constantinople (381). Died out in the 5th century, though Apollinarian writings circulated under orthodox names and shaped later Miaphysite Christology.",
+            "name": "Apollinarians",
+            "parent": "b5e6cac432"
+        },
+        {
+            "collapsed": false,
+            "id": "f1a59c601c",
+            "info": "411-431. Pelagius and Caelestius denied that grace is needed to avoid sin and that Adam's sin is transmitted; condemned at Carthage (418), by Pope Zosimus (Tractoria, 418) and at Ephesus (431). Semi-Pelagianism was settled at Orange (529). Brown, Augustine of Hippo (1967, 2000).",
+            "name": "Pelagians",
+            "parent": "b5e6cac432"
+        },
+        {
+            "collapsed": false,
+            "id": "c9b029ffee",
+            "info": "410-486. The Church of the Persian Empire, organised at the Synod of Isaac (410), declared its catholicos independent of Western bishops (424), did not receive the condemnation of Nestorius at Ephesus (431), and adopted a strict two-nature Christology at Beth Lapat (484) and Seleucia-Ctesiphon (486). Spread across Asia to China (Xi'an stele, 781) and India. Brock, 'The \"Nestorian\" Church: A Lamentable Misnomer' (1996); Baum and Winkler, The Church of the East (2003). Common Christological Declaration with Pope John Paul II, 1994.",
+            "name": "Church of the East",
+            "parent": "b5e6cac432"
+        },
+        {
+            "collapsed": false,
+            "id": "0a5e514156",
+            "info": "The continuing patriarchate, reconstituted in the 16th-17th centuries after the union of 1553; now seated at Erbil, Iraq.",
+            "name": "Assyrian Church of the East",
+            "parent": "c9b029ffee"
+        },
+        {
+            "collapsed": false,
+            "id": "556e4525e5",
+            "info": "1968. Separated over the Gregorian calendar and hereditary succession to the patriarchate.",
+            "name": "Ancient Church of the East",
+            "parent": "c9b029ffee"
+        },
+        {
+            "collapsed": false,
+            "id": "8d75462c33",
+            "info": "The communion that received the Council of Chalcedon (451): Christ one person in two natures. Its unity was broken and restored in the Acacian schism with Rome (484-519, ended by the Formula of Hormisdas), the Three Chapters schism in northern Italy (553-698) and the Photian schism (863-867); Dvornik, The Photian Schism (1948), showed the last was healed in 879-880.",
+            "name": "Chalcedonian Church (451-1054)",
+            "parent": "b5e6cac432"
+        },
+        {
+            "collapsed": false,
+            "id": "12408b9099",
+            "info": "451-c. 540. Churches that rejected Chalcedon as Nestorian and confessed one incarnate nature of the Word (Miaphysite), after Cyril of Alexandria. Separate hierarchies were consecrated by Jacob Baradaeus from c. 542. Frend, The Rise of the Monophysite Movement (1972); Price and Gaddis, The Acts of the Council of Chalcedon (2005). Common declarations with Rome: Coptic (1973), Syriac (1984), Armenian (1996).",
+            "name": "Oriental Orthodox Churches",
+            "parent": "8d75462c33"
+        },
+        {
+            "collapsed": false,
+            "id": "c0aaf55d02",
+            "info": "The Patriarchate of Alexandria under Dioscorus, deposed at Chalcedon, and his successors.",
+            "name": "Coptic Orthodox Church",
+            "parent": "12408b9099"
+        },
+        {
+            "collapsed": false,
+            "id": "09aaa1e2b6",
+            "info": "Evangelised by Frumentius, consecrated by Athanasius (c. 340); under Coptic metropolitans until autocephaly in 1959.",
+            "name": "Ethiopian Orthodox Tewahedo Church",
+            "parent": "c0aaf55d02"
+        },
+        {
+            "collapsed": false,
+            "id": "b2c7d4ab1f",
+            "info": "Autocephaly granted by the Coptic Church after Eritrean independence (1993-1994); first patriarch 1998.",
+            "name": "Eritrean Orthodox Tewahedo Church",
+            "parent": "09aaa1e2b6"
+        },
+        {
+            "collapsed": false,
+            "id": "f68709de84",
+            "info": "The Patriarchate of Antioch of Severus (512-518) and Jacob Baradaeus.",
+            "name": "Syriac Orthodox Church",
+            "parent": "12408b9099"
+        },
+        {
+            "collapsed": false,
+            "id": "5a9c7d7f17",
+            "info": "St Thomas Christians, of East Syriac tradition, who rejected Latin rule at the Coonan Cross Oath (1653) and received Syriac Orthodox bishops from 1665.",
+            "name": "Malankara churches of India",
+            "parent": "f68709de84"
+        },
+        {
+            "collapsed": false,
+            "id": "1b259fd60a",
+            "info": "Remains under the Syriac Patriarch of Antioch.",
+            "name": "Malankara Jacobite Syrian Church",
+            "parent": "5a9c7d7f17"
+        },
+        {
+            "collapsed": false,
+            "id": "452fdd47c5",
+            "info": "Autocephalous catholicate from 1912.",
+            "name": "Malankara Orthodox Syrian Church",
+            "parent": "5a9c7d7f17"
+        },
+        {
+            "collapsed": false,
+            "id": "c5a7087766",
+            "info": "1889. Reformed under Anglican missionary influence; in communion with Anglicans.",
+            "name": "Mar Thoma Syrian Church",
+            "parent": "5a9c7d7f17"
+        },
+        {
+            "collapsed": false,
+            "id": "c4885ba36d",
+            "info": "Christian kingdom from c. 301 under Gregory the Illuminator. Absent from Chalcedon; rejected it at the Councils of Dvin (506, 554).",
+            "name": "Armenian Apostolic Church",
+            "parent": "12408b9099"
+        },
+        {
+            "collapsed": false,
+            "id": "126d8ab1c6",
+            "info": "633-681. The imperial compromise that Christ has one will; condemned at the Lateran Council of 649 under Pope Martin I and at Constantinople III (680-681), with Maximus the Confessor as its chief opponent. Extinct by the 8th century.",
+            "name": "Monothelites",
+            "parent": "8d75462c33"
+        },
+        {
+            "collapsed": false,
+            "id": "7587248c06",
+            "info": "7th-9th c. Dualist movement of Armenia and Anatolia, crushed by Byzantium in 872; regarded as forerunners of the Bogomils. Garsoïan, The Paulician Heresy (1967).",
+            "name": "Paulicians",
+            "parent": "8d75462c33"
+        },
+        {
+            "collapsed": false,
+            "id": "48dc38adf5",
+            "info": "",
+            "name": "The Great Schism",
+            "parent": "8d75462c33"
+        },
+        {
+            "collapsed": false,
+            "id": "0468681f94",
+            "info": "1054-1204. The Churches of the Byzantine East, separated from the Apostolic See, keeping valid sacraments and apostolic succession (Unitatis Redintegratio 14-15). The legates' excommunication of Michael Cerularius (1054) was a step in a long estrangement over papal primacy, the Filioque and usage, made final by the sack of Constantinople (1204) and the rejection of the unions of Lyons (1274) and Florence (1439). Chadwick, East and West: The Making of a Rift in the Church (2003); Siecienski, The Filioque (2010) and The Papacy and the Orthodox (2017). Anathemas of 1054 lifted 1965.",
+            "name": "Eastern Orthodox Church",
+            "parent": "48dc38adf5"
+        },
+        {
+            "collapsed": false,
+            "id": "8924beff93",
+            "info": "Primacy of honour among the Orthodox churches.",
+            "name": "Ecumenical Patriarchate of Constantinople",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "63e3e777bf",
+            "info": "The Chalcedonian (Melkite) line in Egypt.",
+            "name": "Greek Orthodox Patriarchate of Alexandria",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "dc7c52d3e6",
+            "info": "",
+            "name": "Greek Orthodox Patriarchate of Antioch",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "8a0a73cf35",
+            "info": "",
+            "name": "Greek Orthodox Patriarchate of Jerusalem",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "e624058549",
+            "info": "Autocephalous since the Council of Ephesus (431).",
+            "name": "Church of Cyprus",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "a13c036818",
+            "info": "Autocephalous from Antioch c. 486; abolished by Russia in 1811, restored 1917, recognised by Constantinople 1990.",
+            "name": "Georgian Orthodox Church",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "b4287d32d8",
+            "info": "Patriarchate 927; restored 1870 and 1953.",
+            "name": "Bulgarian Orthodox Church",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "f5bf202465",
+            "info": "Autocephalous 1219 under St Sava.",
+            "name": "Serbian Orthodox Church",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "6280d126da",
+            "info": "From the Baptism of Rus' (988); Moscow autocephalous 1448 after rejecting Florence; patriarchate 1589.",
+            "name": "Russian Orthodox Church",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "0146d6c825",
+            "info": "1666-1667. Rejected Patriarch Nikon's liturgical reforms (the Raskol); priested and priestless branches. Michels, At War with the Church (1999).",
+            "name": "Old Believers",
+            "parent": "6280d126da"
+        },
+        {
+            "collapsed": false,
+            "id": "44be173cf8",
+            "info": "Autocephaly granted by Moscow in 1970, not recognised by Constantinople.",
+            "name": "Orthodox Church in America",
+            "parent": "6280d126da"
+        },
+        {
+            "collapsed": false,
+            "id": "1eab042e38",
+            "info": "Autocephalous 1850.",
+            "name": "Church of Greece",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "b22f367da6",
+            "info": "Autocephalous 1885, patriarchate 1925.",
+            "name": "Romanian Orthodox Church",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "2e03afb86e",
+            "info": "2018-2019. Autocephaly granted by Constantinople; rejected by Moscow, which broke communion with Constantinople.",
+            "name": "Orthodox Church of Ukraine",
+            "parent": "0468681f94"
+        },
+        {
+            "collapsed": false,
+            "id": "a167c18826",
+            "info": "",
+            "name": "The Medieval Church (1054-1490)",
+            "parent": "48dc38adf5"
+        },
+        {
+            "collapsed": false,
+            "id": "e35db9f9de",
+            "info": "",
+            "name": "Medieval heresies in the West",
+            "parent": "a167c18826"
+        },
+        {
+            "collapsed": false,
+            "id": "1a5ef56e0d",
+            "info": "c. 1140-1320. Dualist church of Languedoc and northern Italy, with its own bishops; suppressed by the Albigensian Crusade (1209-1229) and the Inquisition. Moore, The War on Heresy (2012), argues the church was partly constructed by its persecutors; Lambert, The Cathars (1998), defends its reality.",
+            "name": "Cathars",
+            "parent": "e35db9f9de"
+        },
+        {
+            "collapsed": false,
+            "id": "35a4af7660",
+            "info": "c. 1173-1184. The 'Poor of Lyons' of Valdes preached without licence; condemned at Verona (1184). Joined the Reformed churches at Chanforan (1532); the Waldensian Evangelical Church continues in Piedmont. Audisio, The Waldensian Dissent (1999).",
+            "name": "Waldensians",
+            "parent": "e35db9f9de"
+        },
+        {
+            "collapsed": false,
+            "id": "0e29f9d38c",
+            "info": "1380s-1520s. Followers of John Wyclif, condemned at Blackfriars (1382) and Constance (1415); absorbed into the English Reformation.",
+            "name": "Lollards",
+            "parent": "e35db9f9de"
+        },
+        {
+            "collapsed": false,
+            "id": "80c4bf4e1f",
+            "info": "1415-1436. After the burning of Jan Hus at Constance (1415), Bohemia broke with Rome; the moderate Utraquists were reconciled by the Compacts of Basel (1436). Kaminsky, A History of the Hussite Revolution (1967).",
+            "name": "Hussites",
+            "parent": "e35db9f9de"
+        },
+        {
+            "collapsed": false,
+            "id": "db49e7dfed",
+            "info": "1457. The radical Bohemian Brethren; renewed at Herrnhut under Zinzendorf, 1727.",
+            "name": "Moravian Church (Unitas Fratrum)",
+            "parent": "80c4bf4e1f"
+        },
+        {
+            "collapsed": false,
+            "id": "a19b95b11a",
+            "info": "",
+            "name": "The Early Modern Church (1490-1789)",
+            "parent": "a167c18826"
+        },
+        {
+            "collapsed": false,
+            "id": "977f260578",
+            "info": "1517 onward. Ecclesial communities that separated from the Catholic Church in the West, keeping baptism and the Scriptures but not, for the most part, the episcopate and the Eucharist in their fullness (Unitatis Redintegratio 19-23). Condemned at Trent (1545-1563). MacCulloch, Reformation (2003); Eire, Reformations (2016).",
+            "name": "Protestant Reformation",
+            "parent": "a19b95b11a"
+        },
+        {
+            "collapsed": false,
+            "id": "8d273eb999",
+            "info": "1517-1530. From Martin Luther's protest at Wittenberg, excommunicated 1521; confessed at Augsburg (1530). Joint Declaration on Justification with Rome, 1999.",
+            "name": "Lutheranism",
+            "parent": "977f260578"
+        },
+        {
+            "collapsed": false,
+            "id": "a773b2ec86",
+            "info": "Germany, Scandinavia and the Baltic.",
+            "name": "Evangelical Lutheran state and national churches",
+            "parent": "8d273eb999"
+        },
+        {
+            "collapsed": false,
+            "id": "506528fc93",
+            "info": "1847; confessional Lutherans in the United States.",
+            "name": "Lutheran Church-Missouri Synod",
+            "parent": "8d273eb999"
+        },
+        {
+            "collapsed": false,
+            "id": "4693ca488f",
+            "info": "Formed 1988.",
+            "name": "Evangelical Lutheran Church in America",
+            "parent": "8d273eb999"
+        },
+        {
+            "collapsed": false,
+            "id": "ff3ef7917c",
+            "info": "1519-1541. From Zwingli at Zurich (1519-1523) and Calvin at Geneva (1541).",
+            "name": "Reformed tradition",
+            "parent": "977f260578"
+        },
+        {
+            "collapsed": false,
+            "id": "2039449759",
+            "info": "1525. Separated from Zwingli's reform when Grebel and Manz began baptising adults at Zurich; Schleitheim Confession (1527). Stayer, Anabaptists and the Sword (1972).",
+            "name": "Anabaptists",
+            "parent": "ff3ef7917c"
+        },
+        {
+            "collapsed": false,
+            "id": "5a63d4051d",
+            "info": "1528; community of goods, Moravia.",
+            "name": "Hutterites",
+            "parent": "2039449759"
+        },
+        {
+            "collapsed": false,
+            "id": "2600188d32",
+            "info": "1536 onward, under Menno Simons.",
+            "name": "Mennonites",
+            "parent": "2039449759"
+        },
+        {
+            "collapsed": false,
+            "id": "6c8492d363",
+            "info": "1693. Separated under Jakob Ammann over the ban and shunning.",
+            "name": "Amish",
+            "parent": "2600188d32"
+        },
+        {
+            "collapsed": false,
+            "id": "5a01fecf2d",
+            "info": "Switzerland, France (Huguenots), the Netherlands, the Palatinate and Hungary; Heidelberg Catechism (1563), Synod of Dort (1618-1619).",
+            "name": "Continental Reformed churches",
+            "parent": "ff3ef7917c"
+        },
+        {
+            "collapsed": false,
+            "id": "55ec9faf00",
+            "info": "1560. John Knox's Scottish Reformation; Westminster Confession (1646).",
+            "name": "Presbyterianism",
+            "parent": "ff3ef7917c"
+        },
+        {
+            "collapsed": false,
+            "id": "444657a611",
+            "info": "",
+            "name": "Church of Scotland",
+            "parent": "55ec9faf00"
+        },
+        {
+            "collapsed": false,
+            "id": "716e0edec3",
+            "info": "1983 merger.",
+            "name": "Presbyterian Church (USA)",
+            "parent": "55ec9faf00"
+        },
+        {
+            "collapsed": false,
+            "id": "9e696486c7",
+            "info": "1973; separated from the southern Presbyterians.",
+            "name": "Presbyterian Church in America",
+            "parent": "55ec9faf00"
+        },
+        {
+            "collapsed": false,
+            "id": "86965cd4db",
+            "info": "1804-1832. Barton Stone and Thomas and Alexander Campbell, Presbyterian ministers, sought to restore the New Testament church apart from creeds.",
+            "name": "Restoration Movement",
+            "parent": "55ec9faf00"
+        },
+        {
+            "collapsed": false,
+            "id": "bcb4bf8ca5",
+            "info": "A cappella, congregational; distinct by 1906.",
+            "name": "Churches of Christ",
+            "parent": "86965cd4db"
+        },
+        {
+            "collapsed": false,
+            "id": "9700127a73",
+            "info": "",
+            "name": "Christian Church (Disciples of Christ)",
+            "parent": "86965cd4db"
+        },
+        {
+            "collapsed": false,
+            "id": "fbb193eadd",
+            "info": "1534. Separated by the Act of Supremacy of Henry VIII; restored under Mary (1553-1558) and separated again under Elizabeth I (1559). Leo XIII judged its orders invalid (Apostolicae Curae, 1896). Duffy, The Stripping of the Altars (1992).",
+            "name": "Anglicanism",
+            "parent": "977f260578"
+        },
+        {
+            "collapsed": false,
+            "id": "c195ab15a7",
+            "info": "",
+            "name": "Church of England",
+            "parent": "fbb193eadd"
+        },
+        {
+            "collapsed": false,
+            "id": "a0067c6840",
+            "info": "Organised 1789.",
+            "name": "Episcopal Church (United States)",
+            "parent": "fbb193eadd"
+        },
+        {
+            "collapsed": false,
+            "id": "166379e0bd",
+            "info": "Including the large churches of Nigeria, Uganda and Kenya.",
+            "name": "Other Anglican Communion provinces",
+            "parent": "fbb193eadd"
+        },
+        {
+            "collapsed": false,
+            "id": "1a27b6a669",
+            "info": "1580s-1640s. Puritans who left the Church of England for gathered churches.",
+            "name": "English Separatists",
+            "parent": "fbb193eadd"
+        },
+        {
+            "collapsed": false,
+            "id": "556f9dc377",
+            "info": "Independent churches; the Pilgrims of Plymouth (1620).",
+            "name": "Congregationalism",
+            "parent": "1a27b6a669"
+        },
+        {
+            "collapsed": false,
+            "id": "744997b521",
+            "info": "United States, 1957.",
+            "name": "United Church of Christ",
+            "parent": "556f9dc377"
+        },
+        {
+            "collapsed": false,
+            "id": "a230a4570b",
+            "info": "1609. John Smyth's believer's-baptism church at Amsterdam; Particular Baptists from 1638.",
+            "name": "Baptists",
+            "parent": "1a27b6a669"
+        },
+        {
+            "collapsed": false,
+            "id": "27406959e4",
+            "info": "1845; the largest Protestant body in the United States.",
+            "name": "Southern Baptist Convention",
+            "parent": "a230a4570b"
+        },
+        {
+            "collapsed": false,
+            "id": "e5b7cc198f",
+            "info": "1895, Atlanta, from conventions founded from 1880; the largest African-American denomination. Split in 1915.",
+            "name": "National Baptist Convention",
+            "parent": "a230a4570b"
+        },
+        {
+            "collapsed": false,
+            "id": "21eaf8515c",
+            "info": "1831-1844. William Miller's movement expecting Christ's return in 1844.",
+            "name": "Millerites",
+            "parent": "a230a4570b"
+        },
+        {
+            "collapsed": false,
+            "id": "dffd513d59",
+            "info": "Organised 1863; Saturday Sabbath.",
+            "name": "Seventh-day Adventist Church",
+            "parent": "21eaf8515c"
+        },
+        {
+            "collapsed": false,
+            "id": "ce0ce85fbc",
+            "info": "From Charles Taze Russell's Bible Students (1870s), shaped by Adventist teaching; named 1931. Deny the Trinity; their baptism is not recognised.",
+            "name": "Jehovah's Witnesses",
+            "parent": "21eaf8515c"
+        },
+        {
+            "collapsed": false,
+            "id": "2d4772f803",
+            "info": "c. 1650. George Fox's Religious Society of Friends; no sacraments.",
+            "name": "Quakers",
+            "parent": "1a27b6a669"
+        },
+        {
+            "collapsed": false,
+            "id": "dcfaabdb1a",
+            "info": "1739-1795. The Wesleys' revival within the Church of England; separate in America (1784) and Britain (1795).",
+            "name": "Methodism",
+            "parent": "fbb193eadd"
+        },
+        {
+            "collapsed": false,
+            "id": "7eb8399f72",
+            "info": "Formed 1968.",
+            "name": "United Methodist Church",
+            "parent": "dcfaabdb1a"
+        },
+        {
+            "collapsed": false,
+            "id": "b39baae047",
+            "info": "Richard Allen, 1816.",
+            "name": "African Methodist Episcopal Church",
+            "parent": "dcfaabdb1a"
+        },
+        {
+            "collapsed": false,
+            "id": "ada664a566",
+            "info": "1830s onward (Phoebe Palmer), organised from 1867; entire sanctification.",
+            "name": "Holiness movement",
+            "parent": "dcfaabdb1a"
+        },
+        {
+            "collapsed": false,
+            "id": "63ee40b350",
+            "info": "1908.",
+            "name": "Church of the Nazarene",
+            "parent": "ada664a566"
+        },
+        {
+            "collapsed": false,
+            "id": "0b7986aed5",
+            "info": "William Booth, 1865.",
+            "name": "Salvation Army",
+            "parent": "ada664a566"
+        },
+        {
+            "collapsed": false,
+            "id": "6c676feeec",
+            "info": "1901-1906. From Topeka and the Azusa Street Revival; baptism in the Spirit and its gifts. Anderson, An Introduction to Pentecostalism (2004).",
+            "name": "Pentecostalism",
+            "parent": "ada664a566"
+        },
+        {
+            "collapsed": false,
+            "id": "e0b5278c7e",
+            "info": "1914.",
+            "name": "Assemblies of God",
+            "parent": "6c676feeec"
+        },
+        {
+            "collapsed": false,
+            "id": "00b389e4f5",
+            "info": "Pentecostal from 1907.",
+            "name": "Church of God in Christ",
+            "parent": "6c676feeec"
+        },
+        {
+            "collapsed": false,
+            "id": "f5caebb2d3",
+            "info": "1913-1916. Deny the Trinity; baptise in the name of Jesus only.",
+            "name": "Oneness Pentecostals",
+            "parent": "6c676feeec"
+        },
+        {
+            "collapsed": false,
+            "id": "9c8f5f4b3c",
+            "info": "Mostly late 20th century; independent congregations of Baptist, fundamentalist and charismatic descent.",
+            "name": "Nondenominational evangelical churches",
+            "parent": "977f260578"
+        },
+        {
+            "collapsed": false,
+            "id": "6d4ec45ee6",
+            "info": "1830. Joseph Smith's church in the revivals of upstate New York, teaching a new revelation and a plurality of gods; outside the Christian faith, and its baptism is not recognised (CDF, 2001).",
+            "name": "Latter-day Saints",
+            "parent": "977f260578"
+        },
+        {
+            "collapsed": false,
+            "id": "a971755bd2",
+            "info": "",
+            "name": "Modern Church",
+            "parent": "a19b95b11a"
+        },
+        {
+            "collapsed": false,
+            "id": "12c4555994",
+            "info": "The Church of Christ, subsisting in the communion of the Apostolic See of Rome and the bishops united with it. About 1.4 billion members.",
+            "name": "Catholic Church",
+            "parent": "a971755bd2"
+        },
+        {
+            "collapsed": false,
+            "id": "ebe109445d",
+            "info": "The Church of the West, whose patriarch is the Bishop of Rome (Patriarch of the West, a title dropped in 2006 and restored in 2024): the Roman Rite with the Ambrosian, Mozarabic and other Latin rites.",
+            "name": "Latin Church",
+            "parent": "12c4555994"
+        },
+        {
+            "collapsed": false,
+            "id": "6435439bd4",
+            "info": "Eastern churches in full communion with Rome, most of them restored to unity from the separated Eastern churches since the Council of Florence (1439); the Maronites and Italo-Albanians were never separated. Their rights are set out in Orientalium Ecclesiarum (1964) and the Code of Canons of the Eastern Churches (1990).",
+            "name": "Eastern Catholic Churches",
+            "parent": "12c4555994"
+        },
+        {
+            "collapsed": false,
+            "id": "7e25bf3b4b",
+            "info": "",
+            "name": "Alexandrian tradition",
+            "parent": "6435439bd4"
+        },
+        {
+            "collapsed": false,
+            "id": "894e7fcfae",
+            "info": "From the Coptic Orthodox; vicariate 1741, patriarchate 1895.",
+            "name": "Coptic Catholic Church",
+            "parent": "7e25bf3b4b"
+        },
+        {
+            "collapsed": false,
+            "id": "a4d9d3f2fe",
+            "info": "From the Ethiopian Orthodox; metropolitan church 1961.",
+            "name": "Ethiopian Catholic Church",
+            "parent": "7e25bf3b4b"
+        },
+        {
+            "collapsed": false,
+            "id": "eb498d0bb9",
+            "info": "Separate metropolitan church from 2015.",
+            "name": "Eritrean Catholic Church",
+            "parent": "7e25bf3b4b"
+        },
+        {
+            "collapsed": false,
+            "id": "5a4f32506b",
+            "info": "",
+            "name": "Antiochene tradition",
+            "parent": "6435439bd4"
+        },
+        {
+            "collapsed": false,
+            "id": "d26071390a",
+            "info": "Lebanon; in unbroken communion with Rome, confirmed in the 12th century under the Crusader states.",
+            "name": "Maronite Church",
+            "parent": "5a4f32506b"
+        },
+        {
+            "collapsed": false,
+            "id": "878df4d0ae",
+            "info": "From the Syriac Orthodox; union 1662, continuous patriarchate from 1782.",
+            "name": "Syriac Catholic Church",
+            "parent": "5a4f32506b"
+        },
+        {
+            "collapsed": false,
+            "id": "7178206e61",
+            "info": "From the Malankara churches; union of Mar Ivanios, 1930.",
+            "name": "Syro-Malankara Catholic Church",
+            "parent": "5a4f32506b"
+        },
+        {
+            "collapsed": false,
+            "id": "423c35cdb9",
+            "info": "",
+            "name": "Armenian tradition",
+            "parent": "6435439bd4"
+        },
+        {
+            "collapsed": false,
+            "id": "fa509f9894",
+            "info": "From the Armenian Apostolic; patriarchate 1742.",
+            "name": "Armenian Catholic Church",
+            "parent": "423c35cdb9"
+        },
+        {
+            "collapsed": false,
+            "id": "d44afd7db1",
+            "info": "",
+            "name": "East Syriac tradition",
+            "parent": "6435439bd4"
+        },
+        {
+            "collapsed": false,
+            "id": "bc78116b70",
+            "info": "From the Church of the East; union of Patriarch Sulaqa, 1553.",
+            "name": "Chaldean Catholic Church",
+            "parent": "d44afd7db1"
+        },
+        {
+            "collapsed": false,
+            "id": "603f4f2a17",
+            "info": "The St Thomas Christians who remained in communion after 1653.",
+            "name": "Syro-Malabar Church",
+            "parent": "d44afd7db1"
+        },
+        {
+            "collapsed": false,
+            "id": "e749c1abce",
+            "info": "",
+            "name": "Byzantine tradition",
+            "parent": "6435439bd4"
+        },
+        {
+            "collapsed": false,
+            "id": "9b9deab72e",
+            "info": "From the Kyivan Orthodox metropolia at the Union of Brest (1595-1596); suppressed by the Soviets 1946-1989. The largest Eastern Catholic church.",
+            "name": "Ukrainian Greek Catholic Church",
+            "parent": "e749c1abce"
+        },
+        {
+            "collapsed": false,
+            "id": "1df08bc76e",
+            "info": "From the Orthodox Patriarchate of Antioch, 1724.",
+            "name": "Melkite Greek Catholic Church",
+            "parent": "e749c1abce"
+        },
+        {
+            "collapsed": false,
+            "id": "ef809be536",
+            "info": "Union of Uzhhorod, 1646.",
+            "name": "Ruthenian Greek Catholic Church",
+            "parent": "e749c1abce"
+        },
+        {
+            "collapsed": false,
+            "id": "bbbe7f6a82",
+            "info": "Union of Alba Iulia, 1698-1700.",
+            "name": "Romanian Greek Catholic Church",
+            "parent": "e749c1abce"
+        },
+        {
+            "collapsed": false,
+            "id": "f88fd89948",
+            "info": "Southern Italy and Sicily; never separated.",
+            "name": "Italo-Albanian Catholic Church",
+            "parent": "e749c1abce"
+        },
+        {
+            "collapsed": false,
+            "id": "acff879be4",
+            "info": "Slovak, Hungarian, Croatian, Bulgarian, Greek, Macedonian, Belarusian, Russian and Albanian Greek Catholics.",
+            "name": "Other Byzantine Catholic churches",
+            "parent": "e749c1abce"
+        },
+        {
+            "collapsed": false,
+            "id": "d2bc2291b6",
+            "info": "1724 and 1870. The Jansenist chapter of Utrecht elected its own archbishop (1723-1724); after Vatican I defined papal infallibility (1870), German, Swiss and Austrian Catholics who rejected it, inspired by Döllinger (excommunicated 1871, though he never joined them), formed churches in communion with Utrecht. Union of Utrecht, 1889.",
+            "name": "Old Catholic Churches",
+            "parent": "a971755bd2"
+        },
+        {
+            "collapsed": false,
+            "id": "4f060da383",
+            "info": "1724.",
+            "name": "Old Catholic Church of the Netherlands",
+            "parent": "d2bc2291b6"
+        },
+        {
+            "collapsed": false,
+            "id": "d63d2d7539",
+            "info": "1873.",
+            "name": "Catholic Diocese of the Old Catholics in Germany",
+            "parent": "d2bc2291b6"
+        },
+        {
+            "collapsed": false,
+            "id": "8036dd25f9",
+            "info": "1875.",
+            "name": "Christian Catholic Church of Switzerland",
+            "parent": "d2bc2291b6"
+        },
+        {
+            "collapsed": false,
+            "id": "6460e051f2",
+            "info": "United States, 1897; left the Union of Utrecht, 2003.",
+            "name": "Polish National Catholic Church",
+            "parent": "d2bc2291b6"
+        }
+    ],
+    "root": "c63ade2dbf"
+}
