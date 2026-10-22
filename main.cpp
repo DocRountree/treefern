@@ -2089,7 +2089,7 @@ static QList<QImage> imagesFromMime(const QMimeData* m) {
     return out;
 }
 
-// A row of thumbnails; double-clicking one opens it.
+// A row of thumbnails; clicking one opens it.
 static QListWidget* thumbnailList() {
     auto list = new QListWidget;
     list->setViewMode(QListView::IconMode);
@@ -2223,7 +2223,7 @@ public:
         connect(kids, &QListWidget::itemClicked, this,
                 [this](QListWidgetItem* it) { emit selectRequested(it->data(Qt::UserRole).toString()); });
         connect(up, &QPushButton::clicked, this, [this] { emit selectRequested(upId); });
-        connect(pics, &QListWidget::itemActivated, this, [this](QListWidgetItem* it) { emit pictureOpened(pics->row(it)); });
+        connect(pics, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) { emit pictureOpened(pics->row(it)); });
         connect(crumbs, &QLabel::linkActivated, this, [this](const QString& link) {
             if (link != "more") return emit selectRequested(link);
             crumbsOpen = shownId;
@@ -2369,7 +2369,7 @@ private:
     QPushButton* up = new QPushButton;
     QTextBrowser* info = new QTextBrowser;
     QListWidget* pics = thumbnailList();
-    QLabel* picsHint = new QLabel("Drop pictures here, or onto a clade in the tree; double-click one to view or remove it.");
+    QLabel* picsHint = new QLabel("Drop pictures here, or onto a clade in the tree; click one to view or remove it.");
     QStringList shownImages;
     QString upId, shownId, crumbsOpen;  // crumbsOpen: the clade whose trail is unfolded
 
@@ -2421,7 +2421,7 @@ public:
         connect(del, &QPushButton::clicked, this, [this] {
             if (const int i = list->currentRow(); i >= 0) { images.removeAt(i); fillThumbnails(list, images); }
         });
-        connect(list, &QListWidget::itemActivated, this, [this](QListWidgetItem* it) {
+        connect(list, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) {
             showPictures(this, [this] { return images; }, list->row(it), [this](int i) { images.removeAt(i); fillThumbnails(list, images); });
         });
         fillThumbnails(list, images);
