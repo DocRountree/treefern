@@ -496,15 +496,16 @@ for (const [el, drop] of [[$('editDlg'), files => addEditPics(files)],
     });
 }
 
+const PIC_AREA = 1.5;  // the viewer's area, as a multiple of the edit box's
 let picView = null;  // the viewer's {get, i, back}; back: the edit box it stands in for
 function showPicture(get, i) {
     const back = $('editDlg').open;
     picView = { get, i, back };
     const d = $('picDlg');
-    if (back) {  // take the edit box's place and size; it comes back when the viewer closes
-        const r = $('editDlg').getBoundingClientRect();
-        d.style.width = r.width + 'px';
-        d.style.height = r.height + 'px';
+    if (back) {  // take the edit box's place at 1.5 times its area; it comes back when the viewer closes
+        const r = $('editDlg').getBoundingClientRect(), k = Math.sqrt(PIC_AREA);
+        d.style.width = r.width * k + 'px';
+        d.style.height = r.height * k + 'px';
         $('editDlg').close();
     } else d.style.width = d.style.height = '';
     drawPicture();

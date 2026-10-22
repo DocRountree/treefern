@@ -45,6 +45,7 @@ constexpr int CONFIRM_DELETE_OVER = 30;  // ask before deleting more clades than
 // pictures in the notes
 constexpr int IMAGE_MAX_SIDE = 1200;     // px; larger pictures are scaled down
 constexpr int IMAGE_QUALITY = 85;        // JPEG quality
+constexpr double PIC_AREA = 1.5;         // the picture viewer's area, as a multiple of the edit box's
 constexpr qsizetype MAX_UNDO_PICTURE_BYTES = qsizetype(256) << 20;  // picture data the undo history may hold
 // export
 constexpr int MAX_EXPORT_SIDE = 16384;          // px
@@ -2273,10 +2274,21 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
     QObject::connect(new QShortcut(Qt::Key_Left, &dlg), &QShortcut::activated, &dlg, [&] { if (prev->isVisible()) prev->click(); });
     QObject::connect(new QShortcut(Qt::Key_Right, &dlg), &QShortcut::activated, &dlg, [&] { if (next->isVisible()) next->click(); });
     draw();
-    // The size of the edit box; opened from one, it sits exactly over it (hiding
-    // it would end its edit), so closing the viewer brings the edit box back.
-    if (auto box = qobject_cast<QDialog*>(parent->window())) dlg.setGeometry(box->geometry());
-    else dlg.resize(560, 420);
+    // 1.5 times the edit box's area, centred on it: opened from one, it covers it
+    // (hiding it would end its edit), so closing the viewer brings the edit box
+    // back. Kept within the screen.
+    const double k = std::sqrt(PIC_AREA);
+    auto box = qobject_cast<QDialog*>(parent->window());
+    const QRect from = box ? box->geometry() : QRect(QPoint(), QSize(560, 420)).translated(parent->window()->geometry().center() - QPoint(280, 210));
+    QRect r(QPoint(), (QSizeF(from.size()) * k).toSize());
+    r.moveCenter(from.center());
+    if (QScreen* sc = parent->screen()) {
+        const QRect avail = sc->availableGeometry();
+        r.setSize(r.size().boundedTo(avail.size()));
+        r.moveLeft(std::clamp(r.left(), avail.left(), avail.right() - r.width() + 1));
+        r.moveTop(std::clamp(r.top(), avail.top(), avail.bottom() - r.height() + 1));
+    }
+    dlg.setGeometry(r);
     dlg.exec();
 }
 

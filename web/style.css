@@ -172,7 +172,8 @@ button { cursor: pointer; }
 #editPics .pic { flex: none; scroll-snap-align: start; }
 #editDlg.drop-target { outline: 2px dashed var(--accent); }
 /* the picture viewer is the size of the edit box, whose place it takes when opened from it */
-.pic-dlg { width: min(560px, calc(100vw - 24px)); height: min(520px, calc(100vh - 32px)); padding: 12px; }
+/* 1.5 times the edit box's area (1.2247 = the square root of 1.5), within the window */
+.pic-dlg { width: min(686px, calc(100vw - 24px)); height: min(637px, calc(100vh - 32px)); max-width: calc(100vw - 24px); max-height: calc(100vh - 32px); padding: 12px; }
 .pic-dlg[open] { display: flex; flex-direction: column; gap: 6px; }
 .pic-frame { position: relative; flex: 1; min-height: 0; }
 #picBig { display: block; width: 100%; height: 100%; object-fit: contain; }
