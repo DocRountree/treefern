@@ -141,7 +141,7 @@ A cladogram is a JSON object with the id of the root clade and a flat list of cl
   "nodes": [
     { "id": "a1", "name": "Root Clade", "info": "The big clade.", "collapsed": false },
     { "id": "b2", "parent": "a1", "name": "Daughter Clade 1", "info": "One of the little clades.", "collapsed": false },
-    { "id": "c3", "parent": "a1", "name": "Daighter Clade 2", "info": "Another little clade.", "collapsed": true }
+    { "id": "c3", "parent": "a1", "name": "Daughter Clade 2", "info": "Another little clade.", "collapsed": true }
   ]
 }
 ```
