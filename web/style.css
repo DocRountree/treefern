@@ -181,6 +181,7 @@ button { cursor: pointer; }
 .pic-btn { position: absolute; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;
            background: rgba(128, 128, 128, .55); color: #000; font-size: 22px; line-height: 30px; }
 .pic-btn:hover { background: rgba(160, 160, 160, .8); }
+.pic-close { top: 6px; right: 6px; z-index: 1; }  /* on the box's corner */
 .pic-dlg .dlg-hint { text-align: center; }
 .pic-dlg .dlg-hint:empty { display: none; }
 

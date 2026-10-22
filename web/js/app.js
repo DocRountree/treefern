@@ -528,13 +528,12 @@ function drawPicture() {
     $('picNext').hidden = !many || picView.i === list.length - 1;
     placePictureButtons();
 }
-// The buttons sit on the picture as shown (object-fit: contain), not on its frame.
+// The arrows sit on the picture as shown (object-fit: contain), not on its frame.
 function placePictureButtons() {
     const img = $('picBig'), f = $('picFrame');
     const W = f.clientWidth, H = f.clientHeight, w = img.naturalWidth, h = img.naturalHeight;
     if (!w || !h) return;
     const k = Math.min(W / w, H / h), x0 = (W - w * k) / 2, y0 = (H - h * k) / 2;
-    Object.assign($('picClose').style, { left: (x0 + w * k - 36) + 'px', top: (y0 + 6) + 'px' });
     for (const [b, x] of [[$('picPrev'), x0 + 6], [$('picNext'), x0 + w * k - 36]])
         Object.assign(b.style, { left: x + 'px', top: (y0 + h * k / 2 - 15) + 'px' });
 }

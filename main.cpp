@@ -2231,7 +2231,7 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
     caption->setAlignment(Qt::AlignCenter);
     caption->setStyleSheet(colorCss(T.dim));
     const char* grey = "background: rgba(128, 128, 128, 140); color: black;";
-    QToolButton* close = roundButton(img, "×", 30, grey);
+    QToolButton* close = roundButton(&dlg, "×", 30, grey);  // on the box's corner
     QToolButton* prev = roundButton(img, "‹", 30, grey);
     QToolButton* next = roundButton(img, "›", 30, grey);
     close->setToolTip("Close (Esc)");
@@ -2242,7 +2242,7 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
     v->addWidget(caption);
     int i = start;
     QPixmap px;
-    auto fit = [&] {  // the picture as large as the window allows, its buttons on it
+    auto fit = [&] {  // the picture as large as the window allows, its arrows on it
         if (px.isNull()) return;
         const double dpr = img->devicePixelRatioF();
         QPixmap shown = px.scaled(img->size() * dpr, Qt::KeepAspectRatio, Qt::SmoothTransformation);
@@ -2250,7 +2250,8 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
         img->setPixmap(shown);
         const QSizeF s = shown.deviceIndependentSize();
         const double x0 = (img->width() - s.width()) / 2, y0 = (img->height() - s.height()) / 2;
-        close->move(int(x0 + s.width() - 36), int(y0 + 6));
+        close->move(dlg.width() - close->width() - 6, 6);
+        close->raise();
         prev->move(int(x0 + 6), int(y0 + s.height() / 2 - 15));
         next->move(int(x0 + s.width() - 36), int(y0 + s.height() / 2 - 15));
     };
