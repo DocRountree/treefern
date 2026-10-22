@@ -39,12 +39,13 @@ You can also [use TreeFern in your browser](https://docrountree.github.io/treefe
   - **Standard**: a tapered branching tree in which heavier daughter clades curve away from their mother clade, inspired by the [OneZoom](https://www.onezoom.org/) viewer. Spread, shrink and curl can be adjusted from the keyboard.
   - **Disks**: nested circle packing, with each daughter clade drawn as a disk inside its mother clade.
   - **Rectangular cladogram**: the right-angled tree of journal figures, with the tips aligned in a column and labelled beside it, and clade names placed along their branches.
-  - **Circular cladogram**: the same tree around a circle, with the root at the centre and the tip labels radiating outward.
+  - **Circular cladogram**: the same tree around a circle, with the root at the center and the tip labels radiating outward.
 - **Editing**: add daughter clades, rename clades and attach free-form notes to them, collapse or expand subtrees, delete subtrees, and move a subtree to a new mother clade with cut and paste.
+- **Pictures in the notes**: drag pictures onto a clade, the side panel or the Edit box. They are kept in the cladogram file, scaled to at most 1200 px.
 - **Autosave and live sync**: each change is written to disk atomically, and the file is reloaded automatically if another program modifies it.
 - **Dynamic labels**: labels too small to read are hidden until you zoom in, and labels reposition themselves to avoid overlapping. Labels can be placed over or beside nodes.
 - **Search and navigation**: find clades by name from the side panel, follow the trail of mother clades above the selection, and move around the tree entirely by keyboard or entirely by mouse.
-- **Export**: save the current view or the whole tree as a PNG image (at 1x, 2x or 4x resolution) or a scalable SVG, optionally with a transparent background, or copy it to the clipboard. Image sizes are capped to what memory allows, and SVGs of more than 20,000 clades are refused because most programs cannot open them.
+- **Export**: save the current view or the whole tree as a PNG image (at 1x, 2x or 4x resolution) or a scalable SVG, optionally with a transparent background, or copy it to the clipboard.
 - **Command palette**: Ctrl+K finds any command by typing part of its name.
 - **Dark and light themes.**
 - **Remembered preferences**: layout, label placement, theme and recently opened files persist between sessions.
@@ -120,7 +121,7 @@ Typical workflow:
 1. Click a clade to select it. Its name, position in the tree and notes appear in the side panel.
 2. Press **F** to focus the camera on the clade's node.
 3. Press the **up arrow** key to select the daughter clade, or the **down arrow** to select the mother clade.
-4. Press **A** or **D** to add a daughter clade, **S** to add a sister clade, or **E** to edit the clade's name and notes. While adding, press **Enter** to add the clade, **Shift+Enter** to add it and start a daughter of it, or **Tab** to add it and start a sister.
+4. Press **A** or **D** to add a daughter clade, **S** to add a sister clade, or **E** to edit the clade's name and notes. While adding, press **Enter** to add the clade, **Shift+Enter** to add it and start a daughter of it, or **Shift+Tab** to add it and start a sister. **Tab** moves to the info box.
 5. To move a subtree, select it and press **X**, then select the new mother clade and press **V**.
 6. Press **K** to colour the clade and everything inside it.
 7. Press **Ctrl+Z** to undo any mistake.
@@ -154,7 +155,8 @@ A cladogram is a JSON object with the id of the root clade and a flat list of cl
 | `info` | string | Free-form notes, shown in the side panel |
 | `collapsed` | boolean | Whether the clade's descendants are hidden |
 | `title` | string | Optional, at the top level: the name the web app's Samples menu shows for a file in `samples/` (otherwise the root clade's name) |
-| `color` | string | Optional colour as `"#rrggbb"`, inherited by the clade's descendants; omitted when the clade uses its mother clade's colour |
+| `images` | array of strings | Optional pictures for the notes, as PNG or JPEG data URLs (`data:image/jpeg;base64,…`) |
+| `color` | string | Optional color as `"#rrggbb"`, inherited by the clade's descendants; omitted when the clade uses its mother clade's colour |
 
 Because the format is plain JSON, files can be generated or edited by scripts and other tools while TreeFern is open; it reloads them automatically. Clades whose parent chain does not reach the root are ignored when a file is loaded.
 

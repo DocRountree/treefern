@@ -151,6 +151,39 @@ button { cursor: pointer; }
 .kids li:hover { background: var(--btn); }
 .info { white-space: pre-wrap; overflow-wrap: anywhere; }
 .info.none { color: var(--dim); font-style: italic; }
+.pics { display: flex; flex-wrap: wrap; gap: 6px; }
+.pics:empty { display: none; }
+.pics .pic { position: relative; }
+.pics img { display: block; height: 72px; max-width: 140px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); cursor: zoom-in; background: var(--chrome-2); }
+/* remove: a little white x in a little black circle in the corner */
+.pics .pic button { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%; background: #000; color: #fff; font-size: 13px; line-height: 18px; }
+.panel.drop-target { outline: 2px dashed var(--accent); outline-offset: -6px; }
+.edit-pics-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.edit-pics-row .pics { width: 100%; }
+/* the edit box shows its pictures as one row that scrolls sideways */
+.edit-pics-row .carousel { position: relative; width: 100%; }
+#editPics { position: relative; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; padding-bottom: 4px; }
+/* arrows on the middle of each edge, shown while the row can scroll that way */
+.car-btn { position: absolute; top: calc(50% - 14px); width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+           background: rgba(128, 128, 128, .6); color: #000; font-size: 18px; line-height: 24px; }
+.car-btn:hover { background: rgba(160, 160, 160, .85); }
+.car-btn.back { left: 4px; }
+.car-btn.next { right: 4px; }
+#editPics .pic { flex: none; scroll-snap-align: start; }
+#editDlg.drop-target { outline: 2px dashed var(--accent); }
+/* the picture viewer is the size of the edit box, whose place it takes when opened from it */
+/* 1.5 times the edit box's area (1.2247 = the square root of 1.5), within the window */
+.pic-dlg { width: min(686px, calc(100vw - 24px)); height: min(637px, calc(100vh - 32px)); max-width: calc(100vw - 24px); max-height: calc(100vh - 32px); padding: 12px; }
+.pic-dlg[open] { display: flex; flex-direction: column; gap: 6px; }
+.pic-frame { position: relative; flex: 1; min-height: 0; }
+#picBig { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* close and arrows: a black mark in a translucent grey circle, placed on the picture itself */
+.pic-btn { position: absolute; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;
+           background: rgba(128, 128, 128, .55); color: #000; font-size: 22px; line-height: 30px; }
+.pic-btn:hover { background: rgba(160, 160, 160, .8); }
+.pic-close { top: 6px; right: 6px; z-index: 1; }  /* on the box's corner */
+.pic-dlg .dlg-hint { text-align: center; }
+.pic-dlg .dlg-hint:empty { display: none; }
 
 /* ---- popup menus */
 .menu-pop {

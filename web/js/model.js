@@ -1,7 +1,8 @@
 // The cladogram tree, its JSON file format, and undo history.
 // File format (shared with the desktop app):
-//   {"root": id, "nodes": [{id, parent?, name, info, collapsed, color?}, ...]}
-// color is an optional "#rrggbb" that the clade's subtree inherits.
+//   {"root": id, "nodes": [{id, parent?, name, info, collapsed, color?, images?}, ...]}
+// color is an optional "#rrggbb" that the clade's subtree inherits; images are
+// optional pictures for the notes, as PNG or JPEG data URLs.
 
 export function newId() {
     const a = new Uint8Array(5);
@@ -9,11 +10,13 @@ export function newId() {
     return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function makeNode(name, info = '', id = newId(), collapsed = false, color = '') {
-    return { id, name, info, collapsed, color, kids: [], parent: null };
+export function makeNode(name, info = '', id = newId(), collapsed = false, color = '', images = []) {
+    return { id, name, info, collapsed, color, images, kids: [], parent: null };
 }
 
 const readColor = c => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : '';
+export const IMAGE_URL = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+=*$/;
+const readImages = v => Array.isArray(v) ? v.filter(s => typeof s === 'string' && IMAGE_URL.test(s)) : [];
 
 export const hidesKids = n => n.collapsed || n.kids.length === 0;
 
@@ -65,7 +68,7 @@ export function fromJson(top) {
         if (!id || byId.has(id)) id = newId();
         byId.set(id, recs.length);
         recs.push({ n: makeNode(typeof o.name === 'string' ? o.name : 'Unnamed', typeof o.info === 'string' ? o.info : '',
-                                id, o.collapsed === true, readColor(o.color)),
+                                id, o.collapsed === true, readColor(o.color), readImages(o.images)),
                     parent: typeof o.parent === 'string' ? o.parent : '' });
     }
     const rootIdx = byId.get(top.root);
@@ -98,7 +101,7 @@ function fromNested(top) {
         if (!id || seen.has(id)) id = newId();
         seen.add(id);
         return makeNode(typeof o.name === 'string' ? o.name : 'Unnamed', typeof o.info === 'string' ? o.info : '', id,
-                        o.collapsed === true, readColor(o.color));
+                        o.collapsed === true, readColor(o.color), readImages(o.images));
     };
     const root = mk(top), stack = [[top, root]];
     while (stack.length) {
@@ -116,6 +119,7 @@ export function toJson(root) {
         if (n.parent) o.parent = n.parent.id;
         Object.assign(o, { name: n.name, info: n.info, collapsed: n.collapsed });
         if (n.color) o.color = n.color;
+        if (n.images.length) o.images = n.images.slice();
         nodes.push(o);
     });
     return { root: root.id, nodes };
@@ -172,8 +176,8 @@ export class Doc {
     undo() { return this.step(this.undoStack, this.redoStack); }
     redo() { return this.step(this.redoStack, this.undoStack); }
 
-    addChild(n, name, info = '') {
-        const c = addChild(n, makeNode(name, info));
+    addChild(n, name, info = '', images = []) {
+        const c = addChild(n, makeNode(name, info, undefined, false, '', images));
         n.collapsed = false;
         this.commit();
         return c;

@@ -73,6 +73,8 @@
       <ul id="kids" class="kids"></ul>
       <h3>Info</h3>
       <div id="info" class="info"></div>
+      <h3>Pictures</h3>
+      <div id="pics" class="pics"></div>
     </div>
   </section>
 </aside>
@@ -87,6 +89,15 @@
     <h2 id="editTitle">Edit clade</h2>
     <label>Name <input id="editName" required autocomplete="off"></label>
     <label id="editInfoRow">Info <textarea id="editInfo" rows="7" placeholder="(no info)"></textarea></label>
+    <div id="editPicsRow" class="edit-pics-row">
+      <div class="carousel">
+        <div id="editPics" class="pics"></div>
+        <button type="button" id="carBack" class="car-btn back" aria-label="Previous picture" hidden>‹</button>
+        <button type="button" id="carNext" class="car-btn next" aria-label="Next picture" hidden>›</button>
+      </div>
+      <button type="button" id="editAddPics" class="link-btn">Add pictures…</button>
+      <span class="dlg-hint">or drop or paste them here</span>
+    </div>
     <p class="dlg-hint" id="editHint">Enter in the name, or Ctrl+Enter anywhere: OK. Esc: cancel.</p>
     <div class="dlg-buttons">
       <button type="button" id="editCancel">Cancel</button>
@@ -123,6 +134,18 @@
   </form>
 </dialog>
 
+<dialog id="picDlg" class="pic-dlg">
+  <div class="pic-frame" id="picFrame">
+    <img id="picBig" alt="">
+    <button type="button" id="picPrev" class="pic-btn pic-nav" aria-label="Previous picture" title="Previous (←)">‹</button>
+    <button type="button" id="picNext" class="pic-btn pic-nav" aria-label="Next picture" title="Next (→)">›</button>
+  </div>
+  <p class="dlg-hint" id="picCaption"></p>
+  <button type="button" id="picClose" class="pic-btn pic-close" aria-label="Close" title="Close (Esc)">×</button>
+</dialog>
+
+<input type="file" id="picInput" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple hidden>
+
 <dialog id="confirmDlg">
   <form method="dialog" id="confirmForm">
     <h2 id="confirmTitle"></h2>
@@ -158,13 +181,14 @@
       <tr><td>Click / double-click</td><td>Select / edit a clade</td></tr>
       <tr><td>Right-click</td><td>Clade menu</td></tr>
       <tr><td>Hover</td><td>Show a clade's info</td></tr>
+      <tr><td>Drag a picture</td><td>Onto a clade in the tree, the side panel or the Edit box, to add it to the notes</td></tr>
       <tr><td>Drag / wheel</td><td>Pan / zoom (Shift: faster)</td></tr>
     </table>
     <h3>Keyboard</h3>
     <table>
       <tr><td>Ctrl+K</td><td>Command palette: every action, by name</td></tr>
       <tr><td>S</td><td>Add a sister clade (same keys as below once the box is open)</td></tr>
-      <tr><td>A or D</td><td>Add daughter clades. In the name box, Enter adds it, Shift+Enter adds it and starts a daughter of it, Tab adds it and starts a sister</td></tr>
+      <tr><td>A or D</td><td>Add daughter clades. In the name box, Enter adds it, Shift+Enter adds it and starts a daughter of it, Shift+Tab adds it and starts a sister, and Tab moves to the info</td></tr>
       <tr><td>E or R</td><td>Edit name and info</td></tr>
       <tr><td>C</td><td>Collapse or expand</td></tr>
       <tr><td>K</td><td>Colour the clade and everything in it</td></tr>
