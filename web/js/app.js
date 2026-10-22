@@ -410,31 +410,26 @@ async function addPictures(id, files) {
     setStatus(`Added ${urls.length === 1 ? 'a picture' : urls.length + ' pictures'} to '${n.name}'`);
 }
 
-// Thumbnails of get() in box; clicking one opens the viewer, which can remove it.
+// Thumbnails of get() in box: clicking one opens the viewer, its corner x removes it.
 function renderPics(box, get, remove) {
     box.replaceChildren();
     get().forEach((src, i) => {
-        const d = document.createElement('div'), img = document.createElement('img');
+        const d = document.createElement('div'), img = document.createElement('img'), x = document.createElement('button');
         d.className = 'pic';
         img.src = src;
         img.alt = `Picture ${i + 1}`;
-        img.addEventListener('click', () => showPicture(get, i, remove));
-        d.append(img);
+        img.addEventListener('click', () => showPicture(get, i));
+        x.type = 'button';
+        x.textContent = '×';
+        x.title = 'Remove this picture';
+        x.addEventListener('click', () => remove(i));
+        d.append(img, x);
         box.append(d);
     });
 }
 
 function renderEditPics() {
-    const remove = i => { dlgImages.splice(i, 1); renderEditPics(); };
-    renderPics($('editPics'), () => dlgImages, remove);
-    [...$('editPics').children].forEach((d, i) => {
-        const x = document.createElement('button');
-        x.type = 'button';
-        x.textContent = '×';
-        x.title = 'Remove this picture';
-        x.addEventListener('click', () => remove(i));
-        d.append(x);
-    });
+    renderPics($('editPics'), () => dlgImages, i => { dlgImages.splice(i, 1); renderEditPics(); });
 }
 async function addEditPics(files) {
     dlgImages.push(...await readPictures(files));
@@ -471,10 +466,10 @@ for (const [el, drop] of [[$('editDlg'), files => addEditPics(files)],
     });
 }
 
-let picView = null;  // the viewer's {get, i, remove, back}; back: the edit box it stands in for
-function showPicture(get, i, remove) {
+let picView = null;  // the viewer's {get, i, back}; back: the edit box it stands in for
+function showPicture(get, i) {
     const back = $('editDlg').open;
-    picView = { get, i, remove, back };
+    picView = { get, i, back };
     const d = $('picDlg');
     if (back) {  // take the edit box's place and size; it comes back when the viewer closes
         const r = $('editDlg').getBoundingClientRect();
@@ -495,17 +490,31 @@ function drawPicture() {
     const list = picView.get();
     if (!list.length) return $('picDlg').close();
     picView.i = clamp(picView.i, 0, list.length - 1);
+    const many = list.length > 1;
     $('picBig').src = list[picView.i];
-    $('picCaption').textContent = `Picture ${picView.i + 1} of ${list.length}`;
-    $('picPrev').disabled = picView.i === 0;
-    $('picNext').disabled = picView.i === list.length - 1;
+    $('picCaption').textContent = many ? `${picView.i + 1} of ${list.length}` : '';
+    $('picPrev').hidden = !many || picView.i === 0;
+    $('picNext').hidden = !many || picView.i === list.length - 1;
+    placePictureButtons();
 }
+// The buttons sit on the picture as shown (object-fit: contain), not on its frame.
+function placePictureButtons() {
+    const img = $('picBig'), f = $('picFrame');
+    const W = f.clientWidth, H = f.clientHeight, w = img.naturalWidth, h = img.naturalHeight;
+    if (!w || !h) return;
+    const k = Math.min(W / w, H / h), x0 = (W - w * k) / 2, y0 = (H - h * k) / 2;
+    Object.assign($('picClose').style, { left: (x0 + w * k - 36) + 'px', top: (y0 + 6) + 'px' });
+    for (const [b, x] of [[$('picPrev'), x0 + 6], [$('picNext'), x0 + w * k - 36]])
+        Object.assign(b.style, { left: x + 'px', top: (y0 + h * k / 2 - 15) + 'px' });
+}
+$('picBig').addEventListener('load', placePictureButtons);
+addEventListener('resize', () => { if ($('picDlg').open) placePictureButtons(); });
 $('picPrev').addEventListener('click', () => { --picView.i; drawPicture(); });
 $('picNext').addEventListener('click', () => { ++picView.i; drawPicture(); });
-$('picRemove').addEventListener('click', () => { picView.remove(picView.i); drawPicture(); });
+$('picClose').addEventListener('click', () => $('picDlg').close());
 $('picDlg').addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft' && !$('picPrev').disabled) { $('picPrev').click(); e.preventDefault(); }
-    if (e.key === 'ArrowRight' && !$('picNext').disabled) { $('picNext').click(); e.preventDefault(); }
+    if (e.key === 'ArrowLeft' && !$('picPrev').hidden) { $('picPrev').click(); e.preventDefault(); }
+    if (e.key === 'ArrowRight' && !$('picNext').hidden) { $('picNext').click(); e.preventDefault(); }
 });
 
 function actCollapse() {

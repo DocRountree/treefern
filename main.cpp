@@ -2093,25 +2093,68 @@ static QList<QImage> imagesFromMime(const QMimeData* m) {
 static QListWidget* thumbnailList() {
     auto list = new QListWidget;
     list->setViewMode(QListView::IconMode);
-    list->setIconSize(QSize(96, 72));
     list->setFlow(QListView::LeftToRight);
     list->setWrapping(true);
     list->setResizeMode(QListView::Adjust);
     list->setMovement(QListView::Static);
+    list->setSelectionMode(QAbstractItemView::NoSelection);
     list->setSpacing(4);
-    list->setMaximumHeight(180);
     return list;
 }
-static void fillThumbnails(QListWidget* list, const QStringList& images) {
-    list->clear();
-    for (const QString& s : images)
-        new QListWidgetItem(QIcon(QPixmap::fromImage(imageFromDataUrl(s).scaled(192, 144, Qt::KeepAspectRatio, Qt::SmoothTransformation))), {}, list);
-    list->setVisible(!images.isEmpty());
+
+// A round mark in a corner: a little white x in a black circle on thumbnails,
+// a larger black mark in a translucent grey circle in the viewer.
+static QToolButton* roundButton(QWidget* parent, const QString& text, int size, const char* colours) {
+    auto b = new QToolButton(parent);
+    b->setText(text);
+    b->setFixedSize(size, size);
+    b->setCursor(Qt::PointingHandCursor);
+    b->setStyleSheet(QString("QToolButton { %1 border: none; border-radius: %2px; padding: 0; font-size: %3px; font-weight: bold; }")
+                         .arg(colours).arg(size / 2).arg(size * 2 / 3));
+    return b;
 }
 
-// Shows the pictures get() one at a time from `start`, scaled to the window;
-// remove(i) deletes picture i.
-static void showPictures(QWidget* parent, const std::function<QStringList()>& get, int start, const std::function<void(int)>& remove) {
+// Thumbnails of `images`: clicking one calls open(i), its corner x remove(i).
+static void fillThumbnails(QListWidget* list, const QStringList& images,
+                           const std::function<void(int)>& open, const std::function<void(int)>& remove) {
+    constexpr int W = 96, H = 72, PAD = 4, X = 18;
+    list->clear();
+    for (int i = 0; i < images.size(); ++i) {
+        auto item = new QListWidgetItem(list);
+        item->setSizeHint(QSize(W + 2 * PAD, H + 2 * PAD));
+        auto cell = new QWidget;
+        auto pic = new QLabel(cell);
+        const QPixmap px = QPixmap::fromImage(imageFromDataUrl(images[i]).scaled(W, H, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        pic->setPixmap(px);
+        pic->setGeometry(PAD + (W - px.width()) / 2, PAD + (H - px.height()) / 2, px.width(), px.height());
+        pic->setCursor(Qt::PointingHandCursor);
+        pic->setToolTip("View this picture");
+        (new EventHook([open, i](QObject*, QEvent* e) {
+            if (e->type() != QEvent::MouseButtonRelease || static_cast<QMouseEvent*>(e)->button() != Qt::LeftButton) return false;
+            open(i);
+            return true;
+        }))->setParent(pic);
+        pic->installEventFilter(pic->findChild<EventHook*>());
+        QToolButton* x = roundButton(cell, "×", X, "background: black; color: white;");
+        x->setToolTip("Remove this picture");
+        x->move(pic->geometry().right() - X - 1, pic->geometry().top() + 3);
+        // Removing refills the list, which deletes this button: do it once its click is over.
+        QObject::connect(x, &QToolButton::clicked, list, [list, remove, i] { QTimer::singleShot(0, list, [remove, i] { remove(i); }); });
+        list->setItemWidget(item, cell);
+    }
+    list->setVisible(!images.isEmpty());
+    // Tall enough for the rows the thumbnails fill at the current width, up to
+    // two; beyond that the list scrolls.
+    const int cellW = W + 2 * PAD + 2 * list->spacing(), cellH = H + 2 * PAD + 2 * list->spacing();
+    const int perRow = std::max(1, (list->width() - 2 * list->frameWidth()) / cellW);
+    const int rows = std::min(2, int(images.size() + perRow - 1) / perRow);
+    list->setFixedHeight(rows * cellH + 2 * list->frameWidth() + 4);
+}
+
+// Shows the pictures get() one at a time from `start`, scaled to the window.
+// A grey round x on the picture's corner (or Esc) closes it; with several
+// pictures, round arrows on its sides (or the arrow keys) step through them.
+static void showPictures(QWidget* parent, const std::function<QStringList()>& get, int start) {
     QDialog dlg(parent);
     dlg.setWindowTitle("Picture");
     auto img = new QLabel;
@@ -2119,23 +2162,31 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
     img->setMinimumSize(1, 1);
     img->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);  // the picture follows the window, not the reverse
     auto caption = new QLabel;
+    caption->setAlignment(Qt::AlignCenter);
     caption->setStyleSheet(colorCss(T.dim));
-    auto buttons = new QDialogButtonBox(QDialogButtonBox::Close);
-    QPushButton* prev = buttons->addButton("‹ Previous", QDialogButtonBox::ActionRole);
-    QPushButton* next = buttons->addButton("Next ›", QDialogButtonBox::ActionRole);
-    QPushButton* del = buttons->addButton("Remove", QDialogButtonBox::DestructiveRole);
+    const char* grey = "background: rgba(128, 128, 128, 140); color: black;";
+    QToolButton* close = roundButton(img, "×", 30, grey);
+    QToolButton* prev = roundButton(img, "‹", 30, grey);
+    QToolButton* next = roundButton(img, "›", 30, grey);
+    close->setToolTip("Close (Esc)");
+    prev->setToolTip("Previous (←)");
+    next->setToolTip("Next (→)");
     auto v = new QVBoxLayout(&dlg);
     v->addWidget(img, 1);
     v->addWidget(caption);
-    v->addWidget(buttons);
     int i = start;
     QPixmap px;
-    auto fit = [&] {  // the picture as large as the window allows
+    auto fit = [&] {  // the picture as large as the window allows, its buttons on it
         if (px.isNull()) return;
         const double dpr = img->devicePixelRatioF();
         QPixmap shown = px.scaled(img->size() * dpr, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         shown.setDevicePixelRatio(dpr);
         img->setPixmap(shown);
+        const QSizeF s = shown.deviceIndependentSize();
+        const double x0 = (img->width() - s.width()) / 2, y0 = (img->height() - s.height()) / 2;
+        close->move(int(x0 + s.width() - 36), int(y0 + 6));
+        prev->move(int(x0 + 6), int(y0 + s.height() / 2 - 15));
+        next->move(int(x0 + s.width() - 36), int(y0 + s.height() / 2 - 15));
     };
     EventHook resized([&](QObject*, QEvent* e) { if (e->type() == QEvent::Resize) fit(); return false; });
     img->installEventFilter(&resized);
@@ -2145,16 +2196,17 @@ static void showPictures(QWidget* parent, const std::function<QStringList()>& ge
         i = std::clamp(i, 0, int(list.size()) - 1);
         px = QPixmap::fromImage(imageFromDataUrl(list[i]));
         fit();
-        caption->setText(QString("Picture %1 of %2").arg(i + 1).arg(list.size()));
-        prev->setEnabled(i > 0);
-        next->setEnabled(i + 1 < list.size());
+        const bool many = list.size() > 1;
+        caption->setText(many ? QString("%1 of %2").arg(i + 1).arg(list.size()) : QString());
+        caption->setVisible(many);
+        prev->setVisible(many && i > 0);
+        next->setVisible(many && i + 1 < list.size());
     };
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-    QObject::connect(prev, &QPushButton::clicked, &dlg, [&] { --i; draw(); });
-    QObject::connect(next, &QPushButton::clicked, &dlg, [&] { ++i; draw(); });
-    QObject::connect(del, &QPushButton::clicked, &dlg, [&] { remove(i); draw(); });
-    QObject::connect(new QShortcut(Qt::Key_Left, &dlg), &QShortcut::activated, &dlg, [&] { if (prev->isEnabled()) prev->click(); });
-    QObject::connect(new QShortcut(Qt::Key_Right, &dlg), &QShortcut::activated, &dlg, [&] { if (next->isEnabled()) next->click(); });
+    QObject::connect(close, &QToolButton::clicked, &dlg, &QDialog::reject);
+    QObject::connect(prev, &QToolButton::clicked, &dlg, [&] { --i; draw(); });
+    QObject::connect(next, &QToolButton::clicked, &dlg, [&] { ++i; draw(); });
+    QObject::connect(new QShortcut(Qt::Key_Left, &dlg), &QShortcut::activated, &dlg, [&] { if (prev->isVisible()) prev->click(); });
+    QObject::connect(new QShortcut(Qt::Key_Right, &dlg), &QShortcut::activated, &dlg, [&] { if (next->isVisible()) next->click(); });
     draw();
     // The size of the edit box; opened from one, it sits exactly over it (hiding
     // it would end its edit), so closing the viewer brings the edit box back.
@@ -2187,7 +2239,6 @@ public:
         up->setFlat(true);
         info->setPlaceholderText("(no info — press E, double-click the node, or click 'Edit')");
         empty->setWordWrap(true);
-        picsHint->setWordWrap(true);
         setAcceptDrops(true);
 
         auto grid = new QGridLayout;
@@ -2211,7 +2262,6 @@ public:
         nv->addWidget(info, 1);
         nv->addWidget(new QLabel("Pictures:"));
         nv->addWidget(pics);
-        nv->addWidget(picsHint);
         auto v = new QVBoxLayout(this);
         v->addWidget(search);
         v->addWidget(results);
@@ -2223,7 +2273,6 @@ public:
         connect(kids, &QListWidget::itemClicked, this,
                 [this](QListWidgetItem* it) { emit selectRequested(it->data(Qt::UserRole).toString()); });
         connect(up, &QPushButton::clicked, this, [this] { emit selectRequested(upId); });
-        connect(pics, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) { emit pictureOpened(pics->row(it)); });
         connect(crumbs, &QLabel::linkActivated, this, [this](const QString& link) {
             if (link != "more") return emit selectRequested(link);
             crumbsOpen = shownId;
@@ -2237,7 +2286,6 @@ public:
         title->setStyleSheet(colorCss(T.accent));
         meta->setStyleSheet(colorCss(T.dim));
         empty->setStyleSheet(colorCss(T.dim));
-        picsHint->setStyleSheet(colorCss(T.dim));
         up->setStyleSheet("text-align:left; " + colorCss(T.link));
         if (const Node* n = model->find(shownId); n && nodeBox->isVisible()) setCrumbs(n);
     }
@@ -2260,7 +2308,8 @@ public:
         up->setVisible(n->parent);
         if (n->parent) up->setText("‹ up to " + n->parent->name);
         info->setPlainText(n->info);
-        if (n->images != shownImages) fillThumbnails(pics, shownImages = n->images);
+        if (n->images != shownImages)
+            fillThumbnails(pics, shownImages = n->images, [this](int i) { emit pictureOpened(i); }, [this](int i) { emit pictureRemoved(i); });
     }
 
     // The clades above n, root first; a long trail folds its middle into a "…"
@@ -2323,6 +2372,7 @@ signals:
     void searchChosen(const QString& id);
     void picturesDropped(const QList<QImage>& images);  // onto the panel: for the shown clade
     void pictureOpened(int index);
+    void pictureRemoved(int index);
 
 protected:
     void dragEnterEvent(QDragEnterEvent* e) override {
@@ -2369,7 +2419,6 @@ private:
     QPushButton* up = new QPushButton;
     QTextBrowser* info = new QTextBrowser;
     QListWidget* pics = thumbnailList();
-    QLabel* picsHint = new QLabel("Drop pictures here, or onto a clade in the tree; click one to view or remove it.");
     QStringList shownImages;
     QString upId, shownId, crumbsOpen;  // crumbsOpen: the clade whose trail is unfolded
 
@@ -2401,12 +2450,10 @@ public:
 
     PicStrip(QDialog* dlg, const QStringList& start, std::initializer_list<QWidget*> edits) : images(start) {
         auto add = new QPushButton("Add pictures…");
-        auto del = new QPushButton("Remove picture");
         auto hint = new QLabel("or drop or paste them here");
         hint->setStyleSheet(colorCss(T.dim));
         auto row = new QHBoxLayout;
         row->addWidget(add);
-        row->addWidget(del);
         row->addWidget(hint, 1);
         auto v = new QVBoxLayout(this);
         v->setContentsMargins(0, 0, 0, 0);
@@ -2418,13 +2465,7 @@ public:
                 if (QImage img(p); !img.isNull()) imgs << img;
             addImages(imgs);
         });
-        connect(del, &QPushButton::clicked, this, [this] {
-            if (const int i = list->currentRow(); i >= 0) { images.removeAt(i); fillThumbnails(list, images); }
-        });
-        connect(list, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) {
-            showPictures(this, [this] { return images; }, list->row(it), [this](int i) { images.removeAt(i); fillThumbnails(list, images); });
-        });
-        fillThumbnails(list, images);
+        refill();
         // The text fields would take a dropped file as text, so drops go to the dialog.
         dlg->setAcceptDrops(true);
         dlg->installEventFilter(&hook);
@@ -2438,7 +2479,12 @@ public:
     void addImages(const QList<QImage>& imgs) {
         for (const QImage& img : imgs)
             if (const QString url = imageToDataUrl(img); !url.isEmpty()) images << url;
-        fillThumbnails(list, images);
+        refill();
+    }
+
+    void refill() {
+        fillThumbnails(list, images, [this](int i) { showPictures(this, [this] { return images; }, i); },
+                       [this](int i) { images.removeAt(i); refill(); });
     }
 
 private:
@@ -2588,14 +2634,15 @@ public:
         connect(panel, &InfoPanel::picturesDropped, this, [this](const QList<QImage>& imgs) { addPictures(canvas->selId, imgs); });
         connect(panel, &InfoPanel::pictureOpened, this, [this](int i) {
             const QString id = canvas->selId;
-            showPictures(this, [this, id] { const Node* n = model.find(id); return n ? n->images : QStringList(); }, i, [this, id](int k) {
-                Node* n = model.find(id);
-                if (!n || k >= n->images.size()) return;
-                n->images.removeAt(k);
-                model.commit();
-                model.status = QString("Removed a picture from '%1'").arg(n->name);
-                updateHud();
-            });
+            showPictures(this, [this, id] { const Node* n = model.find(id); return n ? n->images : QStringList(); }, i);
+        });
+        connect(panel, &InfoPanel::pictureRemoved, this, [this](int i) {
+            Node* n = sel();
+            if (!n || i >= n->images.size()) return;
+            n->images.removeAt(i);
+            model.commit();
+            model.status = QString("Removed a picture from '%1'").arg(n->name);
+            updateHud();
         });
         connect(canvas, &Canvas::doubleClicked, this, [this](const QString& id) { select(id); actEdit(); });
         connect(canvas, &Canvas::contextMenu, this, [this](const QString& id, const QPoint& g) {
