@@ -67,6 +67,19 @@ constexpr double STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w
 constexpr double DEFAULT_CURL = 0.35;      // -1..1, fraction of the safe fan rotation
 constexpr double STD_BACK_GAP = 25 * DEG;  // keep wedges this far from the incoming stem
 constexpr double STD_CLEARANCE = 0.2;      // 3+ forks: min distance between sibling subtrees, in fork units
+// rectangular and circular cladograms
+constexpr double CLADO_NODE = 0.3;        // node footprint, in tip spacings
+constexpr double CLADO_MIN_STEP = 1.5;    // min distance between levels, in tip spacings
+constexpr double RECT_ASPECT = 0.6;       // rectangular: aim for width = this * height
+constexpr double CLADO_LINE = 1.6;        // branch width, px
+constexpr double CLADO_TIP_R = 2.5, CLADO_NODE_R = 2;
+constexpr double CLADO_TIP_FONT = 0.78;   // tip label height, as a fraction of the tip spacing on screen
+constexpr int CLADO_MIN_FONT = 7, CLADO_MAX_FONT = 15;
+constexpr double CLADO_FOCUS_MIN = 24;    // focusing a clade: at least this many px between tips
+constexpr double CLADO_MARGIN = 300;      // px: keep subtrees this far off screen for their labels
+constexpr double CHAR_EM = 0.55;          // average character width, for sizing label room before measuring
+constexpr size_t MAX_CLADE_TRIES = 3000;  // clades tried for a label per frame, biggest first
+constexpr double CLADO_MIN_BRANCH = 12;   // px: shorter branches get no clade label
 // camera
 constexpr double MIN_PX = 0.6;          // disks: cull subtrees smaller than this on screen
 constexpr double FIT_MARGIN = 120;      // px left free around a fitted tree
@@ -508,7 +521,7 @@ static Local lerp(const Local& a, const Local& b, double t) {
 
 // ------------------------------------------------------------- layout ---
 struct Layout {
-    enum Style { Standard, Disks };
+    enum Style { Standard, Disks, Rectangular, Circular };
 
     Style style = Standard;
     double spread = DEFAULT_SPREAD;  // standard: fan angle of a fork
@@ -517,20 +530,29 @@ struct Layout {
     QHash<const Node*, Local> loc;   // parent-relative frames (root: relative to the view)
     QHash<const Node*, double> ext;  // subtree radius around the node's origin, own units
     QRectF bbox;                     // whole tree, in view units
+    // cladograms: tips sit at x = tipX (rectangular) or radius tipR around the
+    // root (circular), tipSpacing apart; maxTipChars sizes the room for their labels
+    double tipX = 0, tipR = 0, tipSpacing = 1;
+    int maxTipChars = 0;
+    QHash<const Node*, double> reach;  // cladograms: length of the across part of the branch into a node, where its label goes
 
-    static QString styleName(Style s) { return s == Standard ? "Standard" : "Disks"; }
+    static QString styleName(Style s) {
+        return s == Standard ? "Standard" : s == Disks ? "Disks" : s == Rectangular ? "Rectangular" : "Circular";
+    }
+    static bool isClado(Style s) { return s == Rectangular || s == Circular; }
     static bool hidesKids(const Node* n) { return n->collapsed || n->kids.empty(); }
 
     int count() const { return int(loc.size()); }
     double extent(const Node* n) const { return ext.value(n, 1.0); }
     int weight(const Node* n) const { return size_.value(n, 1); }  // clade size, ignoring collapse
     double own(const Node* n) const {  // radius of the node's own footprint, own units
-        return style == Disks ? 1.0 : hidesKids(n) ? STD_NODE : STD_WIDTH;
+        return style == Disks ? 1.0 : isClado(style) ? CLADO_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH;
     }
 
     void compute(const Node* root) {
         loc.clear();
         ext.clear();
+        reach.clear();
         size_.clear();
         leaves_.clear();
         bbox = {};
@@ -539,6 +561,8 @@ struct Layout {
         if (style == Standard) {
             loc[root] = Local{C(0, 0), C(0, -1), 0};  // grows upwards
             standard(root);
+        } else if (isClado(style)) {
+            cladogram(root);
         } else {
             loc[root] = Local{};
             disks(root);
@@ -674,6 +698,61 @@ private:
         }
         const double x = (lo + hi) / 2;
         return {x, f(x)};
+    }
+
+    // Cladograms as drawn in papers. Tips are evenly spaced, one tip spacing
+    // apart, in display order (so the tree is ladderised) and aligned: a node
+    // sits as many levels in from the tips as its tallest subtree is deep, and
+    // halfway between its first and last daughters. Rectangular: tips in a
+    // column on the right. Circular: tips on a circle round the root, from 12
+    // o'clock clockwise. Every frame has unit scale and no rotation, so the
+    // tree is drawn in one coordinate system and frames are just offsets.
+    void cladogram(const Node* root) {
+        QHash<const Node*, double> pos;
+        QHash<const Node*, int> height;
+        int tips = 0, chars = 0;
+        std::function<void(const Node*)> visit = [&](const Node* n) {
+            if (hidesKids(n)) {
+                height[n] = 0;
+                pos[n] = tips++;
+                chars = std::max(chars, int(n->name.size()) + (n->collapsed ? 8 : 0));
+                return;
+            }
+            const auto kids = ordered(n);
+            int h = 0;
+            for (const Node* k : kids) {
+                visit(k);
+                h = std::max(h, height[k] + 1);
+            }
+            height[n] = h;
+            pos[n] = (pos[kids.front()] + pos[kids.back()]) / 2;
+        };
+        visit(root);
+        const int H = height[root];
+        maxTipChars = std::min(chars, 40);
+        QHash<const Node*, C> at;
+        if (style == Rectangular) {
+            const double step = H ? std::max(CLADO_MIN_STEP, RECT_ASPECT * tips / H) : 1;
+            tipX = H * step;
+            tipSpacing = 1;
+            for (auto it = pos.cbegin(); it != pos.cend(); ++it) at[it.key()] = C((H - height[it.key()]) * step, *it);
+        } else {
+            tipR = std::max(CLADO_MIN_STEP * H, tips / (2 * PI));
+            tipSpacing = 2 * PI * tipR / std::max(tips, 1);
+            const double step = H ? tipR / H : 0;
+            for (auto it = pos.cbegin(); it != pos.cend(); ++it)
+                at[it.key()] = std::polar((H - height[it.key()]) * step, -PI / 2 + *it * 2 * PI / std::max(tips, 1));
+        }
+        for (auto it = at.cbegin(); it != at.cend(); ++it) {
+            const Node* n = it.key();
+            if (!n->parent) {
+                loc[n] = Local{*it, C(1, 0), 0};
+                continue;
+            }
+            const C q = at.value(n->parent);
+            loc[n] = Local{*it - q, C(1, 0), 0};
+            reach[n] = style == Rectangular ? it->real() - q.real() : std::abs(*it) - std::abs(q);
+        }
     }
 
     // Standard: a node's frame has its origin at its fork, +x along its growth
@@ -861,6 +940,30 @@ static std::vector<QStringList> wrapOptions(const QStringList& words, const QFon
     return out;
 }
 
+// Points along the arc of radius r round c from angle a0 to a1 (the shorter
+// way), limited to the angles at which the view can be seen from c, so a huge
+// arc on a zoomed-in tree is still drawn smoothly where it shows.
+static QPolygonF arcPoints(C c, double r, double a0, double a1, const QRectF& view) {
+    double lo = 0, hi = std::remainder(a1 - a0, 2 * PI);
+    if (hi < 0) std::swap(lo, hi);
+    if (!view.contains(qpt(c))) {
+        if (!view.intersects(QRectF(c.real() - r, c.imag() - r, 2 * r, 2 * r))) return {};
+        double rmin = 1e300, rmax = -1e300;
+        for (QPointF q : {view.topLeft(), view.topRight(), view.bottomLeft(), view.bottomRight()}) {
+            const double rel = std::remainder(std::arg(cpx(q) - c) - a0, 2 * PI);
+            rmin = std::min(rmin, rel);
+            rmax = std::max(rmax, rel);
+        }
+        lo = std::max(lo, rmin);
+        hi = std::min(hi, rmax);
+        if (lo > hi) return {};
+    }
+    const int n = std::clamp(int(std::ceil(r * (hi - lo) / 3)), 1, 256);
+    QPolygonF pts;
+    for (int i = 0; i <= n; ++i) pts << qpt(c + std::polar(r, a0 + lo + (hi - lo) * i / n));
+    return pts;
+}
+
 // ------------------------------------------------------------- canvas ---
 class Canvas : public QWidget {
     Q_OBJECT
@@ -899,6 +1002,7 @@ public:
     }
 
     bool disks() const { return lay.style == Layout::Disks; }
+    bool clado() const { return Layout::isClado(lay.style); }
 
     // Recompute the layout and animate from what is on screen now. While it
     // animates, the camera keeps the selected node fixed until the user pans or zooms.
@@ -920,7 +1024,8 @@ public:
         double mag = std::min(vw(), vh()) * 0.42;
         if (!disks()) {
             const auto f = screenFrame(n);
-            mag = std::min(std::max(f ? std::abs(f->z) : 120.0, 120.0), mag / lay.extent(n));
+            const double lo = clado() ? CLADO_FOCUS_MIN / lay.tipSpacing : 120.0;
+            mag = std::min(std::max(f ? std::abs(f->z) : lo, lo), mag / lay.extent(n));
         }
         flyTo(n, {centre(), std::polar(mag, absAngle(n))});
     }
@@ -1066,6 +1171,43 @@ private:
     struct Branch { const Node* child; Frame pf, cf; int depth; };
     struct HitSeg { QPointF a, b; double hw; const Node* n; };
     struct Seg { QPointF a, b; double pad; QRectF box; const Node *p, *c; };  // branch piece as a label obstacle
+
+    // Does a rect touch any (padded) branch piece accepted by `want`? A uniform
+    // grid over the pieces; every rect a caller tests lies in nearView, so
+    // clamping to it loses nothing. Exact clip test.
+    using SegTest = std::function<bool(const QRectF&, const std::function<bool(const Seg&)>&)>;
+    static SegTest segFinder(const std::vector<Seg>& segs, const QRectF& nearView) {
+        constexpr double CELL = 64;
+        struct State { QHash<QPair<int, int>, std::vector<int>> grid; std::vector<int> stamp; int query = 0; };
+        auto st = std::make_shared<State>();
+        auto forCells = [nearView](const QRectF& r, auto&& f) {
+            if (!r.intersects(nearView)) return;
+            const QRectF c = r.intersected(nearView);
+            for (int x = int(std::floor(c.left() / CELL)); x <= int(std::floor(c.right() / CELL)); ++x)
+                for (int y = int(std::floor(c.top() / CELL)); y <= int(std::floor(c.bottom() / CELL)); ++y)
+                    f(qMakePair(x, y));
+        };
+        for (int i = 0; i < int(segs.size()); ++i) forCells(segs[i].box, [&](QPair<int, int> k) { st->grid[k].push_back(i); });
+        st->stamp.assign(segs.size(), -1);
+        return [st, forCells, &segs](const QRectF& r, const std::function<bool(const Seg&)>& want) {
+            ++st->query;
+            bool hit = false;
+            forCells(r, [&](QPair<int, int> k) {
+                if (hit) return;
+                const auto it = st->grid.constFind(k);
+                if (it == st->grid.cend()) return;
+                for (int i : *it) {
+                    if (st->stamp[i] == st->query) continue;
+                    st->stamp[i] = st->query;
+                    const Seg& s = segs[i];
+                    if (!s.box.intersects(r) || !want(s)) continue;
+                    QPointF a = s.a, b = s.b;
+                    if (clipLine(r.adjusted(-s.pad, -s.pad, s.pad, s.pad), a, b)) { hit = true; return; }
+                }
+            });
+            return hit;
+        };
+    }
     struct Cam { QString anchor; Frame f{C(0, 0), C(300, 0)}; };  // the anchor node's frame on screen
 
     Model* model;
@@ -1088,7 +1230,10 @@ private:
     std::vector<Item> items_;
     std::vector<Branch> branches_;
     std::vector<HitSeg> hitSegs_;
-    std::vector<std::pair<QRectF, QString>> labelHits;
+    // a label's box and clade; rotated tip labels also keep their own frame:
+    // origin o, angle a, and the extent x0..x1, -hh..hh along it
+    struct LabelHit { QRectF box; QString id; bool rot = false; QPointF o; double a = 0, x0 = 0, x1 = 0, hh = 0; };
+    std::vector<LabelHit> labelHits;
 
     void viewUpdated() { update(); emit viewChanged(); }
     int vw() const { return vp_.isValid() ? vp_.width() : width(); }
@@ -1143,8 +1288,23 @@ private:
 
     double fitScale() const {
         const double bw = std::max(lay.bbox.width(), 2.0), bh = std::max(lay.bbox.height(), 2.0);
-        return std::min(std::max(100.0, vw() - FIT_MARGIN) / bw, std::max(100.0, vh() - FIT_MARGIN) / bh);
+        auto fit = [&](double lw, double lh) {
+            return std::min(std::max(100.0, vw() - FIT_MARGIN - lw) / bw, std::max(100.0, vh() - FIT_MARGIN - lh) / bh);
+        };
+        if (!clado()) return fit(0, 0);
+        // Leave room for the tip labels: right of a rectangular tree, all round a
+        // circular one. Their size depends on the scale, so settle it in two passes.
+        double s = fit(0, 0);
+        for (int i = 0; i < 2; ++i) {
+            const int px = tipFont(s);
+            const double room = px >= CLADO_MIN_FONT ? px * CHAR_EM * lay.maxTipChars + 10 : 0;
+            s = lay.style == Layout::Circular ? fit(2 * room, 2 * room) : fit(room, 0);
+        }
+        return s;
     }
+
+    // Tip label size at scale s (px per unit); below CLADO_MIN_FONT tips go unlabelled.
+    int tipFont(double s) const { return std::min(CLADO_MAX_FONT, int(std::floor(s * lay.tipSpacing * CLADO_TIP_FONT))); }
 
     void resetCam() {
         camAnim.stop();
@@ -1302,6 +1462,9 @@ private:
     Item makeItem(const Node* n, const Frame& f, int depth) const {
         const double s = std::abs(f.z);
         const bool leaf = Layout::hidesKids(n);
+        if (clado())  // branchPx: the length of the branch into it
+            return {n, qpt(f.o), leaf ? CLADO_TIP_R : CLADO_NODE_R, s, 0, depth,
+                    n->parent ? s * lay.reach.value(n) : 1e300};
         const double r = disks() ? s : leaf ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
         // Standard: a leaf has no outgoing branch, so its size on screen is the branch drawn to it.
         double len = s;
@@ -1318,7 +1481,7 @@ private:
         branches_.clear();
         const Node* A = anchorNode();
         if (!A || !lay.loc.contains(A)) return;
-        const double margin = disks() ? 0 : 100, minPx = disks() ? MIN_PX : 0.0;
+        const double margin = disks() ? 0 : clado() ? CLADO_MARGIN : 100, minPx = disks() ? MIN_PX : 0.0;
         auto visible = [&](const Node* n, const Frame& f) {
             const double R = std::abs(f.z) * lay.extent(n);
             return R >= minPx && f.o.real() + R > -margin && f.o.real() - R < vw() + margin &&
@@ -1367,9 +1530,14 @@ private:
     // selects the clade it leads to).
     const Node* hitTest(QPointF p) const {
         auto label = [&]() -> const Node* {
-            for (auto it = labelHits.rbegin(); it != labelHits.rend(); ++it)  // topmost first
-                if (it->first.contains(p))
-                    if (const Node* n = model->find(it->second)) return n;
+            for (auto it = labelHits.rbegin(); it != labelHits.rend(); ++it) {  // topmost first
+                if (!it->box.contains(p)) continue;
+                if (it->rot) {  // a rotated tip label: test in its own frame
+                    const C q = (cpx(p) - cpx(it->o)) * std::polar(1.0, -it->a);
+                    if (q.real() < it->x0 || q.real() > it->x1 || std::abs(q.imag()) > it->hh) continue;
+                }
+                if (const Node* n = model->find(it->id)) return n;
+            }
             return nullptr;
         };
         const Node* best = nullptr;
@@ -1399,6 +1567,19 @@ private:
 
     void paint(QPainter& p);
     std::vector<Seg> drawBranches(QPainter& p);
+    std::vector<Seg> drawCladoBranches(QPainter& p);
+    void drawCladoLabels(QPainter& p, const std::vector<Seg>& segs);
+
+    // Uncoloured branches in the text colour, as in print; coloured clades in their colour.
+    QColor lineColor(const Node* n, int d) const {
+        if (inCut(n)) return T.cut;
+        return tint_.contains(n) ? nodeColor(n, d, 0.9) : T.fg;
+    }
+    // The root's position on screen: a circular tree's centre.
+    std::optional<C> cladoCentre() const {
+        const auto f = screenFrame(model->root());
+        return f ? std::optional(f->o) : std::nullopt;
+    }
     void drawNodes(QPainter& p);
     void drawLabels(QPainter& p, const std::vector<Seg>& segs);
 };
@@ -1430,6 +1611,7 @@ void Canvas::paint(QPainter& p) {
 std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
     std::vector<Seg> segs;
     if (disks()) return segs;
+    if (clado()) return drawCladoBranches(p);
     const QRectF view = vrect().adjusted(-60, -60, 60, 60);
     for (const Branch& br : branches_) {
         const QPointF a = qpt(br.pf.o), b = qpt(br.cf.o);
@@ -1458,6 +1640,12 @@ std::vector<Canvas::Seg> Canvas::drawBranches(QPainter& p) {
 void Canvas::drawNodes(QPainter& p) {
     const bool dk = disks();
     for (const Item& v : items_) {
+        if (clado()) {
+            p.setPen(Qt::NoPen);
+            p.setBrush(lineColor(v.n, v.depth));
+            p.drawEllipse(v.s, v.r, v.r);
+            continue;
+        }
         const bool cut = inCut(v.n);
         const QColor fill = cut ? T.cut.darker(160) : nodeColor(v.n, v.depth, dk ? 0.55 : 1.0);
         if (covers(cpx(v.s), v.r)) { p.fillRect(vrect(), fill); continue; }  // fills the view: skip the huge ellipse
@@ -1481,6 +1669,7 @@ void Canvas::drawNodes(QPainter& p) {
 // and branches not incident to the node. Its own branches are a soft cost.
 // The selection is forced if nothing is free; the hovered label is drawn last.
 void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
+    if (clado()) return drawCladoLabels(p, segs);
     const bool dk = disks(), beside = labelMode == LabelMode::Beside;
     const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
     constexpr double padX = 5, padY = 2;
@@ -1488,39 +1677,7 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
     const QRectF view = vrect(), inner = view.adjusted(4, 4, -4, -4);
     const QRectF nearView = view.adjusted(-120, -120, 120, 120);
 
-    // Uniform grid over branch pieces. Every rect a strict test can see lies in
-    // nearView, so clamping to it loses nothing.
-    constexpr double CELL = 64;
-    auto forCells = [&](const QRectF& r, auto&& f) {
-        if (!r.intersects(nearView)) return;
-        const QRectF c = r.intersected(nearView);
-        for (int x = int(std::floor(c.left() / CELL)); x <= int(std::floor(c.right() / CELL)); ++x)
-            for (int y = int(std::floor(c.top() / CELL)); y <= int(std::floor(c.bottom() / CELL)); ++y)
-                f(qMakePair(x, y));
-    };
-    QHash<QPair<int, int>, std::vector<int>> grid;
-    for (int i = 0; i < int(segs.size()); ++i) forCells(segs[i].box, [&](QPair<int, int> k) { grid[k].push_back(i); });
-    std::vector<int> stamp(segs.size(), -1);
-    int query = 0;
-    // Does r touch any (padded) branch piece accepted by `want`? Exact clip test.
-    auto anySeg = [&](const QRectF& r, auto&& want) {
-        ++query;
-        bool hit = false;
-        forCells(r, [&](QPair<int, int> k) {
-            if (hit) return;
-            const auto it = grid.constFind(k);
-            if (it == grid.cend()) return;
-            for (int i : *it) {
-                if (stamp[i] == query) continue;
-                stamp[i] = query;
-                const Seg& s = segs[i];
-                if (!s.box.intersects(r) || !want(s)) continue;
-                QPointF a = s.a, b = s.b;
-                if (clipLine(r.adjusted(-s.pad, -s.pad, s.pad, s.pad), a, b)) { hit = true; return; }
-            }
-        });
-        return hit;
-    };
+    const auto anySeg = segFinder(segs, nearView);
 
     std::vector<QRectF> nodeRects, placed;
     if (!dk)
@@ -1652,6 +1809,194 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
         p.setFont(l.font);
         p.setPen(isSel ? T.accent : inCut(l.n) ? T.cut : T.fg);
         p.drawText(l.box.adjusted(padX, padY, -padX, -padY), Qt::AlignCenter, l.text);
+        labelHits.push_back({l.box, l.n->id});
+    }
+}
+
+// Right-angled branches: along the parent's line to the daughter's level,
+// then across to it. Rectangular: a vertical then a horizontal segment.
+// Circular: an arc round the root at the parent's radius, then a radial line.
+std::vector<Canvas::Seg> Canvas::drawCladoBranches(QPainter& p) {
+    std::vector<Seg> segs;
+    const bool circ = lay.style == Layout::Circular;
+    const QRectF view = vrect().adjusted(-60, -60, 60, 60);
+    const auto c = cladoCentre();
+    if (!c) return segs;
+    p.setBrush(Qt::NoBrush);
+    auto piece = [&](const QPolygonF& pts, const Branch& br) {
+        if (pts.size() < 2 || !view.intersects(pts.boundingRect())) return;
+        p.setPen(QPen(lineColor(br.child, br.depth), CLADO_LINE, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        p.drawPolyline(pts);
+        const double pad = CLADO_LINE / 2 + 1;
+        for (int i = 0; i + 1 < pts.size(); ++i) {
+            hitSegs_.push_back({pts[i], pts[i + 1], CLADO_LINE / 2 + 1, br.child});
+            segs.push_back({pts[i], pts[i + 1], pad, QRectF(pts[i], pts[i + 1]).normalized().adjusted(-pad, -pad, pad, pad),
+                            br.child->parent, br.child});
+        }
+    };
+    for (const Branch& br : branches_) {
+        const C P = br.pf.o, Q = br.cf.o;
+        if (circ) {
+            const double rp = std::abs(P - *c), aq = std::arg(Q - *c);
+            const C corner = *c + std::polar(rp, aq);
+            if (rp > 0.5) piece(arcPoints(*c, rp, std::arg(P - *c), aq, view), br);
+            piece(QPolygonF({qpt(corner), qpt(Q)}), br);
+        } else {
+            const C corner = P + br.pf.z * C(0, sloc(br.child).o.imag());
+            piece(QPolygonF({qpt(P), qpt(corner), qpt(Q)}), br);
+        }
+    }
+    return segs;
+}
+
+// Tip labels run outward from the tips: horizontal beside a rectangular
+// tree, radial round a circular one (turned over on the left half so they
+// read left to right). They are sized to the tip spacing, so they cannot
+// overlap each other, and left out when too small to read. Clade labels are
+// placed greedily, biggest clades first, along the branch into the clade and
+// clear of every line, dot and label already placed; a circular tree keeps
+// them inside the circle of tips.
+void Canvas::drawCladoLabels(QPainter& p, const std::vector<Seg>& segs) {
+    const bool circ = lay.style == Layout::Circular;
+    const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
+    const auto centre = cladoCentre();
+    if (!centre) return;
+    const C c = *centre;
+    const double s = std::abs(cam.f.z);
+    const int tipPx = tipFont(s);
+    const QRectF view = vrect(), inner = view.adjusted(4, 4, -4, -4), nearView = view.adjusted(-120, -120, 120, 120);
+    auto text = [&](const Node* n) {
+        return (n == cut ? "✂ " : "") + (n->name.isEmpty() ? QString("?") : n->name) +
+               (n->collapsed && !n->kids.empty() ? QString(" [+%1]").arg(n->countDesc()) : QString());
+    };
+    struct Tip { const Node* n; QPointF o; double a; bool flip; double w, h; QString str; QFont font; QRectF box; };
+    std::vector<Tip> tips;
+    std::vector<QRectF> placed;
+    for (const Item& v : items_) {
+        if (!Layout::hidesKids(v.n)) continue;
+        const bool force = v.n == sel || v.n == hov;
+        int px = tipPx;
+        if (px < CLADO_MIN_FONT) {
+            if (!force) continue;
+            px = 11;
+        }
+        QFont f = font();
+        f.setPixelSize(px);
+        const QString str = text(v.n);
+        const double w = QFontMetricsF(f).horizontalAdvance(str) + 4, h = std::round(px * 1.25);
+        const double a = circ ? std::arg(cpx(v.s) - c) : 0;
+        const C o = cpx(v.s) + std::polar(v.r + 4, a), far = o + std::polar(w, a);
+        const QRectF box = QRectF(qpt(o), qpt(far)).normalized().adjusted(-h / 2, -h / 2, h / 2, h / 2);
+        if (!box.intersects(view)) continue;
+        if (!circ) placed.push_back(box);
+        tips.push_back({v.n, qpt(o), a, circ && std::cos(a) < 0, w, h, str, f, box});
+    }
+
+    // clade labels; node dots join the grid of obstacles as zero-length pieces
+    std::vector<Seg> obstacles = segs;
+    for (const Item& v : items_)
+        if (nearView.contains(v.s)) {
+            const double pad = v.r + 2;
+            obstacles.push_back({v.s, v.s, pad, QRectF(v.s, v.s).adjusted(-pad, -pad, pad, pad), nullptr, v.n});
+        }
+    const auto anySeg = segFinder(obstacles, nearView);
+    const double tipLimit = lay.tipR * s - 2;  // circular: clade labels stay inside the tips
+    auto blocked = [&](const QRectF& r) {
+        if (!inner.contains(r)) return true;
+        if (circ)
+            for (QPointF q : {r.topLeft(), r.topRight(), r.bottomLeft(), r.bottomRight()})
+                if (std::abs(cpx(q) - c) > tipLimit) return true;
+        const QRectF g = r.adjusted(-LABEL_GAP, -LABEL_GAP, LABEL_GAP, LABEL_GAP);
+        if (std::any_of(placed.begin(), placed.end(), [&](const QRectF& q) { return q.intersects(g); })) return true;
+        return anySeg(r, [](const Seg&) { return true; });
+    };
+    QFont cladeFont = font();
+    cladeFont.setPixelSize(std::clamp(int(std::floor(s * lay.tipSpacing * 0.8)), 10, 13));
+    const QFontMetricsF fm(cladeFont);
+    struct Lbl { QRectF box; QString text; const Node* n; bool forced; };
+    auto makeLabel = [&](const Item& v, bool force) -> std::optional<Lbl> {
+        const QStringList words = text(v.n).split(' ', Qt::SkipEmptyParts);
+        auto opts = wrapOptions(words.isEmpty() ? QStringList{"?"} : words, fm);
+        if (opts.size() > 3) opts.resize(3);
+        // the branch into the clade: from the corner on the parent's line to the node
+        const C N = cpx(v.s);
+        C K = N;
+        if (v.n->parent) {
+            const C P = uncompose(Frame{N, cam.f.z}, sloc(v.n)).o;
+            K = circ ? c + std::polar(std::abs(P - c), std::arg(N - c)) : C(P.real(), N.imag());
+        }
+        const double len = std::abs(N - K);
+        const C u = len > 1e-6 ? (N - K) / len : circ ? std::polar(1.0, std::arg(N - c)) : C(1, 0);
+        const C nrm(u.imag(), -u.real());  // to the left of the branch: above a rectangular one
+        struct Cand { double cost; QRectF r; int k; };
+        std::vector<Cand> cs;
+        for (int k = 0; k < int(opts.size()); ++k) {
+            double tw = 0;
+            for (const QString& line : opts[k]) tw = std::max(tw, fm.horizontalAdvance(line));
+            const double w = std::ceil(tw) + 10, h = std::ceil(fm.height() + (opts[k].size() - 1) * fm.lineSpacing()) + 4;
+            const double off = (std::abs(nrm.real()) * w + std::abs(nrm.imag()) * h) / 2 + 3;  // clears the branch line
+            // centres along the branch: on it when it is long enough, else ending at
+            // the node, starting at the parent's line, or just past the node
+            std::vector<std::pair<double, double>> along;
+            if (len > w + 8)
+                for (double f : {0.5, 0.75, 0.25, 1.0, 0.0}) along.push_back({std::clamp(len * f, w / 2 + 4, len - w / 2 - 4), std::abs(f - 0.5)});
+            else
+                along = {{len / 2, 0.4}, {len - w / 2 - 4, 0.6}, {w / 2 + 4, 0.8}, {len + w / 2 + 4, 1}};
+            for (auto [side, sc] : {std::pair(1.0, 0.0), std::pair(-1.0, 0.3)})
+                for (auto [d, ac] : along) {
+                    const C q = K + u * d + nrm * (side * off);
+                    cs.push_back({sc + ac + 0.12 * k, QRectF(std::round(q.real() - w / 2), std::round(q.imag() - h / 2), w, h), k});
+                }
+        }
+        std::stable_sort(cs.begin(), cs.end(), [](const Cand& a, const Cand& b) { return a.cost < b.cost; });
+        for (const Cand& cd : cs)
+            if (!blocked(cd.r)) return Lbl{cd.r, opts[cd.k].join('\n'), v.n, false};
+        if (!force || cs.empty()) return std::nullopt;
+        return Lbl{cs.front().r, opts[cs.front().k].join('\n'), v.n, true};
+    };
+    std::vector<int> cands;
+    for (int i = 0; i < int(items_.size()); ++i) {
+        const Item& v = items_[i];
+        if (!Layout::hidesKids(v.n) && (v.n == sel || v.n == hov || v.branchPx >= CLADO_MIN_BRANCH)) cands.push_back(i);
+    }
+    auto priority = [&](const Item& v) { return std::make_tuple(v.n != sel, -lay.weight(v.n), v.depth); };
+    std::sort(cands.begin(), cands.end(), [&](int a, int b) { return priority(items_[a]) < priority(items_[b]); });
+    std::vector<Lbl> clades;
+    if (cands.size() > MAX_CLADE_TRIES) cands.resize(MAX_CLADE_TRIES);
+    for (int i : cands) {
+        if (int(clades.size()) >= MAX_LABELS) break;
+        if (auto l = makeLabel(items_[i], items_[i].n == sel || items_[i].n == hov)) {
+            placed.push_back(l->box);
+            clades.push_back(*l);
+        }
+    }
+
+    // paint
+    for (const Tip& l : tips) {
+        const bool isSel = l.n == sel, isHov = l.n == hov;
+        const double ang = l.flip ? l.a + PI : l.a, x0 = l.flip ? -l.w : 0;
+        p.save();
+        p.translate(l.o);
+        p.rotate(ang / DEG);
+        if (isSel || isHov) {
+            p.setPen(QPen(isSel ? T.accent : T.dim, 1));
+            p.setBrush(T.labelBgHover);
+            p.drawRoundedRect(QRectF(x0 - 2, -l.h / 2, l.w + 4, l.h), 4, 4);
+        }
+        p.setFont(l.font);
+        p.setPen(isSel ? T.accent : inCut(l.n) ? T.cut : T.fg);
+        p.drawText(QRectF(x0 + 2, -l.h / 2, l.w - 4, l.h), (l.flip ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter, l.str);
+        p.restore();
+        labelHits.push_back({l.box, l.n->id, true, l.o, ang, x0 - 2, x0 + l.w + 2, l.h / 2});
+    }
+    p.setFont(cladeFont);
+    for (const Lbl& l : clades) {
+        const bool isSel = l.n == sel, isHov = l.n == hov;
+        p.setPen(isSel ? QPen(T.accent, 1) : isHov ? QPen(T.dim, 1) : QPen(Qt::NoPen));
+        p.setBrush(isHov || l.forced ? T.labelBgHover : T.labelBg);
+        p.drawRoundedRect(l.box, 4, 4);
+        p.setPen(isSel ? T.accent : inCut(l.n) ? T.cut : T.fg);
+        p.drawText(l.box.adjusted(5, 2, -5, -2), Qt::AlignCenter, l.text);
         labelHits.push_back({l.box, l.n->id});
     }
 }
@@ -1911,7 +2256,7 @@ public:
         auto layoutKey = [this, &mk](QList<QKeySequence> keys, auto fn) {
             mk("", keys, [this, fn] {
                 fn(canvas->lay);
-                if (!canvas->disks()) canvas->relayout();
+                if (canvas->lay.style == Layout::Standard) canvas->relayout();
                 updateHud();
             });
         };
@@ -1949,7 +2294,7 @@ public:
         };
         viewMenu->addSection("Style");
         auto styleGroup = new QActionGroup(this);
-        for (Layout::Style st : {Layout::Standard, Layout::Disks})
+        for (Layout::Style st : {Layout::Standard, Layout::Disks, Layout::Rectangular, Layout::Circular})
             styleActs.push_back(radio(styleGroup, mk(Layout::styleName(st), {QKeySequence(QString("Ctrl+%1").arg(st + 1))},
                                                      [this, st] { setStyle(st); })));
         viewMenu->addSection("Labels");
@@ -1988,7 +2333,7 @@ public:
         });
 
         QSettings s;  // restore view preferences
-        const int st = std::clamp(s.value("view/style", int(Layout::Standard)).toInt(), 0, 1);
+        const int st = std::clamp(s.value("view/style", int(Layout::Standard)).toInt(), 0, int(Layout::Circular));
         canvas->lay.style = Layout::Style(st);
         styleActs[st]->setChecked(true);
         setLabelsBeside(s.value("view/labelsBeside", false).toBool());
@@ -2340,7 +2685,7 @@ private:
     void updateHud() {
         QString cut, params;
         if (Node* c = model.find(canvas->cutId)) cut = QString("   ✂ cut: %1 (select target, V)").arg(c->name);
-        if (!canvas->disks())
+        if (canvas->lay.style == Layout::Standard)
             params = QString("   spread %1°   shrink %2   curl %3")
                          .arg(qRound(canvas->lay.spread / DEG))
                          .arg(canvas->lay.shrink, 0, 'f', 2)
