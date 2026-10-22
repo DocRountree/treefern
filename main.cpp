@@ -2065,6 +2065,8 @@ static int runBox(QDialog& d) {
     EventHook hook([&](QObject* o, QEvent* e) {
         if (open.isEmpty() || open.last() != &d) return false;
         const QEvent::Type t = e->type();
+        if (t == QEvent::Close)  // the window manager closing the main window, say
+            return e->spontaneous() && !inside(o);
         switch (t) {
         case QEvent::MouseButtonPress: case QEvent::MouseButtonRelease: case QEvent::MouseButtonDblClick:
         case QEvent::MouseMove: case QEvent::Wheel: case QEvent::KeyPress: case QEvent::KeyRelease:
