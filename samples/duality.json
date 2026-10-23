@@ -1,0 +1,396 @@
+{
+    "nodes": [
+        {
+            "collapsed": false,
+            "id": "9f94b5f42a",
+            "info": "Presheaves on a category ('spaces') and copresheaves ('algebras') are related by an adjunction, and its restriction to fixed points is a duality. Stated for any small category, enriched over a cosmos, or in higher categories, this is the general pattern behind the dualities below. https://ncatlab.org/nlab/show/Isbell+duality https://ncatlab.org/nlab/show/space+and+quantity https://ncatlab.org/nlab/show/duality+between+algebra+and+geometry",
+            "name": "General Isbell Duality"
+        },
+        {
+            "collapsed": false,
+            "id": "6a7b8c9d25",
+            "info": "Isbell duality in higher category theory, used for function algebras on derived ∞-stacks; the Isbell self-dual ∞-stacks are Toën's affine stacks. https://ncatlab.org/nlab/show/Isbell+duality#FuncCompDerStacks https://ncatlab.org/nlab/show/function+algebras+on+%E2%88%9E-stacks https://ncatlab.org/nlab/show/Tannaka+duality+for+geometric+stacks",
+            "name": "Higher Isbell Duality",
+            "parent": "9f94b5f42a"
+        },
+        {
+            "collapsed": false,
+            "id": "cf3157b515",
+            "info": "A group (or Hopf algebra, affine group scheme) is reconstructed from its category of representations via automorphisms of the fiber functor. https://ncatlab.org/nlab/show/Tannaka+duality https://ncatlab.org/nlab/show/Reconstruction+of+Groups https://ncatlab.org/nlab/show/Doplicher-Roberts+reconstruction+theorem https://ncatlab.org/nlab/show/category+of+representations",
+            "name": "Tannaka–Krein / Tannakian Categories",
+            "parent": "6a7b8c9d25"
+        },
+        {
+            "collapsed": false,
+            "id": "a14621a46e",
+            "info": "Matrix coefficients of finite-dimensional representations are dense in the continuous functions on a compact group. https://ncatlab.org/nlab/show/Peter-Weyl+theorem https://ncatlab.org/nlab/show/Tannaka+duality",
+            "name": "Peter–Weyl Theorem",
+            "parent": "cf3157b515"
+        },
+        {
+            "collapsed": false,
+            "id": "ad1f35f313",
+            "info": "Irreducible unitary representations separate points of a locally compact group; for abelian groups, characters do. https://ncatlab.org/nlab/show/Pontryagin+duality https://ncatlab.org/nlab/show/Reconstruction+of+Groups",
+            "name": "Gelfand–Raikov Theorem",
+            "parent": "cf3157b515"
+        },
+        {
+            "collapsed": false,
+            "id": "7b8c9dae26",
+            "info": "Rational homotopy types of nilpotent spaces of finite type correspond to minimal Sullivan algebras (commutative dg-algebras of forms). https://ncatlab.org/nlab/show/rational+homotopy+theory https://ncatlab.org/nlab/show/Sullivan+model https://ncatlab.org/nlab/show/dualizing+object",
+            "name": "Sullivan Rational Homotopy Theory",
+            "parent": "6a7b8c9d25"
+        },
+        {
+            "collapsed": false,
+            "id": "e2f3041533",
+            "info": "De Rham cohomology of a smooth manifold is isomorphic to its real cohomology, via integration of forms over chains. https://ncatlab.org/nlab/show/de+Rham+theorem",
+            "name": "de Rham Theorem",
+            "parent": "6a7b8c9d25"
+        },
+        {
+            "collapsed": false,
+            "id": "f304152634",
+            "info": "The integral of dω over a manifold equals the integral of ω over its boundary. https://ncatlab.org/nlab/show/Stokes+theorem",
+            "name": "Generalized Stokes' Theorem",
+            "parent": "e2f3041533"
+        },
+        {
+            "collapsed": false,
+            "id": "37485960ab",
+            "info": "The line integral of a gradient along a curve equals the change in the potential between its endpoints. https://ncatlab.org/nlab/show/Stokes+theorem https://ncatlab.org/nlab/show/fundamental+theorem+of+calculus",
+            "name": "Gradient Theorem",
+            "parent": "f304152634"
+        },
+        {
+            "collapsed": false,
+            "id": "0415263735",
+            "info": "The integral of f' over [a, b] is f(b) − f(a): Stokes in dimension 1. https://ncatlab.org/nlab/show/fundamental+theorem+of+calculus",
+            "name": "Fundamental Theorem of Calculus",
+            "parent": "37485960ab"
+        },
+        {
+            "collapsed": false,
+            "id": "596a7b8ccd",
+            "info": "The flux of a vector field out of a region equals the integral of its divergence over the region. https://ncatlab.org/nlab/show/Stokes+theorem",
+            "name": "Divergence Theorem (Gauss)",
+            "parent": "f304152634"
+        },
+        {
+            "collapsed": false,
+            "id": "1526374836",
+            "info": "The circulation of a vector field around a surface's boundary equals the flux of its curl through the surface. https://ncatlab.org/nlab/show/Kelvin%E2%80%93Stokes+Theorem https://ncatlab.org/nlab/show/Green+theorem",
+            "name": "Kelvin–Stokes Theorem",
+            "parent": "f304152634"
+        },
+        {
+            "collapsed": false,
+            "id": "48596a7bbc",
+            "info": "Stokes for a region in the plane: circulation around the boundary equals the integral of the scalar curl. https://ncatlab.org/nlab/show/Green+theorem https://ncatlab.org/nlab/show/Stokes+theorem",
+            "name": "Green's Theorem",
+            "parent": "1526374836"
+        },
+        {
+            "collapsed": false,
+            "id": "a16443c680",
+            "info": "Contour integrals of holomorphic functions are invariant under homotopy of paths; integrals around contractible loops vanish. https://ncatlab.org/nlab/show/Cauchy+integral+theorem https://ncatlab.org/nlab/show/Green+theorem https://ncatlab.org/nlab/show/Cauchy%27s+integral+formula",
+            "name": "Cauchy Integral Theorem",
+            "parent": "48596a7bbc"
+        },
+        {
+            "collapsed": false,
+            "id": "a17354d791",
+            "info": "Every closed differential form is locally exact; on contractible domains closed forms are exact. https://ncatlab.org/nlab/show/Poincar%C3%A9+lemma https://ncatlab.org/nlab/show/de+Rham+theorem",
+            "name": "Poincaré Lemma",
+            "parent": "e2f3041533"
+        },
+        {
+            "collapsed": false,
+            "id": "a18265e8a2",
+            "info": "On a closed oriented smooth n-manifold, integrating the wedge product gives a perfect pairing H^k_dR × H^{n−k}_dR → ℝ. (The integral version, cap product with the fundamental class on topological manifolds, is more general than de Rham's theorem.) https://ncatlab.org/nlab/show/Poincar%C3%A9+duality https://ncatlab.org/nlab/show/fundamental+class",
+            "name": "Poincaré Duality (de Rham)",
+            "parent": "e2f3041533"
+        },
+        {
+            "collapsed": false,
+            "id": "7cc07942dc",
+            "info": "Isbell duality for categories enriched over a cosmos V. V = Set gives ordinary Isbell duality, V = truth values gives posets, V = [0, ∞] gives metric spaces. https://ncatlab.org/nlab/show/Isbell+duality https://ncatlab.org/nlab/show/enriched+category https://ncatlab.org/nlab/show/cosmos",
+            "name": "Enriched Isbell Duality",
+            "parent": "9f94b5f42a"
+        },
+        {
+            "collapsed": false,
+            "id": "87f20210f7",
+            "info": "For a small category C, O(X)(c) = Hom(X, C(−,c)) and Spec(A)(c) = Hom(A, C(c,−)) are adjoint; representables are Isbell self-dual. https://ncatlab.org/nlab/show/Isbell+duality https://ncatlab.org/nlab/show/space+and+quantity https://ncatlab.org/nlab/show/Isbell+envelope https://ncatlab.org/nlab/show/reflexive+completion",
+            "name": "Ordinary Isbell Duality",
+            "parent": "7cc07942dc"
+        },
+        {
+            "collapsed": false,
+            "id": "8bb7fc59bd",
+            "info": "Restricting Isbell duality to a well-chosen test category makes it concrete: both functors become homming into a single object D that lives both as a space and as an algebra (the 'line' or 'schizophrenic object'). The bare dualizing-object pattern is more general than Isbell duality; this node covers the instances that arise from it. https://ncatlab.org/nlab/show/dualizing+object https://ncatlab.org/nlab/show/Isbell+duality#FunctionAlgebrasOnPresheaves",
+            "name": "Concrete Isbell Duality",
+            "parent": "87f20210f7"
+        },
+        {
+            "collapsed": false,
+            "id": "2c3d4e5f21",
+            "info": "Algebras are dual to spaces whose points are homomorphisms into a fixed object D. https://ncatlab.org/nlab/show/duality+between+algebra+and+geometry https://ncatlab.org/nlab/show/spectrum https://ncatlab.org/nlab/show/fixed+point+equivalence+of+an+adjunction",
+            "name": "Spectral Dualities",
+            "parent": "8bb7fc59bd"
+        },
+        {
+            "collapsed": false,
+            "id": "4e5f6a7b23",
+            "info": "Dualities for the class of algebras generated by a finite algebra M, using M with discrete topology and extra structure as the dualizing object. https://ncatlab.org/nlab/show/dualizing+object https://ncatlab.org/nlab/show/Stone+duality https://ncatlab.org/nlab/show/Priestley+spaces",
+            "name": "Natural Dualities",
+            "parent": "2c3d4e5f21"
+        },
+        {
+            "collapsed": false,
+            "id": "ebfc238b61",
+            "info": "Boolean algebras are dual to Stone spaces (compact Hausdorff, totally disconnected); points are maps to 2. https://ncatlab.org/nlab/show/Stone+duality https://ncatlab.org/nlab/show/Stone+space https://ncatlab.org/nlab/show/profinite+sets",
+            "name": "Stone Duality",
+            "parent": "4e5f6a7b23"
+        },
+        {
+            "collapsed": false,
+            "id": "d4f6b8ca04",
+            "info": "Every proper ideal of a Boolean algebra lies in a prime ideal; equivalent to the ultrafilter principle, weaker than choice. https://ncatlab.org/nlab/show/prime+ideal+theorem https://ncatlab.org/nlab/show/ultrafilter+theorem",
+            "name": "Boolean Prime Ideal Theorem",
+            "parent": "ebfc238b61"
+        },
+        {
+            "collapsed": false,
+            "id": "e5a7c9db05",
+            "info": "Every Boolean algebra is isomorphic to the clopen sets of its Stone space. https://ncatlab.org/nlab/show/Stone+duality#theorem_stone_representation https://ncatlab.org/nlab/show/ultrafilter+theorem",
+            "name": "Stone Representation Theorem",
+            "parent": "ebfc238b61"
+        },
+        {
+            "collapsed": false,
+            "id": "f6b8daec06",
+            "info": "A propositional formula true under every valuation is provable. https://ncatlab.org/nlab/show/prime+ideal+theorem https://ncatlab.org/nlab/show/syntax+-+semantics+duality",
+            "name": "Completeness of Propositional Logic",
+            "parent": "e5a7c9db05"
+        },
+        {
+            "collapsed": false,
+            "id": "a06a8bade6",
+            "info": "Complete Boolean algebras are dual to Stonean (extremally disconnected compact Hausdorff) spaces. https://ncatlab.org/nlab/show/Stone+duality#stonean_spaces_and_complete_boolean_algebras https://ncatlab.org/nlab/show/complete+Boolean+algebra https://ncatlab.org/nlab/show/Stone-Cech+compactification",
+            "name": "Stonean Duality",
+            "parent": "ebfc238b61"
+        },
+        {
+            "collapsed": false,
+            "id": "a0798cbef7",
+            "info": "σ-complete Boolean algebras are dual to (sober) measurable spaces. https://ncatlab.org/nlab/show/Loomis-Sikorski+duality https://ncatlab.org/nlab/show/measurable+Gelfand+duality",
+            "name": "Loomis–Sikorski Duality",
+            "parent": "ebfc238b61"
+        },
+        {
+            "collapsed": false,
+            "id": "a0887daf08",
+            "info": "A set of propositional formulas is satisfiable iff every finite subset is. https://ncatlab.org/nlab/show/compactness+theorem https://ncatlab.org/nlab/show/ultrafilter+theorem",
+            "name": "Compactness Theorem (Propositional)",
+            "parent": "ebfc238b61"
+        },
+        {
+            "collapsed": false,
+            "id": "a7c9ebfd07",
+            "info": "Bounded distributive lattices are dual to Priestley spaces; Esakia duality restricts this to Heyting algebras. https://ncatlab.org/nlab/show/Priestley+spaces https://ncatlab.org/nlab/show/Stone+duality#priestley_spaces_and_distributive_lattices https://ncatlab.org/nlab/show/Heyting+algebra",
+            "name": "Priestley & Esakia Duality",
+            "parent": "4e5f6a7b23"
+        },
+        {
+            "collapsed": false,
+            "id": "a0976ebf19",
+            "info": "Finite distributive lattices are dual to finite posets, via join-irreducibles and down-sets. https://ncatlab.org/nlab/show/Garrett+Birkhoff https://ncatlab.org/nlab/show/Priestley+spaces https://ncatlab.org/nlab/show/Stone+duality",
+            "name": "Birkhoff Duality",
+            "parent": "a7c9ebfd07"
+        },
+        {
+            "collapsed": false,
+            "id": "de3c565a4f",
+            "info": "Commutative unital C*-algebras are dual to compact Hausdorff spaces: every such algebra is C(X). https://ncatlab.org/nlab/show/Gelfand+duality https://ncatlab.org/nlab/show/Gelfand+spectrum https://ncatlab.org/nlab/show/fixed+point+equivalence+of+an+adjunction",
+            "name": "Gelfand Duality",
+            "parent": "2c3d4e5f21"
+        },
+        {
+            "collapsed": false,
+            "id": "b8daf0ae08",
+            "info": "The only complex Banach division algebra is ℂ, so every maximal ideal is the kernel of a character. https://ncatlab.org/nlab/show/Gelfand-Mazur+theorem",
+            "name": "Gelfand–Mazur Theorem",
+            "parent": "de3c565a4f"
+        },
+        {
+            "collapsed": false,
+            "id": "c9ebf1bf09",
+            "info": "In a normal space, disjoint closed sets are separated by a continuous function to [0, 1]. https://ncatlab.org/nlab/show/Urysohn%27s+lemma https://ncatlab.org/nlab/show/compact+Hausdorff+space",
+            "name": "Urysohn's Lemma",
+            "parent": "de3c565a4f"
+        },
+        {
+            "collapsed": false,
+            "id": "3fab8e65bb",
+            "info": "A unital *-subalgebra of C(X) that separates points is dense. https://ncatlab.org/nlab/show/Stone-Weierstrass+theorem https://ncatlab.org/nlab/show/Gelfand+duality",
+            "name": "Stone–Weierstrass Theorem",
+            "parent": "de3c565a4f"
+        },
+        {
+            "collapsed": false,
+            "id": "a01f3c5e71",
+            "info": "Vector bundles over a compact Hausdorff space X are the same as finitely generated projective C(X)-modules. https://ncatlab.org/nlab/show/Serre-Swan+theorem https://ncatlab.org/nlab/show/dualizable+module https://ncatlab.org/nlab/show/smooth+Serre-Swan+theorem",
+            "name": "Serre–Swan Theorem",
+            "parent": "de3c565a4f"
+        },
+        {
+            "collapsed": false,
+            "id": "a03d5e7a93",
+            "info": "Continuous functions can be applied to a normal operator, which can thereby be diagonalized; a corollary of Gelfand duality. https://ncatlab.org/nlab/show/functional+calculus https://ncatlab.org/nlab/show/spectral+theorem https://ncatlab.org/nlab/show/normal+operator",
+            "name": "Spectral Theorem",
+            "parent": "de3c565a4f"
+        },
+        {
+            "collapsed": false,
+            "id": "aebfc0d129",
+            "info": "The left adjoint to the inclusion of compact Hausdorff spaces into all spaces; βX is the spectrum of the bounded continuous functions on X. https://ncatlab.org/nlab/show/Stone-Cech+compactification https://ncatlab.org/nlab/show/Gelfand+duality",
+            "name": "Stone–Čech Compactification",
+            "parent": "de3c565a4f"
+        },
+        {
+            "collapsed": false,
+            "id": "dafc02c010",
+            "info": "Reduced finitely generated algebras over an algebraically closed field k are dual to affine varieties. https://ncatlab.org/nlab/show/Nullstellensatz https://ncatlab.org/nlab/show/affine+scheme",
+            "name": "Affine Variety Duality",
+            "parent": "2c3d4e5f21"
+        },
+        {
+            "collapsed": false,
+            "id": "f64080f209",
+            "info": "A finitely generated k-algebra that is a field is finite over k, so maximal ideals of k[x₁…xₙ] are points of kⁿ. https://ncatlab.org/nlab/show/Nullstellensatz https://ncatlab.org/nlab/show/maximal+ideal",
+            "name": "Zariski's Lemma",
+            "parent": "dafc02c010"
+        },
+        {
+            "collapsed": false,
+            "id": "18d01e2a72",
+            "info": "I(V(J)) = √J: closed subvarieties correspond to radical ideals. https://ncatlab.org/nlab/show/Nullstellensatz https://ncatlab.org/nlab/show/Galois+connection",
+            "name": "Nullstellensatz",
+            "parent": "dafc02c010"
+        },
+        {
+            "collapsed": false,
+            "id": "a04c6f8ba4",
+            "info": "Compact Hausdorff spaces embed fully faithfully into the opposite of real algebras via X ↦ C(X, ℝ). https://ncatlab.org/nlab/show/Gelfand-Kolmogorov+theorem https://ncatlab.org/nlab/show/embedding+of+smooth+manifolds+into+formal+duals+of+R-algebras https://ncatlab.org/nlab/show/duality+between+algebra+and+geometry",
+            "name": "Gelfand–Kolmogorov Theorem",
+            "parent": "2c3d4e5f21"
+        },
+        {
+            "collapsed": false,
+            "id": "a05b7a9cb5",
+            "info": "Sober spaces are equivalent to spatial locales (locales with enough points). https://ncatlab.org/nlab/show/spatial+locale https://ncatlab.org/nlab/show/idempotent+adjunction https://ncatlab.org/nlab/show/Stone+duality#topological_spaces",
+            "name": "Sober Spaces & Spatial Locales",
+            "parent": "2c3d4e5f21"
+        },
+        {
+            "collapsed": false,
+            "id": "3d4e5f6a22",
+            "info": "Groups are dual to groups via characters, homomorphisms into D. https://ncatlab.org/nlab/show/character https://ncatlab.org/nlab/show/Pontryagin+duality",
+            "name": "Character Dualities",
+            "parent": "8bb7fc59bd"
+        },
+        {
+            "collapsed": false,
+            "id": "fc0e24e212",
+            "info": "Locally compact abelian groups are dual to themselves via characters into the circle group. https://ncatlab.org/nlab/show/Pontryagin+duality https://ncatlab.org/nlab/show/Cartier+duality",
+            "name": "Pontryagin Duality",
+            "parent": "3d4e5f6a22"
+        },
+        {
+            "collapsed": false,
+            "id": "be2046a414",
+            "info": "A function on an LCA group is recovered from its Fourier transform, which is unitary on L². https://ncatlab.org/nlab/show/Fourier+transform https://ncatlab.org/nlab/show/Pontryagin+duality",
+            "name": "Fourier Inversion & Plancherel",
+            "parent": "fc0e24e212"
+        },
+        {
+            "collapsed": false,
+            "id": "a13720f35d",
+            "info": "A sum of a function over a lattice equals a sum of its Fourier transform over the dual lattice. https://ncatlab.org/nlab/show/Poisson+summation+formula https://ncatlab.org/nlab/show/Fourier+transform",
+            "name": "Poisson Summation Formula",
+            "parent": "fc0e24e212"
+        },
+        {
+            "collapsed": false,
+            "id": "a1283fe24c",
+            "info": "Characters into the multiplicative group: for a finite flat commutative group scheme G, G ↦ Hom(G, G_m) is a duality, and G is recovered as its double dual. It extends to some formal groups paired with affine group schemes. https://ncatlab.org/nlab/show/Cartier+duality https://ncatlab.org/nlab/show/Pontryagin+duality",
+            "name": "Cartier Duality",
+            "parent": "3d4e5f6a22"
+        },
+        {
+            "collapsed": false,
+            "id": "a10a5fc02a",
+            "info": "A finite-dimensional vector space is canonically isomorphic to its double dual. https://ncatlab.org/nlab/show/dual+vector+space https://ncatlab.org/nlab/show/dualizing+object",
+            "name": "Duality for Finite-Dimensional Vector Spaces",
+            "parent": "8bb7fc59bd"
+        },
+        {
+            "collapsed": false,
+            "id": "ebfd13d111",
+            "info": "Affine schemes are equivalent to the opposite of commutative rings, with Spec R = Hom(R, −). https://ncatlab.org/nlab/show/affine+scheme https://ncatlab.org/nlab/show/schemes",
+            "name": "Affine Schemes",
+            "parent": "87f20210f7"
+        },
+        {
+            "collapsed": false,
+            "id": "a11946d13b",
+            "info": "Quasicoherent sheaves on Spec R are equivalent to R-modules. https://ncatlab.org/nlab/show/modules+over+a+ring+are+equivalent+to+quasicoherent+sheaves+over+its+spectrum https://ncatlab.org/nlab/show/affine+scheme",
+            "name": "Affine Serre Theorem",
+            "parent": "ebfd13d111"
+        },
+        {
+            "collapsed": false,
+            "id": "263748593a",
+            "info": "Every proper ideal of a commutative ring lies in a maximal ideal, so the spectrum of a nonzero ring has a closed point; in general this needs the full axiom of choice. https://ncatlab.org/nlab/show/maximal+ideal https://ncatlab.org/nlab/show/prime+ideal+theorem",
+            "name": "Krull's Theorem",
+            "parent": "ebfd13d111"
+        },
+        {
+            "collapsed": false,
+            "id": "ae3823f085",
+            "info": "With V = truth values, Isbell duality becomes a Galois connection between posets. https://ncatlab.org/nlab/show/Galois+connection https://ncatlab.org/nlab/show/nucleus+of+a+profunctor",
+            "name": "Galois Connections (V = 2)",
+            "parent": "7cc07942dc"
+        },
+        {
+            "collapsed": false,
+            "id": "a1c3e5f701",
+            "info": "The smallest complete lattice containing a poset; for the rationals it gives the extended reals. https://ncatlab.org/nlab/show/MacNeille+completion https://ncatlab.org/nlab/show/injective+hull https://ncatlab.org/nlab/show/MacNeille+real+numbers",
+            "name": "Dedekind–MacNeille Completion",
+            "parent": "ae3823f085"
+        },
+        {
+            "collapsed": false,
+            "id": "b2d4f6a802",
+            "info": "Intermediate fields of a Galois extension correspond to closed subgroups of its Galois group (all subgroups, if finite). https://ncatlab.org/nlab/show/main+theorem+of+classical+Galois+theory https://ncatlab.org/nlab/show/Galois+theory https://ncatlab.org/nlab/show/Galois+connection",
+            "name": "Fundamental Theorem of Galois Theory",
+            "parent": "ae3823f085"
+        },
+        {
+            "collapsed": false,
+            "id": "a15532b57f",
+            "info": "Covering spaces of a space correspond to Set-actions of its fundamental groupoid. https://ncatlab.org/nlab/show/fundamental+theorem+of+covering+spaces https://ncatlab.org/nlab/show/Galois+theory",
+            "name": "Fundamental Theorem of Covering Spaces",
+            "parent": "b2d4f6a802"
+        },
+        {
+            "collapsed": false,
+            "id": "c3e5a7b903",
+            "info": "With V = [0, ∞], Isbell duality gives the Isbell completion of a metric space, whose symmetric part is the tight span. https://ncatlab.org/nlab/show/Lawvere+metric+space https://ncatlab.org/nlab/show/injective+hull https://ncatlab.org/nlab/show/reflexive+completion https://ncatlab.org/lspace/show/Tight+spans%2C+Isbell+completions+and+semi-tropical+modules",
+            "name": "Isbell Completion of Metric Spaces (V = [0, ∞])",
+            "parent": "7cc07942dc"
+        }
+    ],
+    "root": "9f94b5f42a"
+}
