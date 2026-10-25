@@ -15,7 +15,7 @@
 [![Download for Linux](https://img.shields.io/badge/Download-Linux-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-x86_64.AppImage)
 [![Open in your browser](https://img.shields.io/badge/Open-in%20your%20browser-3a5ca0?style=for-the-badge)](https://docrountree.github.io/treefern/)
 
-<img width="860" alt="TreeFern showing the standard layout" src="docs/screenshot-standard.png">
+<img width="860" alt="TreeFern showing the whole Tree of life" src="docs/screenshot-cover.png">
 
 </div>
 
