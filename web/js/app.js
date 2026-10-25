@@ -57,6 +57,36 @@ function showToast(s) {
 }
 
 // ---------------------------------------------------------------- hover notes
+// Text as nodes, its web addresses (http://, https://, www.) made links that open
+// in a new tab. Trailing punctuation stays outside a link, so a sentence can end
+// with one; a closing bracket stays in when the link opened it, as in Wikipedia's.
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+function trimUrl(u) {
+    for (;;) {
+        const last = u.slice(-1);
+        const open = { ')': '(', ']': '[', '}': '{' }[last];
+        if (open ? u.split(open).length <= u.split(last).length - 1 : /[.,;:!?'"]/.test(last)) u = u.slice(0, -1);
+        else return u;
+    }
+}
+function linkified(text) {
+    const out = [];
+    let at = 0;
+    for (const m of text.matchAll(URL_RE)) {
+        m[0] = trimUrl(m[0]);
+        if (m.index > at) out.push(document.createTextNode(text.slice(at, m.index)));
+        const a = document.createElement('a');
+        a.href = /^www\./i.test(m[0]) ? 'https://' + m[0] : m[0];
+        a.textContent = m[0];
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        out.push(a);
+        at = m.index + m[0].length;
+    }
+    if (at < text.length) out.push(document.createTextNode(text.slice(at)));
+    return out;
+}
+
 // A clade's info appears beside the pointer after a short rest on it.
 function hover(id, x, y) {
     hideTip();
@@ -186,7 +216,8 @@ function renderPanel() {
     }
     if (!n.kids.length) { const li = document.createElement('li'); li.textContent = '(none)'; li.style.color = 'var(--dim)'; li.style.cursor = 'default'; kids.append(li); }
     const info = $('info');
-    info.textContent = n.info || 'No info yet. Use Edit to add some.';
+    if (n.info) info.replaceChildren(...linkified(n.info));
+    else info.textContent = 'No info yet. Use Edit to add some.';
     info.classList.toggle('none', !n.info);
     const id = n.id;
     renderPics($('pics'), () => doc.find(id)?.images || [], i => {

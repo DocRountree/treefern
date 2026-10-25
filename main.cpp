@@ -53,18 +53,14 @@ constexpr double MAX_EXPORT_PIXELS = 40e6;      // about 160 MB of image memory
 constexpr int MAX_SVG_CLADES = 20000;           // larger SVGs bring most viewers to a halt
 constexpr int SLOW_EXPORT_CLADES = 50000;
 // labels
-constexpr double LABEL_MIN_SCREEN_LEN = 35;  // disks: smaller discs get no label
 constexpr double LABEL_GAP = 2;              // min spacing between label boxes
-constexpr double WRAP_COST = 0.12;           // placement penalty per extra wrapped line
 constexpr int MAX_WRAP_LINES = 6;            // most lines a label may wrap onto
-constexpr double STEM_COST = 0.8;            // soft penalty for covering the node's own branches
 // disks style (nested discs)
 constexpr double POLY_MARGIN = 0.96;      // usable fraction of a parent's radius
 constexpr double POLY_GAP = 0.94;         // fraction of its wedge a child fills (both styles)
 constexpr double POLY_ONLY_CHILD = 0.78;  // radius of a single child
 constexpr double POLY_EXP = 0.68;         // wedge share = weight^POLY_EXP (both styles)
 // standard style
-constexpr double STD_NODE = 0.05;          // leaf / collapsed node radius, in its own units
 constexpr double STD_WIDTH = 0.09;         // branch width, in units of the frame it leaves
 // Labels inside nodes: every node is a disc of this radius, in its own units
 // (1 = its outgoing branch), with its name fitted inside. Tune here; above
@@ -123,6 +119,31 @@ static Theme makeTheme(bool dark) {
 static Theme T = makeTheme(true);
 
 static QString colorCss(const QColor& c) { return "color:" + c.name(); }
+
+// Plain text as HTML, its web addresses (http://, https://, www.) made links.
+// Trailing punctuation stays outside a link, so a sentence can end with one; a
+// closing bracket stays in when the link opened it, as in Wikipedia's.
+static QString linkified(const QString& text, const QColor& link) {
+    static const QRegularExpression url("(?:https?://|www\\.)[^\\s<>\"]+", QRegularExpression::CaseInsensitiveOption);
+    QString out;
+    qsizetype at = 0;
+    for (auto it = url.globalMatch(text); it.hasNext();) {
+        const auto m = it.next();
+        QString u = m.captured();
+        for (;;) {
+            const QChar last = u.back();
+            const int k = QString(")]}").indexOf(last);
+            if (k >= 0 ? u.count(QString("([{")[k]) < u.count(last) : QString(".,;:!?'\"").contains(last)) u.chop(1);
+            else break;
+        }
+        const QString href = u.startsWith("www.", Qt::CaseInsensitive) ? "https://" + u : u;
+        out += text.mid(at, m.capturedStart() - at).toHtmlEscaped();
+        out += QString("<a href=\"%1\" style=\"color:%2\">%3</a>").arg(href.toHtmlEscaped(), link.name(), u.toHtmlEscaped());
+        at = m.capturedStart() + u.size();
+    }
+    out += text.mid(at).toHtmlEscaped();
+    return "<div style=\"white-space:pre-wrap\">" + out + "</div>";
+}
 
 static QColor depthColor(int d, double bright = 1.0) {
     return QColor::fromHsvF(((200 + d * 37) % 360) / 360.0, T.sat, std::min(1.0, T.val * bright));
@@ -527,7 +548,7 @@ private:
 // ------------------------------------------------------------- frames ---
 // A node's frame relative to its parent's: origin o and complex scale+rotation
 // z (both in parent units). dir = the direction the node grows in, in its own
-// frame (used to place beside-labels).
+// frame.
 struct Local { C o{0, 0}; C z{1, 0}; double dir = -PI / 2; };
 // A frame on screen: local point q maps to pixel o + z*q.
 struct Frame { C o{0, 0}; C z{1, 0}; };
@@ -579,9 +600,8 @@ struct Layout {
     int count() const { return int(loc.size()); }
     double extent(const Node* n) const { return ext.value(n, 1.0); }
     int weight(const Node* n) const { return size_.value(n, 1); }  // clade size, ignoring collapse
-    bool inside = false;  // standard: labels inside nodes, so nodes are INSIDE_NODE discs
     double own(const Node* n) const {  // radius of the node's own footprint, own units
-        return style == Disks ? 1.0 : isClado(style) ? CLADO_NODE : inside ? INSIDE_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH;
+        return style == Disks ? 1.0 : isClado(style) ? CLADO_NODE : INSIDE_NODE;
     }
 
     void compute(const Node* root) {
@@ -932,13 +952,6 @@ static std::vector<QPointF> drawTaper(QPainter& p, QPointF a, QPointF c, QPointF
     return mid;
 }
 
-// Box of size w*h whose side facing direction (ux, uy) touches (px, py).
-static QRectF anchoredRect(double w, double h, double px, double py, double ux, double uy) {
-    const double l = ux > 0.35 ? px : ux < -0.35 ? px - w : px - w / 2;
-    const double t = uy > 0.35 ? py : uy < -0.35 ? py - h : py - h / 2;
-    return QRectF(std::round(l), std::round(t), w, h);
-}
-
 // Ways to lay out a label: for each line count k = 1..MAX_WRAP_LINES, the split
 // that minimises the widest line (exact linear-partition DP). An option is kept
 // only if it is narrower than every option with fewer lines. Never truncates.
@@ -1004,11 +1017,9 @@ static QPolygonF arcPoints(C c, double r, double a0, double a1, const QRectF& vi
 class Canvas : public QWidget {
     Q_OBJECT
 public:
-    enum class LabelMode { Over, Beside, Inside };
 
     Layout lay;  // target layout; what is drawn (shownLoc) animates towards it
     QString selId, cutId;
-    LabelMode labelMode = LabelMode::Over;
 
     explicit Canvas(Model* m) : model(m) {
         setFocusPolicy(Qt::StrongFocus);
@@ -1044,7 +1055,6 @@ public:
     }
 
     bool disks() const { return lay.style == Layout::Disks; }
-    bool inside() const { return lay.inside && lay.style == Layout::Standard; }
     bool clado() const { return Layout::isClado(lay.style); }
 
     // Recompute the layout and animate from what is on screen now. While it
@@ -1508,8 +1518,7 @@ private:
         if (clado())  // branchPx: the length of the branch into it
             return {n, qpt(f.o), leaf ? CLADO_TIP_R : CLADO_NODE_R, s, 0, depth,
                     n->parent ? s * lay.reach.value(n) : 1e300};
-        const double r = disks() ? s : inside() ? std::max(3.0, s * INSIDE_NODE)
-                       : leaf ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
+        const double r = disks() ? s : std::max(3.0, s * INSIDE_NODE);
         // Standard: a leaf has no outgoing branch, so its size on screen is the branch drawn to it.
         double len = s;
         if (!disks() && leaf && n->parent)
@@ -1707,161 +1716,15 @@ void Canvas::drawNodes(QPainter& p) {
     }
 }
 
-// Greedy placement, selection first, then well-sized clades. Each label tries
-// every wrap option at every candidate position (Over: around the node centre /
-// disc top; Beside: rings around the node), cheapest first, and takes the first
-// one that is not blocked. Hard obstacles: placed labels (+gap), other nodes,
-// and branches not incident to the node. Its own branches are a soft cost.
-// The selection is forced if nothing is free; the hovered label is drawn last.
+// Cladograms label their tips and branches; the other layouts put each name inside its node.
 void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
     if (clado()) return drawCladoLabels(p, segs);
-    if (inside()) return drawInsideLabels(p);
-    const bool dk = disks(), beside = labelMode == LabelMode::Beside;
-    const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
-    constexpr double padX = 5, padY = 2;
-    static const double OFFS[] = {0, .45, -.45, .9, -.9, 1.4, -1.4, 2.0, -2.0, 2.5, -2.5, PI};
-    const QRectF view = vrect(), inner = view.adjusted(4, 4, -4, -4);
-    const QRectF nearView = view.adjusted(-120, -120, 120, 120);
-
-    const auto anySeg = segFinder(segs, nearView);
-
-    std::vector<QRectF> nodeRects, placed;
-    if (!dk)
-        for (const Item& v : items_)
-            nodeRects.push_back(QRectF(v.s.x() - v.r - 2, v.s.y() - v.r - 2, 2 * v.r + 4, 2 * v.r + 4));
-
-    auto blocked = [&](const QRectF& r, int own) {
-        const Node* me = items_[own].n;
-        if (me != sel && !inner.contains(r)) return true;
-        const QRectF t = r.adjusted(-LABEL_GAP, -LABEL_GAP, LABEL_GAP, LABEL_GAP);
-        if (std::any_of(placed.begin(), placed.end(), [&](const QRectF& q) { return q.intersects(t); })) return true;
-        for (size_t i = 0; i < nodeRects.size(); ++i)
-            if (int(i) != own && nodeRects[i].intersects(r)) return true;
-        return anySeg(r, [me](const Seg& s) { return s.p != me && s.c != me; });
-    };
-    auto onOwnStem = [&](const QRectF& r, const Node* me) {
-        return anySeg(r, [me](const Seg& s) { return s.p == me || s.c == me; });
-    };
-
-    struct Lbl { QRectF box; QString text; QFont font; const Node* n; QPointF target; bool forced, leader; };
-    auto makeLabel = [&](const Item& v, int own, bool force) -> std::optional<Lbl> {
-        QStringList words = v.n->name.split(' ', Qt::SkipEmptyParts);
-        if (words.isEmpty()) words << "?";
-        if (v.n == cut) words[0] = "✂ " + words[0];
-        if (v.n->collapsed && !v.n->kids.empty()) words << QString("[+%1]").arg(v.n->countDesc());
-
-        QFont f = font();
-        f.setPixelSize(std::clamp(int(dk ? v.lenPx * 0.11 : v.lenPx * 0.14), 11, 28));
-        const QFontMetricsF fm(f);
-
-        QPointF c = v.s;
-        double rr = v.r;
-        if (!beside) {
-            if (dk && !Layout::hidesKids(v.n)) {
-                c.ry() -= v.r * 0.82;
-                rr = std::min(v.r * 0.1, 12.0) + 2;
-                if (v.r > 200 && c.y() < 24 && v.s.y() + v.r > 80) {
-                    c.setY(std::clamp(24.0, v.s.y() - v.r + 24.0, v.s.y()));
-                    c.setX(std::clamp(c.x(), 80.0, vw() - 80.0));
-                }
-            }
-            if (!force && !nearView.contains(c)) return std::nullopt;
-        }
-
-        const std::vector<QStringList> opts = wrapOptions(words, fm);
-        struct Cand { double cost; QRectF r; int opt; bool leader; };
-        std::vector<Cand> cs;
-        for (int k = 0; k < int(opts.size()); ++k) {
-            double tw = 0;
-            for (const QString& line : opts[k]) tw = std::max(tw, fm.horizontalAdvance(line));
-            const double w = std::ceil(tw) + 2 * padX;
-            const double h = std::ceil(fm.height() + (opts[k].size() - 1) * fm.lineSpacing()) + 2 * padY;
-
-            if (beside) {
-                const int maxRings = (v.lenPx > 80 || force) ? 3 : 1;
-                for (int ring = 0; ring < maxRings; ++ring) {
-                    const double gap = v.r + 6 + ring * 22;
-                    for (double off : OFFS) {
-                        const double ux = std::cos(v.angle + off), uy = std::sin(v.angle + off);
-                        cs.push_back({ring + std::abs(off) * 0.25 + WRAP_COST * k,
-                                      anchoredRect(w, h, v.s.x() + ux * gap, v.s.y() + uy * gap, ux, uy), k, ring > 0});
-                    }
-                }
-                continue;
-            }
-
-            if (dk && !force && v.lenPx < 140 && w > v.r * 1.85) continue;
-            const double mx = w / 2 + rr - 1, my = h / 2 + rr - 1;
-            const int steps = (v.lenPx > 90 || force) ? 3 : 2;
-            for (int i = -steps; i <= steps; ++i)
-                for (int j = -steps; j <= steps; ++j) {
-                    const double dx = mx * i / 2.0, dy = my * j / 2.0;
-                    const QRectF r(std::round(c.x() + dx - w / 2), std::round(c.y() + dy - h / 2), w, h);
-                    const QPointF q(std::clamp(c.x(), r.left(), r.right()), std::clamp(c.y(), r.top(), r.bottom()));
-                    const double dist = QLineF(q, c).length();
-                    if (dist <= rr || (v.lenPx > 90 && dist <= rr + 36))
-                        cs.push_back({std::abs(dx) / w + std::abs(dy) / h + WRAP_COST * k + (dist > rr ? 1.5 : 0),
-                                      r, k, dist > rr + 4});
-                }
-        }
-        if (cs.empty()) return std::nullopt;
-        if (!segs.empty())
-            for (Cand& cd : cs)
-                if (onOwnStem(cd.r, v.n)) cd.cost += STEM_COST;
-        std::stable_sort(cs.begin(), cs.end(), [](const Cand& a, const Cand& b) { return a.cost < b.cost; });
-        for (const Cand& cd : cs)
-            if (!blocked(cd.r, own)) return Lbl{cd.r, opts[cd.opt].join('\n'), f, v.n, c, false, cd.leader};
-        if (!force) return std::nullopt;
-        return Lbl{cs.front().r, opts[cs.front().opt].join('\n'), f, v.n, c, true, false};
-    };
-
-    const double minLen = dk ? LABEL_MIN_SCREEN_LEN : 24.0;
-    std::vector<int> cands;
-    for (int i = 0; i < int(items_.size()); ++i) {
-        const Item& v = items_[i];
-        if (v.n == sel || v.branchPx >= minLen) cands.push_back(i);
-    }
-    auto priority = [&](const Item& v) {
-        const bool giantOffCenter = v.lenPx > std::max(vw(), vh()) * 1.2;
-        return std::make_tuple(v.n != sel, giantOffCenter, -lay.weight(v.n), v.depth, -v.lenPx);
-    };
-    std::sort(cands.begin(), cands.end(), [&](int a, int b) { return priority(items_[a]) < priority(items_[b]); });
-
-    std::vector<Lbl> labels;
-    bool hovShown = false;
-    for (int i : cands) {
-        if (int(labels.size()) >= MAX_LABELS) break;
-        if (auto l = makeLabel(items_[i], i, items_[i].n == sel)) {
-            placed.push_back(l->box);
-            labels.push_back(*l);
-            hovShown |= l->n == hov;
-        }
-    }
-    if (hov && !hovShown) {
-        const auto it = std::find_if(items_.begin(), items_.end(), [&](const Item& v) { return v.n == hov; });
-        if (it != items_.end())
-            if (auto l = makeLabel(*it, int(it - items_.begin()), true)) labels.push_back(*l);
-    }
-
-    for (const Lbl& l : labels) {
-        if (l.leader) {
-            p.setPen(QPen(T.dim, 1.2, Qt::DotLine));
-            p.drawLine(l.target, l.box.center());
-        }
-        const bool isSel = l.n == sel, isHov = l.n == hov;
-        p.setPen(isSel ? QPen(T.accent, 1) : isHov ? QPen(T.dim, 1) : QPen(Qt::NoPen));
-        p.setBrush(isHov || l.forced ? T.labelBgHover : T.labelBg);
-        p.drawRoundedRect(l.box, 5, 5);
-        p.setFont(l.font);
-        p.setPen(isSel ? T.accent : inCut(l.n) ? T.cut : T.fg);
-        p.drawText(l.box.adjusted(padX, padY, -padX, -padY), Qt::AlignCenter, l.text);
-        labelHits.push_back({l.box, l.n->id});
-    }
+    drawInsideLabels(p);
 }
 
-// Labels inside nodes (Standard layout): each name at the largest size that
-// fits its disc, wrapped onto the lines that allow the largest; too small to
-// read, it is left out, except for the selected or hovered clade, which gets a
+// Labels inside nodes: each name at the largest size that fits its disc (on
+// Disks, a clade with daughters uses the band at the top of its disc), wrapped
+// onto the lines that allow the largest; too small to read, it is left out, except for the selected or hovered clade, which gets a
 // label over its node instead.
 void Canvas::drawInsideLabels(QPainter& p) {
     const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
@@ -1874,7 +1737,10 @@ void Canvas::drawInsideLabels(QPainter& p) {
     int drawn = 0;
     for (const Item& v : items_) {
         const bool named = v.n == sel || v.n == hov;
-        if (v.r < INSIDE_MIN_FONT || !view.intersects(QRectF(v.s.x() - v.r, v.s.y() - v.r, 2 * v.r, 2 * v.r))) {
+        const bool band = disks() && !Layout::hidesKids(v.n);
+        const QPointF c = band ? QPointF(v.s.x(), v.s.y() - v.r * 0.8) : v.s;
+        const double rr = band ? v.r * 0.15 : v.r;
+        if (rr < INSIDE_MIN_FONT || !view.intersects(QRectF(c.x() - rr, c.y() - rr, 2 * rr, 2 * rr))) {
             if (named) small.push_back(&v);
             continue;
         }
@@ -1887,7 +1753,7 @@ void Canvas::drawInsideLabels(QPainter& p) {
         for (const QStringList& o : wrapOptions(words, rfm)) {  // the text's half-diagonal within the disc
             double w = 0;
             for (const QString& s : o) w = std::max(w, rfm.horizontalAdvance(s));
-            const double k = std::min(INSIDE_MAX_FONT, INSIDE_FILL * v.r * REF / std::hypot(w / 2, o.size() * LINE * REF / 2));
+            const double k = std::min(INSIDE_MAX_FONT, INSIDE_FILL * rr * REF / std::hypot(w / 2, o.size() * LINE * REF / 2));
             if (k > px) { px = k; lines = o; }
         }
         if (px < INSIDE_MIN_FONT) {
@@ -1898,11 +1764,11 @@ void Canvas::drawInsideLabels(QPainter& p) {
         QFont f = font();
         f.setPixelSize(int(px));
         p.setFont(f);
-        const QColor fill = inCut(v.n) ? T.cut.darker(160) : nodeColor(v.n, v.depth, 1.0);
+        const QColor fill = inCut(v.n) ? T.cut.darker(160) : nodeColor(v.n, v.depth, disks() ? 0.55 : 1.0);
         p.setPen(qGray(fill.rgb()) > 140 ? QColor("#10131e") : QColor("#f4f6fb"));
-        const double lineH = int(px) * LINE, top = v.s.y() - (lines.size() - 1) * lineH / 2;
+        const double lineH = int(px) * LINE, top = c.y() - (lines.size() - 1) * lineH / 2;
         for (int i = 0; i < lines.size(); ++i)
-            p.drawText(QRectF(v.s.x() - v.r, top + i * lineH - lineH / 2, 2 * v.r, lineH), Qt::AlignCenter, lines[i]);
+            p.drawText(QRectF(c.x() - rr, top + i * lineH - lineH / 2, 2 * rr, lineH), Qt::AlignCenter, lines[i]);
     }
     for (const Item* v : small) {  // the selection and the hovered clade are always named
         QFont f = font();
@@ -2460,6 +2326,7 @@ public:
         kids->setMaximumHeight(160);
         up->setFlat(true);
         info->setPlaceholderText("(no info — press E, double-click the node, or click 'Edit')");
+        info->setOpenExternalLinks(true);  // web addresses in the info open in the browser
         empty->setWordWrap(true);
         setAcceptDrops(true);
 
@@ -2529,7 +2396,8 @@ public:
         upId = n->parent ? n->parent->id : QString();
         up->setVisible(n->parent);
         if (n->parent) up->setText("‹ up to " + n->parent->name);
-        info->setPlainText(n->info);
+        if (n->info.isEmpty()) info->clear();  // keeps the placeholder
+        else info->setHtml(linkified(n->info, T.link));
         if (n->images != shownImages)
             fillThumbnails(pics, shownImages = n->images, [this](int i) { emit pictureOpened(i); }, [this](int i) { emit pictureRemoved(i); });
     }
@@ -2835,13 +2703,6 @@ public:
         for (Layout::Style st : {Layout::Standard, Layout::Disks, Layout::Rectangular, Layout::Circular})
             styleActs.push_back(radio(styleGroup, mk(Layout::styleName(st), {QKeySequence(QString("Ctrl+%1").arg(st + 1))},
                                                      [this, st] { setStyle(st); })));
-        viewMenu->addSection("Labels");
-        auto labelGroup = new QActionGroup(this);
-        aLabelsOver = radio(labelGroup, mk("Labels over nodes", {}, [this] { setLabels(Canvas::LabelMode::Over); }));
-        aLabelsBeside = radio(labelGroup, mk("Labels beside nodes", {}, [this] { setLabels(Canvas::LabelMode::Beside); }));
-        aLabelsInside = radio(labelGroup, mk("Labels inside nodes", {}, [this] { setLabels(Canvas::LabelMode::Inside); }));
-        viewMenu->addAction(mk("Next label placement", {Qt::Key_L},
-                               [this] { setLabels(Canvas::LabelMode((int(canvas->labelMode) + 1) % 3)); }));
         viewMenu->addSection("Theme");
         viewMenu->addAction(aDark = mk("Dark mode", {QKeySequence("Ctrl+Shift+D")}, [this](bool on) { applyTheme(on); }));
         aDark->setCheckable(true);
@@ -2888,8 +2749,6 @@ public:
         const int st = std::clamp(s.value("view/style", int(Layout::Standard)).toInt(), 0, int(Layout::Circular));
         canvas->lay.style = Layout::Style(st);
         styleActs[st]->setChecked(true);
-        const int labels = s.value("view/labels", s.value("view/labelsBeside", false).toBool() ? 1 : 0).toInt();  // older: labelsBeside
-        setLabels(Canvas::LabelMode(std::clamp(labels, 0, 2)));
         applyTheme(s.value("view/dark", true).toBool());
         canvas->relayout(false);
         refresh();
@@ -2952,7 +2811,7 @@ private:
     QLabel* hud = new QLabel;
     QMenu* recentMenu = nullptr;
     QAction *aAdd, *aSister, *aEdit, *aCollapse, *aColor, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs, *aExport;
-    QAction *aLabelsOver, *aLabelsBeside, *aLabelsInside, *aDark, *aPalette = nullptr;
+    QAction *aDark, *aPalette = nullptr;
     std::vector<QAction*> styleActs;  // indexed by Layout::Style
 
     Node* sel() const { return model.find(canvas->selId); }
@@ -3011,19 +2870,6 @@ private:
         canvas->fitView();
         QSettings().setValue("view/style", int(st));
         updateHud();
-    }
-
-    // Labels over, beside or inside nodes. Inside, nodes are bigger, so the Standard layout is redone.
-    void setLabels(Canvas::LabelMode mode) {
-        canvas->labelMode = mode;
-        (mode == Canvas::LabelMode::Beside ? aLabelsBeside : mode == Canvas::LabelMode::Inside ? aLabelsInside : aLabelsOver)->setChecked(true);
-        QSettings().setValue("view/labels", int(mode));
-        const bool inside = mode == Canvas::LabelMode::Inside;
-        if (canvas->lay.inside != inside) {
-            canvas->lay.inside = inside;
-            if (canvas->lay.style == Layout::Standard) canvas->relayout();
-        }
-        canvas->update();
     }
 
     void applyTheme(bool dark) {

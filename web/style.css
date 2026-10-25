@@ -151,6 +151,7 @@ button { cursor: pointer; }
 .kids li:hover { background: var(--btn); }
 .info { white-space: pre-wrap; overflow-wrap: anywhere; }
 .info.none { color: var(--dim); font-style: italic; }
+.info a { color: var(--link); }
 .pics { display: flex; flex-wrap: wrap; gap: 6px; }
 .pics:empty { display: none; }
 .pics .pic { position: relative; }

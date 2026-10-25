@@ -43,12 +43,11 @@ You can also [use TreeFern in your browser](https://docrountree.github.io/treefe
 - **Editing**: add daughter clades, rename clades and attach free-form notes to them, collapse or expand subtrees, delete subtrees, and move a subtree to a new mother clade with cut and paste.
 - **Pictures in the notes**: drag pictures onto a clade, the side panel or the Edit box. They are kept in the cladogram file, scaled to at most 1200 px.
 - **Autosave and live sync**: each change is written to disk atomically, and the file is reloaded automatically if another program modifies it.
-- **Dynamic labels**: labels too small to read are hidden until you zoom in, and labels reposition themselves to avoid overlapping. Labels can be placed over, beside or inside nodes; inside, each name is fitted to its node and grows as you zoom in.
 - **Search and navigation**: find clades by name from the side panel, follow the trail of mother clades above the selection, and move around the tree entirely by keyboard or entirely by mouse.
 - **Export**: save the current view or the whole tree as a PNG image (at 1x, 2x or 4x resolution) or a scalable SVG, optionally with a transparent background, or copy it to the clipboard.
 - **Command palette**: Ctrl+K finds any command by typing part of its name.
 - **Dark and light themes.**
-- **Remembered preferences**: layout, label placement, theme and recently opened files persist between sessions.
+- **Remembered preferences**: layout, theme and recently opened files persist between sessions.
 
 ## Download
 
@@ -179,11 +178,9 @@ Because the format is plain JSON, files can be generated or edited by scripts an
   </tr>
   <tr>
     <td width="50%"><img alt="Light mode" src="https://github.com/user-attachments/assets/7cbe0f3a-47f7-4e0a-9221-42b328ce9440"></td>
-    <td width="50%"><img alt="Labels beside nodes" src="https://github.com/user-attachments/assets/e501e873-f8ca-4104-8ab2-2d8eace6a696"></td>
   </tr>
   <tr>
     <td align="center"><em>Light mode</em></td>
-    <td align="center"><em>Labels beside nodes</em></td>
   </tr>
 </table>
 
