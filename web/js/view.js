@@ -4,17 +4,16 @@ import {
     PI, C, add, sub, mul, scale, abs, norm, arg, polar, remainder, clamp, Local, Frame,
     compose, uncompose, finiteFrame, lerpZ, lerpLocal, easeOutCubic, easeInOutCubic,
 } from './geom.js';
-import { Layout, STANDARD, DISKS, CIRC, STD_NODE, STD_WIDTH, isClado } from './layout.js';
+import { Layout, STANDARD, DISKS, CIRC, STD_WIDTH, INSIDE_NODE, isClado } from './layout.js';
 import { hidesKids, depth as nodeDepth, contains, countDesc } from './model.js';
 
 const ANIM_MS = 380;            // relayout animation; camera flights take twice as long
 const ZOOM_STEP = 1.15, FAST_ZOOM_STEP = 2.0;
 const MAX_LABELS = 400;
-const LABEL_MIN_SCREEN_LEN = 35;  // disks: smaller discs get no label
 const LABEL_GAP = 2;
-const WRAP_COST = 0.12;
+const INSIDE_MIN_FONT = 8, INSIDE_MAX_FONT = 400;  // px: labels inside nodes
+const INSIDE_FILL = 0.88;  // fraction of a node's radius its label may reach
 const MAX_WRAP_LINES = 6;
-const STEM_COST = 0.8;
 const STD_CURVE = 0.1;
 const MIN_PX = 0.6;
 const FIT_MARGIN = 120;
@@ -83,13 +82,6 @@ const hits = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 const inside = (outer, r) => r.x0 >= outer.x0 && r.y0 >= outer.y0 && r.x1 <= outer.x1 && r.y1 <= outer.y1;
 const has = (r, p) => p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1;
 
-// Box of size w*h whose side facing direction (ux, uy) touches (px, py).
-function anchoredRect(w, h, px, py, ux, uy) {
-    const l = ux > 0.35 ? px : ux < -0.35 ? px - w : px - w / 2;
-    const t = uy > 0.35 ? py : uy < -0.35 ? py - h : py - h / 2;
-    return rectWH(Math.round(l), Math.round(t), w, h);
-}
-
 // Finds whether a rect touches any (padded) branch piece accepted by want(),
 // with a uniform grid over the pieces. Every rect a caller tests lies in
 // nearView, so clamping to it loses nothing.
@@ -150,7 +142,6 @@ export class TreeView {
         this.h = handlers;  // {select(id), edit(id), menu(id, clientX, clientY), viewChanged()}
         this.lay = new Layout();
         this.theme = THEMES.dark;
-        this.labelsBeside = false;
         this.selId = '';
         this.cutId = '';
         this.hoverId = '';
@@ -516,7 +507,7 @@ export class TreeView {
         if (this.clado())  // branchPx: the length of the branch into it
             return { n, s: f.o, r: leaf ? CLADO_TIP_R : CLADO_NODE_R, lenPx: s, angle: 0, depth: d,
                      branchPx: n.parent ? s * (this.lay.reach.get(n) ?? 0) : Infinity };
-        const r = this.disks() ? s : leaf ? Math.max(3, s * STD_NODE) : Math.max(3.5, s * STD_WIDTH * 0.65);
+        const r = this.disks() ? s : Math.max(3, s * INSIDE_NODE);
         let len = s;
         if (!this.disks() && leaf && n.parent) {
             const L = this.sloc(n);
@@ -730,130 +721,69 @@ export class TreeView {
         return out;
     }
 
-    // Greedy placement, selection first, then well-sized clades (see the desktop app).
+    // Cladograms label their tips and branches; the other layouts put each name inside its node.
     drawLabels(segs) {
         if (this.clado()) return this.drawCladoLabels(segs);
-        const ctx = this.ctx, t = this.theme, dk = this.disks(), beside = this.labelsBeside;
+        this.drawInsideLabels();
+    }
+
+    // Labels inside nodes: each name at the largest size that fits its disc (on
+    // Disks, a clade with daughters uses the band at the top of its disc), wrapped
+    // onto the lines that allow the largest; too small to read, it is left out,
+    // except for the selected or hovered clade, which gets a label over its node instead.
+
+    drawInsideLabels() {
+        const ctx = this.ctx, t = this.theme;
         const sel = this.doc.find(this.selId), cutN = this.doc.find(this.cutId), hov = this.doc.find(this.hoverId);
-        const padX = 5, padY = 2;
-        const OFFS = [0, .45, -.45, .9, -.9, 1.4, -1.4, 2.0, -2.0, 2.5, -2.5, PI];
-        const view = R(0, 0, this.width, this.height), inner = R(4, 4, this.width - 4, this.height - 4);
-        const nearView = inflate(view, 120);
-        const items = this.items;
-
-        const anySeg = segFinder(segs, nearView);
-        const nodeRects = dk ? [] : items.map(v => R(v.s.x - v.r - 2, v.s.y - v.r - 2, v.s.x + v.r + 2, v.s.y + v.r + 2));
-        const placed = [];
-        const blocked = (r, own) => {
-            const me = items[own].n;
-            if (me !== sel && !inside(inner, r)) return true;
-            const tr = inflate(r, LABEL_GAP);
-            if (placed.some(q => hits(q, tr))) return true;
-            for (let i = 0; i < nodeRects.length; ++i) if (i !== own && hits(nodeRects[i], r)) return true;
-            return anySeg(r, s => s.p !== me && s.c !== me);
-        };
-        const onOwnStem = (r, me) => anySeg(r, s => s.p === me || s.c === me);
-
-        const makeLabel = (v, own, force) => {
+        const REF = 100, refFont = `${REF}px ${FONT}`, LINE = 1.2;
+        const view = R(0, 0, this.width, this.height);
+        const fit = v => {
             let words = v.n.name.split(/\s+/).filter(Boolean);
             if (!words.length) words = ['?'];
             if (v.n === cutN) words[0] = '✂ ' + words[0];
             if (v.n.collapsed && v.n.kids.length) words.push(`[+${countDesc(v.n)}]`);
-            const px = clamp(Math.trunc(dk ? v.lenPx * 0.11 : v.lenPx * 0.14), 11, 28);
-            const font = `${px}px ${FONT}`;
-            const lineH = Math.round(px * 1.25);
-
-            let c = v.s, rr = v.r;
-            if (!beside) {
-                if (dk && !hidesKids(v.n)) {
-                    c = C(v.s.x, v.s.y - v.r * 0.82);
-                    rr = Math.min(v.r * 0.1, 12) + 2;
-                    if (v.r > 200 && c.y < 24 && v.s.y + v.r > 80)
-                        c = C(clamp(c.x, 80, this.width - 80), clamp(24, v.s.y - v.r + 24, v.s.y));
-                }
-                if (!force && !has(nearView, c)) return null;
+            let best = null;
+            for (const o of this.wrapOptions(words, refFont)) {  // the text's half-diagonal within the disc
+                const px = Math.min(INSIDE_MAX_FONT, INSIDE_FILL * v.rr * REF / Math.hypot(o.width / 2, o.lines.length * LINE * REF / 2));
+                if (!best || px > best.px) best = { lines: o.lines, px };
             }
-            const opts = this.wrapOptions(words, font);
-            const cs = [];
-            opts.forEach((o, k) => {
-                const w = Math.ceil(o.width) + 2 * padX, h = lineH * o.lines.length + 2 * padY;
-                if (beside) {
-                    const maxRings = (v.lenPx > 80 || force) ? 3 : 1;
-                    for (let ring = 0; ring < maxRings; ++ring) {
-                        const gap = v.r + 6 + ring * 22;
-                        for (const off of OFFS) {
-                            const ux = Math.cos(v.angle + off), uy = Math.sin(v.angle + off);
-                            cs.push({ cost: ring + Math.abs(off) * 0.25 + WRAP_COST * k,
-                                      r: anchoredRect(w, h, v.s.x + ux * gap, v.s.y + uy * gap, ux, uy), k, leader: ring > 0 });
-                        }
-                    }
-                    return;
-                }
-                if (dk && !force && v.lenPx < 140 && w > v.r * 1.85) return;
-                const mx = w / 2 + rr - 1, my = h / 2 + rr - 1;
-                const steps = (v.lenPx > 90 || force) ? 3 : 2;
-                for (let i = -steps; i <= steps; ++i)
-                    for (let j = -steps; j <= steps; ++j) {
-                        const dx = mx * i / 2, dy = my * j / 2;
-                        const r = rectWH(Math.round(c.x + dx - w / 2), Math.round(c.y + dy - h / 2), w, h);
-                        const q = C(clamp(c.x, r.x0, r.x1), clamp(c.y, r.y0, r.y1));
-                        const dist = Math.hypot(q.x - c.x, q.y - c.y);
-                        if (dist <= rr || (v.lenPx > 90 && dist <= rr + 36))
-                            cs.push({ cost: Math.abs(dx) / w + Math.abs(dy) / h + WRAP_COST * k + (dist > rr ? 1.5 : 0),
-                                      r, k, leader: dist > rr + 4 });
-                    }
-            });
-            if (!cs.length) return null;
-            if (segs.length) for (const cd of cs) if (onOwnStem(cd.r, v.n)) cd.cost += STEM_COST;
-            cs.sort((a, b) => a.cost - b.cost);
-            for (const cd of cs)
-                if (!blocked(cd.r, own)) return { box: cd.r, lines: opts[cd.k].lines, font, lineH, n: v.n, target: c, forced: false, leader: cd.leader };
-            if (!force) return null;
-            return { box: cs[0].r, lines: opts[cs[0].k].lines, font, lineH, n: v.n, target: c, forced: true, leader: false };
+            return best;
         };
-
-        const minLen = dk ? LABEL_MIN_SCREEN_LEN : 24;
-        const cands = [];
-        items.forEach((v, i) => { if (v.n === sel || v.branchPx >= minLen) cands.push(i); });
-        const big = Math.max(this.width, this.height) * 1.2;
-        const prio = v => [v.n !== sel ? 1 : 0, v.lenPx > big ? 1 : 0, -this.lay.weight(v.n), v.depth, -v.lenPx];
-        const cmp = (a, b) => { for (let i = 0; i < a.length; ++i) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
-        const keyed = cands.map(i => [prio(items[i]), i]).sort((a, b) => cmp(a[0], b[0]));
-
-        const labels = [];
-        let hovShown = false;
-        for (const [, i] of keyed) {
-            if (labels.length >= MAX_LABELS) break;
-            const l = makeLabel(items[i], i, items[i].n === sel);
-            if (l) { placed.push(l.box); labels.push(l); hovShown ||= l.n === hov; }
-        }
-        if (hov && !hovShown) {
-            const i = items.findIndex(v => v.n === hov);
-            if (i >= 0) { const l = makeLabel(items[i], i, true); if (l) labels.push(l); }
-        }
-
+        const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        for (const l of labels) {
-            const b = l.box, cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
-            if (l.leader) {
-                ctx.setLineDash([1.5, 3]);
-                ctx.lineWidth = 1.2;
-                ctx.strokeStyle = css(t.dim);
-                ctx.beginPath(); ctx.moveTo(l.target.x, l.target.y); ctx.lineTo(cx, cy); ctx.stroke();
-                ctx.setLineDash([]);
+        let drawn = 0;
+        const small = [];
+        for (const it of this.items) {
+            const band = this.disks() && !hidesKids(it.n);
+            const v = { ...it, c: band ? C(it.s.x, it.s.y - it.r * 0.8) : it.s, rr: band ? it.r * 0.15 : it.r };
+            if (v.rr < INSIDE_MIN_FONT || !hits(view, R(v.c.x - v.rr, v.c.y - v.rr, v.c.x + v.rr, v.c.y + v.rr))) {
+                if (v.n === sel || v.n === hov) small.push(v);
+                continue;
             }
-            const isSel = l.n === sel, isHov = l.n === hov;
+            const f = fit(v);
+            if (f.px < INSIDE_MIN_FONT) { if (v.n === sel || v.n === hov) small.push(v); continue; }
+            if (drawn++ >= MAX_LABELS * 4) break;
+            const px = Math.floor(f.px), lineH = px * LINE;
+            const fill = this.inCut(v.n) ? darker(t.cut, 160) : this.nodeColor(v.n, v.depth, this.disks() ? 0.55 : 1);
+            ctx.font = `${px}px ${FONT}`;
+            ctx.fillStyle = lum(fill) > 140 ? '#10131e' : '#f4f6fb';
+            const top = v.c.y - (f.lines.length - 1) * lineH / 2;
+            f.lines.forEach((s, i) => ctx.fillText(s, v.c.x, top + i * lineH + 0.5));
+        }
+        for (const v of small) {  // the selection and the hovered clade are always named
+            const px = 13, font = `${px}px ${FONT}`, name = v.n.name || '?';
+            const w = this.measure(font, name) + 10, h = px + 6;
+            const b = rectWH(Math.round(v.s.x - w / 2), Math.round(v.s.y - v.r - 6 - h), w, h);
             ctx.beginPath();
-            ctx.roundRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 5);
-            ctx.fillStyle = isHov || l.forced ? t.labelBgHover : t.labelBg;
+            ctx.roundRect(b.x0, b.y0, w, h, 5);
+            ctx.fillStyle = t.labelBgHover;
             ctx.fill();
-            if (isSel || isHov) { ctx.lineWidth = 1; ctx.strokeStyle = css(isSel ? t.accent : t.dim); ctx.stroke(); }
-            ctx.font = l.font;
-            ctx.fillStyle = css(isSel ? t.accent : this.inCut(l.n) ? t.cut : t.fg);
-            const top = cy - (l.lines.length - 1) * l.lineH / 2;
-            l.lines.forEach((s, i) => ctx.fillText(s, cx, top + i * l.lineH + 0.5));
-            this.labelHits.push([b, l.n.id]);
+            ctx.lineWidth = 1; ctx.strokeStyle = css(v.n === sel ? t.accent : t.dim); ctx.stroke();
+            ctx.font = font;
+            ctx.fillStyle = css(v.n === sel ? t.accent : t.fg);
+            ctx.fillText(name, v.s.x, (b.y0 + b.y1) / 2 + 0.5);
+            this.labelHits.push([b, v.n.id]);
         }
     }
 

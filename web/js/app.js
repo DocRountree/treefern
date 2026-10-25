@@ -57,6 +57,39 @@ function showToast(s) {
 }
 
 // ---------------------------------------------------------------- hover notes
+// Text as nodes, its web addresses made links that open in a new tab: anything
+// after http:// or https://, anything starting www., and bare names like
+// abc.xyz when they end in a common web suffix (so "e.g." or "life.json" stay
+// text; email addresses too). Trailing punctuation stays outside a link, so a
+// sentence can end with one; a closing bracket stays in when the link opened it,
+// as in Wikipedia's.
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+|(?<![@\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|org|net|edu|gov|mil|int|info|biz|io|co|ai|app|dev|xyz|me|tv|ly|site|online|tech|wiki|blog|news|museum|science|bio|eco|earth|club|page|uk|us|ca|au|nz|ie|de|fr|es|it|nl|be|at|ch|se|no|fi|dk|is|pl|cz|pt|gr|ru|ua|eu|jp|cn|kr|in|br|mx|ar|za)(?![\w-])(?:[/?#][^\s<>"]*)?/gi;
+function trimUrl(u) {
+    for (;;) {
+        const last = u.slice(-1);
+        const open = { ')': '(', ']': '[', '}': '{' }[last];
+        if (open ? u.split(open).length <= u.split(last).length - 1 : /[.,;:!?'"]/.test(last)) u = u.slice(0, -1);
+        else return u;
+    }
+}
+function linkified(text) {
+    const out = [];
+    let at = 0;
+    for (const m of text.matchAll(URL_RE)) {
+        m[0] = trimUrl(m[0]);
+        if (m.index > at) out.push(document.createTextNode(text.slice(at, m.index)));
+        const a = document.createElement('a');
+        a.href = /^https?:\/\//i.test(m[0]) ? m[0] : 'https://' + m[0];
+        a.textContent = m[0];
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        out.push(a);
+        at = m.index + m[0].length;
+    }
+    if (at < text.length) out.push(document.createTextNode(text.slice(at)));
+    return out;
+}
+
 // A clade's info appears beside the pointer after a short rest on it.
 function hover(id, x, y) {
     hideTip();
@@ -186,7 +219,8 @@ function renderPanel() {
     }
     if (!n.kids.length) { const li = document.createElement('li'); li.textContent = '(none)'; li.style.color = 'var(--dim)'; li.style.cursor = 'default'; kids.append(li); }
     const info = $('info');
-    info.textContent = n.info || 'No info yet. Use Edit to add some.';
+    if (n.info) info.replaceChildren(...linkified(n.info));
+    else info.textContent = 'No info yet. Use Edit to add some.';
     info.classList.toggle('none', !n.info);
     const id = n.id;
     renderPics($('pics'), () => doc.find(id)?.images || [], i => {
@@ -986,7 +1020,7 @@ if ('launchQueue' in window)
     });
 
 // ---------------------------------------------------------------- view settings
-const prefs = Object.assign({ style: STANDARD, beside: false, theme: matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark' },
+const prefs = Object.assign({ style: STANDARD, theme: matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark' },
                             store.get(PREFS_KEY) || {});
 function savePrefs() { store.set(PREFS_KEY, prefs); }
 
@@ -1007,7 +1041,6 @@ function setStyle(st) {
     savePrefs();
     refresh();
 }
-function setBeside(on) { prefs.beside = on; view.labelsBeside = on; view.draw(); savePrefs(); }
 function tune(f) {
     f(view.lay);
     if (view.lay.style === STANDARD) view.relayout(true);
@@ -1053,9 +1086,6 @@ const MENUS = {
     ],
     View: () => [
         ...STYLES.map((st, i) => ({ label: STYLE_NAMES[st] + ' layout', key: String(i + 1), checked: view.lay.style === st, run: () => setStyle(st) })),
-        { sep: true },
-        { label: 'Labels over nodes', checked: !view.labelsBeside, run: () => setBeside(false) },
-        { label: 'Labels beside nodes', key: 'L', checked: view.labelsBeside, run: () => setBeside(true) },
         { sep: true },
         { label: 'Dark mode', key: 'Shift+D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
         { sep: true },
@@ -1320,7 +1350,6 @@ addEventListener('keydown', e => {
         ArrowLeft: () => navigate('left'), ArrowRight: () => navigate('right'),
         Home: () => view.fitView(),
         1: () => setStyle(STYLES[0]), 2: () => setStyle(STYLES[1]), 3: () => setStyle(STYLES[2]), 4: () => setStyle(STYLES[3]),
-        l: () => setBeside(!view.labelsBeside),
         d: e.shiftKey ? () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') : actAdd,  // D: add a daughter
         '/': focusSearch, '?': () => $('helpDlg').showModal(),
         '+': () => tune(l => { l.spread = Math.min(340 * DEG, l.spread + 10 * DEG); }),
@@ -1356,7 +1385,7 @@ if (CHANNEL) {
     document.querySelector('.brand').after(b);
 }
 view.lay.style = STYLES.includes(prefs.style) ? prefs.style : STANDARD;
-view.labelsBeside = !!prefs.beside;
+delete prefs.beside, delete prefs.labels;  // label settings of older versions
 applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
 
 (async () => {
