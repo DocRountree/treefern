@@ -986,7 +986,7 @@ if ('launchQueue' in window)
     });
 
 // ---------------------------------------------------------------- view settings
-const prefs = Object.assign({ style: STANDARD, beside: false, theme: matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark' },
+const prefs = Object.assign({ style: STANDARD, theme: matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark' },
                             store.get(PREFS_KEY) || {});
 function savePrefs() { store.set(PREFS_KEY, prefs); }
 
@@ -1007,7 +1007,16 @@ function setStyle(st) {
     savePrefs();
     refresh();
 }
-function setBeside(on) { prefs.beside = on; view.labelsBeside = on; view.draw(); savePrefs(); }
+// Labels over, beside or inside nodes. Inside, nodes are bigger, so the Standard layout is redone.
+const LABEL_MODES = ['over', 'beside', 'inside'];
+function setLabels(mode) {
+    prefs.labels = mode;
+    view.labelsBeside = mode === 'beside';
+    const inside = mode === 'inside';
+    if (view.lay.inside !== inside) { view.lay.inside = inside; if (view.lay.style === STANDARD) view.relayout(true); }
+    view.draw();
+    savePrefs();
+}
 function tune(f) {
     f(view.lay);
     if (view.lay.style === STANDARD) view.relayout(true);
@@ -1054,8 +1063,9 @@ const MENUS = {
     View: () => [
         ...STYLES.map((st, i) => ({ label: STYLE_NAMES[st] + ' layout', key: String(i + 1), checked: view.lay.style === st, run: () => setStyle(st) })),
         { sep: true },
-        { label: 'Labels over nodes', checked: !view.labelsBeside, run: () => setBeside(false) },
-        { label: 'Labels beside nodes', key: 'L', checked: view.labelsBeside, run: () => setBeside(true) },
+        { label: 'Labels over nodes', checked: prefs.labels === 'over', run: () => setLabels('over') },
+        { label: 'Labels beside nodes', checked: prefs.labels === 'beside', run: () => setLabels('beside') },
+        { label: 'Labels inside nodes', key: 'L', checked: prefs.labels === 'inside', run: () => setLabels('inside') },
         { sep: true },
         { label: 'Dark mode', key: 'Shift+D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
         { sep: true },
@@ -1320,7 +1330,7 @@ addEventListener('keydown', e => {
         ArrowLeft: () => navigate('left'), ArrowRight: () => navigate('right'),
         Home: () => view.fitView(),
         1: () => setStyle(STYLES[0]), 2: () => setStyle(STYLES[1]), 3: () => setStyle(STYLES[2]), 4: () => setStyle(STYLES[3]),
-        l: () => setBeside(!view.labelsBeside),
+        l: () => setLabels(LABEL_MODES[(LABEL_MODES.indexOf(prefs.labels) + 1) % LABEL_MODES.length]),
         d: e.shiftKey ? () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') : actAdd,  // D: add a daughter
         '/': focusSearch, '?': () => $('helpDlg').showModal(),
         '+': () => tune(l => { l.spread = Math.min(340 * DEG, l.spread + 10 * DEG); }),
@@ -1356,7 +1366,10 @@ if (CHANNEL) {
     document.querySelector('.brand').after(b);
 }
 view.lay.style = STYLES.includes(prefs.style) ? prefs.style : STANDARD;
-view.labelsBeside = !!prefs.beside;
+if (!LABEL_MODES.includes(prefs.labels)) prefs.labels = prefs.beside ? 'beside' : 'over';  // older prefs
+delete prefs.beside;
+view.labelsBeside = prefs.labels === 'beside';
+view.lay.inside = prefs.labels === 'inside';
 applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
 
 (async () => {

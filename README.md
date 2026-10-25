@@ -43,7 +43,7 @@ You can also [use TreeFern in your browser](https://docrountree.github.io/treefe
 - **Editing**: add daughter clades, rename clades and attach free-form notes to them, collapse or expand subtrees, delete subtrees, and move a subtree to a new mother clade with cut and paste.
 - **Pictures in the notes**: drag pictures onto a clade, the side panel or the Edit box. They are kept in the cladogram file, scaled to at most 1200 px.
 - **Autosave and live sync**: each change is written to disk atomically, and the file is reloaded automatically if another program modifies it.
-- **Dynamic labels**: labels too small to read are hidden until you zoom in, and labels reposition themselves to avoid overlapping. Labels can be placed over or beside nodes.
+- **Dynamic labels**: labels too small to read are hidden until you zoom in, and labels reposition themselves to avoid overlapping. Labels can be placed over, beside or inside nodes; inside, each name is fitted to its node and grows as you zoom in.
 - **Search and navigation**: find clades by name from the side panel, follow the trail of mother clades above the selection, and move around the tree entirely by keyboard or entirely by mouse.
 - **Export**: save the current view or the whole tree as a PNG image (at 1x, 2x or 4x resolution) or a scalable SVG, optionally with a transparent background, or copy it to the clipboard.
 - **Command palette**: Ctrl+K finds any command by typing part of its name.

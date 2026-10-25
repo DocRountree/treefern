@@ -66,6 +66,12 @@ constexpr double POLY_EXP = 0.68;         // wedge share = weight^POLY_EXP (both
 // standard style
 constexpr double STD_NODE = 0.05;          // leaf / collapsed node radius, in its own units
 constexpr double STD_WIDTH = 0.09;         // branch width, in units of the frame it leaves
+// Labels inside nodes: every node is a disc of this radius, in its own units
+// (1 = its outgoing branch), with its name fitted inside. Tune here; above
+// about 0.5 a node meets its daughters.
+constexpr double INSIDE_NODE = 0.3;
+constexpr double INSIDE_MIN_FONT = 8, INSIDE_MAX_FONT = 400;  // px
+constexpr double INSIDE_FILL = 0.88;       // fraction of a node's radius its label may reach
 constexpr double STD_FAN_STEP = 15 * DEG;  // extra fan angle per child beyond two
 constexpr double STD_MAX_FAN = 300 * DEG;  // fan cap (unless the spread itself is wider)
 constexpr double STD_CURVE = 0.1;          // how far a branch keeps its parent's heading
@@ -573,8 +579,9 @@ struct Layout {
     int count() const { return int(loc.size()); }
     double extent(const Node* n) const { return ext.value(n, 1.0); }
     int weight(const Node* n) const { return size_.value(n, 1); }  // clade size, ignoring collapse
+    bool inside = false;  // standard: labels inside nodes, so nodes are INSIDE_NODE discs
     double own(const Node* n) const {  // radius of the node's own footprint, own units
-        return style == Disks ? 1.0 : isClado(style) ? CLADO_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH;
+        return style == Disks ? 1.0 : isClado(style) ? CLADO_NODE : inside ? INSIDE_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH;
     }
 
     void compute(const Node* root) {
@@ -792,13 +799,14 @@ private:
     // slack becomes even gaps, and if the fan is too tight
     // every child shrinks by a common factor. Returns the bounding circle and pieces.
     Hull standard(const Node* n) {
-        if (hidesKids(n)) return {0, STD_NODE, {{C(0, 0), STD_NODE}}};
+        const double ownR = own(n);
+        if (hidesKids(n)) return {0, ownR, {{C(0, 0), ownR}}};
         const auto kids = ordered(n);
         const size_t m = kids.size();
         // Children's hulls don't depend on where they are placed, so compute them first.
         std::vector<Hull> sub(m);
         for (size_t i = 0; i < m; ++i) sub[i] = standard(kids[i]);
-        std::vector<std::pair<C, double>> circles{{C(0, 0), STD_WIDTH}};
+        std::vector<std::pair<C, double>> circles{{C(0, 0), ownR}};
         auto placeAt = [&](size_t i, double mid, double s) {
             const C u = std::polar(1.0, mid);
             loc[kids[i]] = Local{u, u * s, 0};
@@ -996,7 +1004,7 @@ static QPolygonF arcPoints(C c, double r, double a0, double a1, const QRectF& vi
 class Canvas : public QWidget {
     Q_OBJECT
 public:
-    enum class LabelMode { Over, Beside };
+    enum class LabelMode { Over, Beside, Inside };
 
     Layout lay;  // target layout; what is drawn (shownLoc) animates towards it
     QString selId, cutId;
@@ -1036,6 +1044,7 @@ public:
     }
 
     bool disks() const { return lay.style == Layout::Disks; }
+    bool inside() const { return lay.inside && lay.style == Layout::Standard; }
     bool clado() const { return Layout::isClado(lay.style); }
 
     // Recompute the layout and animate from what is on screen now. While it
@@ -1499,7 +1508,8 @@ private:
         if (clado())  // branchPx: the length of the branch into it
             return {n, qpt(f.o), leaf ? CLADO_TIP_R : CLADO_NODE_R, s, 0, depth,
                     n->parent ? s * lay.reach.value(n) : 1e300};
-        const double r = disks() ? s : leaf ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
+        const double r = disks() ? s : inside() ? std::max(3.0, s * INSIDE_NODE)
+                       : leaf ? std::max(3.0, s * STD_NODE) : std::max(3.5, s * STD_WIDTH * 0.65);
         // Standard: a leaf has no outgoing branch, so its size on screen is the branch drawn to it.
         double len = s;
         if (!disks() && leaf && n->parent)
@@ -1615,6 +1625,7 @@ private:
         return f ? std::optional(f->o) : std::nullopt;
     }
     void drawNodes(QPainter& p);
+    void drawInsideLabels(QPainter& p);
     void drawLabels(QPainter& p, const std::vector<Seg>& segs);
 };
 
@@ -1704,6 +1715,7 @@ void Canvas::drawNodes(QPainter& p) {
 // The selection is forced if nothing is free; the hovered label is drawn last.
 void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
     if (clado()) return drawCladoLabels(p, segs);
+    if (inside()) return drawInsideLabels(p);
     const bool dk = disks(), beside = labelMode == LabelMode::Beside;
     const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
     constexpr double padX = 5, padY = 2;
@@ -1844,6 +1856,68 @@ void Canvas::drawLabels(QPainter& p, const std::vector<Seg>& segs) {
         p.setPen(isSel ? T.accent : inCut(l.n) ? T.cut : T.fg);
         p.drawText(l.box.adjusted(padX, padY, -padX, -padY), Qt::AlignCenter, l.text);
         labelHits.push_back({l.box, l.n->id});
+    }
+}
+
+// Labels inside nodes (Standard layout): each name at the largest size that
+// fits its disc, wrapped onto the lines that allow the largest; too small to
+// read, it is left out, except for the selected or hovered clade, which gets a
+// label over its node instead.
+void Canvas::drawInsideLabels(QPainter& p) {
+    const Node *sel = model->find(selId), *cut = model->find(cutId), *hov = model->find(hoverId);
+    constexpr double REF = 100, LINE = 1.2;
+    QFont ref = font();
+    ref.setPixelSize(int(REF));
+    const QFontMetricsF rfm(ref);
+    const QRectF view = vrect();
+    std::vector<const Item*> small;
+    int drawn = 0;
+    for (const Item& v : items_) {
+        const bool named = v.n == sel || v.n == hov;
+        if (v.r < INSIDE_MIN_FONT || !view.intersects(QRectF(v.s.x() - v.r, v.s.y() - v.r, 2 * v.r, 2 * v.r))) {
+            if (named) small.push_back(&v);
+            continue;
+        }
+        QStringList words = v.n->name.split(' ', Qt::SkipEmptyParts);
+        if (words.isEmpty()) words << "?";
+        if (v.n == cut) words[0] = "✂ " + words[0];
+        if (v.n->collapsed && !v.n->kids.empty()) words << QString("[+%1]").arg(v.n->countDesc());
+        QStringList lines;
+        double px = 0;
+        for (const QStringList& o : wrapOptions(words, rfm)) {  // the text's half-diagonal within the disc
+            double w = 0;
+            for (const QString& s : o) w = std::max(w, rfm.horizontalAdvance(s));
+            const double k = std::min(INSIDE_MAX_FONT, INSIDE_FILL * v.r * REF / std::hypot(w / 2, o.size() * LINE * REF / 2));
+            if (k > px) { px = k; lines = o; }
+        }
+        if (px < INSIDE_MIN_FONT) {
+            if (named) small.push_back(&v);
+            continue;
+        }
+        if (drawn++ >= MAX_LABELS * 4) break;
+        QFont f = font();
+        f.setPixelSize(int(px));
+        p.setFont(f);
+        const QColor fill = inCut(v.n) ? T.cut.darker(160) : nodeColor(v.n, v.depth, 1.0);
+        p.setPen(qGray(fill.rgb()) > 140 ? QColor("#10131e") : QColor("#f4f6fb"));
+        const double lineH = int(px) * LINE, top = v.s.y() - (lines.size() - 1) * lineH / 2;
+        for (int i = 0; i < lines.size(); ++i)
+            p.drawText(QRectF(v.s.x() - v.r, top + i * lineH - lineH / 2, 2 * v.r, lineH), Qt::AlignCenter, lines[i]);
+    }
+    for (const Item* v : small) {  // the selection and the hovered clade are always named
+        QFont f = font();
+        f.setPixelSize(13);
+        const QFontMetricsF fm(f);
+        const QString name = v->n->name.isEmpty() ? "?" : v->n->name;
+        const double w = fm.horizontalAdvance(name) + 10, h = 19;
+        const QRectF b(std::round(v->s.x() - w / 2), std::round(v->s.y() - v->r - 6 - h), w, h);
+        p.setPen(QPen(v->n == sel ? T.accent : T.dim, 1));
+        p.setBrush(T.labelBgHover);
+        p.drawRoundedRect(b, 5, 5);
+        p.setFont(f);
+        p.setPen(v->n == sel ? T.accent : T.fg);
+        p.drawText(b, Qt::AlignCenter, name);
+        labelHits.push_back({b, v->n->id});
     }
 }
 
@@ -2763,10 +2837,11 @@ public:
                                                      [this, st] { setStyle(st); })));
         viewMenu->addSection("Labels");
         auto labelGroup = new QActionGroup(this);
-        aLabelsOver = radio(labelGroup, mk("Labels over nodes", {}, [this] { setLabelsBeside(false); }));
-        aLabelsBeside = radio(labelGroup, mk("Labels beside nodes", {}, [this] { setLabelsBeside(true); }));
-        viewMenu->addAction(mk("Toggle label placement", {Qt::Key_L},
-                               [this] { setLabelsBeside(canvas->labelMode == Canvas::LabelMode::Over); }));
+        aLabelsOver = radio(labelGroup, mk("Labels over nodes", {}, [this] { setLabels(Canvas::LabelMode::Over); }));
+        aLabelsBeside = radio(labelGroup, mk("Labels beside nodes", {}, [this] { setLabels(Canvas::LabelMode::Beside); }));
+        aLabelsInside = radio(labelGroup, mk("Labels inside nodes", {}, [this] { setLabels(Canvas::LabelMode::Inside); }));
+        viewMenu->addAction(mk("Next label placement", {Qt::Key_L},
+                               [this] { setLabels(Canvas::LabelMode((int(canvas->labelMode) + 1) % 3)); }));
         viewMenu->addSection("Theme");
         viewMenu->addAction(aDark = mk("Dark mode", {QKeySequence("Ctrl+Shift+D")}, [this](bool on) { applyTheme(on); }));
         aDark->setCheckable(true);
@@ -2813,7 +2888,8 @@ public:
         const int st = std::clamp(s.value("view/style", int(Layout::Standard)).toInt(), 0, int(Layout::Circular));
         canvas->lay.style = Layout::Style(st);
         styleActs[st]->setChecked(true);
-        setLabelsBeside(s.value("view/labelsBeside", false).toBool());
+        const int labels = s.value("view/labels", s.value("view/labelsBeside", false).toBool() ? 1 : 0).toInt();  // older: labelsBeside
+        setLabels(Canvas::LabelMode(std::clamp(labels, 0, 2)));
         applyTheme(s.value("view/dark", true).toBool());
         canvas->relayout(false);
         refresh();
@@ -2876,7 +2952,7 @@ private:
     QLabel* hud = new QLabel;
     QMenu* recentMenu = nullptr;
     QAction *aAdd, *aSister, *aEdit, *aCollapse, *aColor, *aFocus, *aDelete, *aCut, *aPaste, *aSaveAs, *aExport;
-    QAction *aLabelsOver, *aLabelsBeside, *aDark, *aPalette = nullptr;
+    QAction *aLabelsOver, *aLabelsBeside, *aLabelsInside, *aDark, *aPalette = nullptr;
     std::vector<QAction*> styleActs;  // indexed by Layout::Style
 
     Node* sel() const { return model.find(canvas->selId); }
@@ -2937,10 +3013,16 @@ private:
         updateHud();
     }
 
-    void setLabelsBeside(bool beside) {
-        canvas->labelMode = beside ? Canvas::LabelMode::Beside : Canvas::LabelMode::Over;
-        (beside ? aLabelsBeside : aLabelsOver)->setChecked(true);
-        QSettings().setValue("view/labelsBeside", beside);
+    // Labels over, beside or inside nodes. Inside, nodes are bigger, so the Standard layout is redone.
+    void setLabels(Canvas::LabelMode mode) {
+        canvas->labelMode = mode;
+        (mode == Canvas::LabelMode::Beside ? aLabelsBeside : mode == Canvas::LabelMode::Inside ? aLabelsInside : aLabelsOver)->setChecked(true);
+        QSettings().setValue("view/labels", int(mode));
+        const bool inside = mode == Canvas::LabelMode::Inside;
+        if (canvas->lay.inside != inside) {
+            canvas->lay.inside = inside;
+            if (canvas->lay.style == Layout::Standard) canvas->relayout();
+        }
         canvas->update();
     }
 

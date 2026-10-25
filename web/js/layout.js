@@ -13,6 +13,10 @@ const POLY_EXP = 0.68;         // wedge share = weight^POLY_EXP (both styles)
 // standard style
 export const STD_NODE = 0.05;   // leaf / collapsed node radius, in its own units
 export const STD_WIDTH = 0.09;  // branch width, in units of the frame it leaves
+// Labels inside nodes: every node is a disc of this radius, in its own units
+// (1 = its outgoing branch), with its name fitted inside. Tune here; above
+// about 0.5 a node meets its daughters.
+export const INSIDE_NODE = 0.3;
 const STD_FAN_STEP = 15 * DEG;  // extra fan angle per child beyond two
 const STD_MAX_FAN = 300 * DEG;  // fan cap (unless the spread itself is wider)
 const STD_WEIGHT_EXP = 0.35;    // light sisters are scaled by (w / w_max)^this
@@ -35,6 +39,7 @@ export class Layout {
         this.spread = DEFAULT_SPREAD;
         this.shrink = DEFAULT_SHRINK;
         this.curl = DEFAULT_CURL;
+        this.inside = false;    // standard: labels inside nodes, so nodes are INSIDE_NODE discs
         this.loc = new Map();   // node -> Local (root: relative to the view)
         this.ext = new Map();   // subtree radius around the node's origin, own units
         this.size = new Map();  // node + all descendants (ignores collapse)
@@ -51,7 +56,7 @@ export class Layout {
     count() { return this.loc.size; }
     extent(n) { return this.ext.get(n) ?? 1; }
     weight(n) { return this.size.get(n) ?? 1; }
-    own(n) { return this.style === DISKS ? 1 : isClado(this.style) ? CLADO_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH; }
+    own(n) { return this.style === DISKS ? 1 : isClado(this.style) ? CLADO_NODE : this.inside ? INSIDE_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH; }
 
     compute(root) {
         this.loc.clear(); this.ext.clear(); this.size.clear(); this.leaves.clear(); this.reach.clear();
@@ -195,10 +200,11 @@ export class Layout {
     // direction, and unit = its outgoing branch length. Returns the subtree's
     // bounding circle (centre c on its x axis, radius R) and its pieces.
     standard(n) {
-        if (hidesKids(n)) return { c: 0, R: STD_NODE, pieces: [[C(0, 0), STD_NODE]] };
+        const own = this.own(n);
+        if (hidesKids(n)) return { c: 0, R: own, pieces: [[C(0, 0), own]] };
         const kids = this.ordered(n), m = kids.length;
         const sub = kids.map(k => this.standard(k));
-        const circles = [[C(0, 0), STD_WIDTH]];
+        const circles = [[C(0, 0), own]];
         const placeAt = (i, mid, s) => {
             const u = polar(1, mid);
             this.loc.set(kids[i], Local(u, scale(u, s), 0));

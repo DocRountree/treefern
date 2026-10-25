@@ -4,7 +4,7 @@ import {
     PI, C, add, sub, mul, scale, abs, norm, arg, polar, remainder, clamp, Local, Frame,
     compose, uncompose, finiteFrame, lerpZ, lerpLocal, easeOutCubic, easeInOutCubic,
 } from './geom.js';
-import { Layout, STANDARD, DISKS, CIRC, STD_NODE, STD_WIDTH, isClado } from './layout.js';
+import { Layout, STANDARD, DISKS, CIRC, STD_NODE, STD_WIDTH, INSIDE_NODE, isClado } from './layout.js';
 import { hidesKids, depth as nodeDepth, contains, countDesc } from './model.js';
 
 const ANIM_MS = 380;            // relayout animation; camera flights take twice as long
@@ -12,6 +12,8 @@ const ZOOM_STEP = 1.15, FAST_ZOOM_STEP = 2.0;
 const MAX_LABELS = 400;
 const LABEL_MIN_SCREEN_LEN = 35;  // disks: smaller discs get no label
 const LABEL_GAP = 2;
+const INSIDE_MIN_FONT = 8, INSIDE_MAX_FONT = 400;  // px: labels inside nodes
+const INSIDE_FILL = 0.88;  // fraction of a node's radius its label may reach
 const WRAP_COST = 0.12;
 const MAX_WRAP_LINES = 6;
 const STEM_COST = 0.8;
@@ -516,7 +518,8 @@ export class TreeView {
         if (this.clado())  // branchPx: the length of the branch into it
             return { n, s: f.o, r: leaf ? CLADO_TIP_R : CLADO_NODE_R, lenPx: s, angle: 0, depth: d,
                      branchPx: n.parent ? s * (this.lay.reach.get(n) ?? 0) : Infinity };
-        const r = this.disks() ? s : leaf ? Math.max(3, s * STD_NODE) : Math.max(3.5, s * STD_WIDTH * 0.65);
+        const r = this.disks() ? s : this.inside() ? Math.max(3, s * INSIDE_NODE)
+                : leaf ? Math.max(3, s * STD_NODE) : Math.max(3.5, s * STD_WIDTH * 0.65);
         let len = s;
         if (!this.disks() && leaf && n.parent) {
             const L = this.sloc(n);
@@ -733,6 +736,7 @@ export class TreeView {
     // Greedy placement, selection first, then well-sized clades (see the desktop app).
     drawLabels(segs) {
         if (this.clado()) return this.drawCladoLabels(segs);
+        if (this.inside()) return this.drawInsideLabels();
         const ctx = this.ctx, t = this.theme, dk = this.disks(), beside = this.labelsBeside;
         const sel = this.doc.find(this.selId), cutN = this.doc.find(this.cutId), hov = this.doc.find(this.hoverId);
         const padX = 5, padY = 2;
@@ -854,6 +858,65 @@ export class TreeView {
             const top = cy - (l.lines.length - 1) * l.lineH / 2;
             l.lines.forEach((s, i) => ctx.fillText(s, cx, top + i * l.lineH + 0.5));
             this.labelHits.push([b, l.n.id]);
+        }
+    }
+
+    // Labels inside nodes (Standard layout): each name at the largest size that
+    // fits its disc, wrapped onto the lines that allow the largest; too small to
+    // read, it is left out, except for the selected or hovered clade, which gets
+    // a label over its node instead.
+    inside() { return this.lay.inside && this.lay.style === STANDARD; }
+
+    drawInsideLabels() {
+        const ctx = this.ctx, t = this.theme;
+        const sel = this.doc.find(this.selId), cutN = this.doc.find(this.cutId), hov = this.doc.find(this.hoverId);
+        const REF = 100, refFont = `${REF}px ${FONT}`, LINE = 1.2;
+        const view = R(0, 0, this.width, this.height);
+        const fit = v => {
+            let words = v.n.name.split(/\s+/).filter(Boolean);
+            if (!words.length) words = ['?'];
+            if (v.n === cutN) words[0] = '✂ ' + words[0];
+            if (v.n.collapsed && v.n.kids.length) words.push(`[+${countDesc(v.n)}]`);
+            let best = null;
+            for (const o of this.wrapOptions(words, refFont)) {  // the text's half-diagonal within the disc
+                const px = Math.min(INSIDE_MAX_FONT, INSIDE_FILL * v.r * REF / Math.hypot(o.width / 2, o.lines.length * LINE * REF / 2));
+                if (!best || px > best.px) best = { lines: o.lines, px };
+            }
+            return best;
+        };
+        const lum = ([r, g, b]) => 0.299 * r + 0.587 * g + 0.114 * b;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        let drawn = 0;
+        const small = [];
+        for (const v of this.items) {
+            if (v.r < INSIDE_MIN_FONT || !hits(view, R(v.s.x - v.r, v.s.y - v.r, v.s.x + v.r, v.s.y + v.r))) {
+                if (v.n === sel || v.n === hov) small.push(v);
+                continue;
+            }
+            const f = fit(v);
+            if (f.px < INSIDE_MIN_FONT) { if (v.n === sel || v.n === hov) small.push(v); continue; }
+            if (drawn++ >= MAX_LABELS * 4) break;
+            const px = Math.floor(f.px), lineH = px * LINE;
+            const fill = this.inCut(v.n) ? darker(t.cut, 160) : this.nodeColor(v.n, v.depth, 1);
+            ctx.font = `${px}px ${FONT}`;
+            ctx.fillStyle = lum(fill) > 140 ? '#10131e' : '#f4f6fb';
+            const top = v.s.y - (f.lines.length - 1) * lineH / 2;
+            f.lines.forEach((s, i) => ctx.fillText(s, v.s.x, top + i * lineH + 0.5));
+        }
+        for (const v of small) {  // the selection and the hovered clade are always named
+            const px = 13, font = `${px}px ${FONT}`, name = v.n.name || '?';
+            const w = this.measure(font, name) + 10, h = px + 6;
+            const b = rectWH(Math.round(v.s.x - w / 2), Math.round(v.s.y - v.r - 6 - h), w, h);
+            ctx.beginPath();
+            ctx.roundRect(b.x0, b.y0, w, h, 5);
+            ctx.fillStyle = t.labelBgHover;
+            ctx.fill();
+            ctx.lineWidth = 1; ctx.strokeStyle = css(v.n === sel ? t.accent : t.dim); ctx.stroke();
+            ctx.font = font;
+            ctx.fillStyle = css(v.n === sel ? t.accent : t.fg);
+            ctx.fillText(name, v.s.x, (b.y0 + b.y1) / 2 + 0.5);
+            this.labelHits.push([b, v.n.id]);
         }
     }
 
