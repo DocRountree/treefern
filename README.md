@@ -15,7 +15,7 @@
 [![Download for Linux](https://img.shields.io/badge/Download-Linux-E95420?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/DocRountree/treefern/releases/latest/download/TreeFern-x86_64.AppImage)
 [![Open in your browser](https://img.shields.io/badge/Open-in%20your%20browser-3a5ca0?style=for-the-badge)](https://docrountree.github.io/treefern/)
 
-<img width="860" alt="TreeFern showing the standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690">
+<img width="860" alt="TreeFern showing the standard layout" src="docs/screenshot-standard.png">
 
 </div>
 
@@ -169,18 +169,26 @@ Because the format is plain JSON, files can be generated or edited by scripts an
 
 <table>
   <tr>
-    <td width="50%"><img alt="Standard layout" src="https://github.com/user-attachments/assets/124aef28-8f36-4c05-a570-cf27de30c690"></td>
-    <td width="50%"><img alt="Disks layout" src="https://github.com/user-attachments/assets/787e1073-e624-46f7-ae94-a4d7b69feb1d"></td>
+    <td width="50%"><img alt="Standard layout" src="docs/screenshot-standard.png"></td>
+    <td width="50%"><img alt="Disks layout" src="docs/screenshot-disks.png"></td>
   </tr>
   <tr>
     <td align="center"><em>Standard layout</em></td>
     <td align="center"><em>Disks layout</em></td>
   </tr>
   <tr>
-    <td width="50%"><img alt="Light mode" src="https://github.com/user-attachments/assets/7cbe0f3a-47f7-4e0a-9221-42b328ce9440"></td>
+    <td width="50%"><img alt="Rectangular cladogram layout" src="docs/screenshot-rectangular.png"></td>
+    <td width="50%"><img alt="Circular cladogram layout" src="docs/screenshot-circular.png"></td>
   </tr>
   <tr>
-    <td align="center"><em>Light mode</em></td>
+    <td align="center"><em>Rectangular cladogram layout</em></td>
+    <td align="center"><em>Circular cladogram layout</em></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img width="50%" alt="Light mode" src="docs/screenshot-light.png"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><em>Light mode</em></td>
   </tr>
 </table>
 
