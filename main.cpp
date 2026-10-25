@@ -120,11 +120,15 @@ static Theme T = makeTheme(true);
 
 static QString colorCss(const QColor& c) { return "color:" + c.name(); }
 
-// Plain text as HTML, its web addresses (http://, https://, www.) made links.
-// Trailing punctuation stays outside a link, so a sentence can end with one; a
-// closing bracket stays in when the link opened it, as in Wikipedia's.
+// Plain text as HTML, its web addresses made links: anything after http:// or
+// https://, anything starting www., and bare names like abc.xyz when they end
+// in a common web suffix (so "e.g." or "life.json" stay text; email addresses
+// too). Trailing punctuation stays outside a link, so a sentence can end with
+// one; a closing bracket stays in when the link opened it, as in Wikipedia's.
 static QString linkified(const QString& text, const QColor& link) {
-    static const QRegularExpression url("(?:https?://|www\\.)[^\\s<>\"]+", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression url("(?:https?://|www\\.)[^\\s<>\"]+"
+                                        "|(?<![@\\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:com|org|net|edu|gov|mil|int|info|biz|io|co|ai|app|dev|xyz|me|tv|ly|site|online|tech|wiki|blog|news|museum|science|bio|eco|earth|club|page|uk|us|ca|au|nz|ie|de|fr|es|it|nl|be|at|ch|se|no|fi|dk|is|pl|cz|pt|gr|ru|ua|eu|jp|cn|kr|in|br|mx|ar|za)(?![\\w-])(?:[/?#][^\\s<>\"]*)?",
+                                        QRegularExpression::CaseInsensitiveOption);
     QString out;
     qsizetype at = 0;
     for (auto it = url.globalMatch(text); it.hasNext();) {
@@ -136,7 +140,8 @@ static QString linkified(const QString& text, const QColor& link) {
             if (k >= 0 ? u.count(QString("([{")[k]) < u.count(last) : QString(".,;:!?'\"").contains(last)) u.chop(1);
             else break;
         }
-        const QString href = u.startsWith("www.", Qt::CaseInsensitive) ? "https://" + u : u;
+        const bool scheme = u.startsWith("http://", Qt::CaseInsensitive) || u.startsWith("https://", Qt::CaseInsensitive);
+        const QString href = scheme ? u : "https://" + u;
         out += text.mid(at, m.capturedStart() - at).toHtmlEscaped();
         out += QString("<a href=\"%1\" style=\"color:%2\">%3</a>").arg(href.toHtmlEscaped(), link.name(), u.toHtmlEscaped());
         at = m.capturedStart() + u.size();

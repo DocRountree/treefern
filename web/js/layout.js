@@ -11,7 +11,6 @@ const POLY_GAP = 0.94;         // fraction of its wedge a child fills (both styl
 const POLY_ONLY_CHILD = 0.78;  // radius of a single child
 const POLY_EXP = 0.68;         // wedge share = weight^POLY_EXP (both styles)
 // standard style
-export const STD_NODE = 0.05;   // leaf / collapsed node radius, in its own units
 export const STD_WIDTH = 0.09;  // branch width, in units of the frame it leaves
 // Labels inside nodes: every node is a disc of this radius, in its own units
 // (1 = its outgoing branch), with its name fitted inside. Tune here; above
@@ -39,7 +38,6 @@ export class Layout {
         this.spread = DEFAULT_SPREAD;
         this.shrink = DEFAULT_SHRINK;
         this.curl = DEFAULT_CURL;
-        this.inside = false;    // standard: labels inside nodes, so nodes are INSIDE_NODE discs
         this.loc = new Map();   // node -> Local (root: relative to the view)
         this.ext = new Map();   // subtree radius around the node's origin, own units
         this.size = new Map();  // node + all descendants (ignores collapse)
@@ -56,7 +54,7 @@ export class Layout {
     count() { return this.loc.size; }
     extent(n) { return this.ext.get(n) ?? 1; }
     weight(n) { return this.size.get(n) ?? 1; }
-    own(n) { return this.style === DISKS ? 1 : isClado(this.style) ? CLADO_NODE : this.inside ? INSIDE_NODE : hidesKids(n) ? STD_NODE : STD_WIDTH; }
+    own(n) { return this.style === DISKS ? 1 : isClado(this.style) ? CLADO_NODE : INSIDE_NODE; }
 
     compute(root) {
         this.loc.clear(); this.ext.clear(); this.size.clear(); this.leaves.clear(); this.reach.clear();

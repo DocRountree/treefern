@@ -57,10 +57,13 @@ function showToast(s) {
 }
 
 // ---------------------------------------------------------------- hover notes
-// Text as nodes, its web addresses (http://, https://, www.) made links that open
-// in a new tab. Trailing punctuation stays outside a link, so a sentence can end
-// with one; a closing bracket stays in when the link opened it, as in Wikipedia's.
-const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+// Text as nodes, its web addresses made links that open in a new tab: anything
+// after http:// or https://, anything starting www., and bare names like
+// abc.xyz when they end in a common web suffix (so "e.g." or "life.json" stay
+// text; email addresses too). Trailing punctuation stays outside a link, so a
+// sentence can end with one; a closing bracket stays in when the link opened it,
+// as in Wikipedia's.
+const URL_RE = /(?:https?:\/\/|www\.)[^\s<>"]+|(?<![@\w.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|org|net|edu|gov|mil|int|info|biz|io|co|ai|app|dev|xyz|me|tv|ly|site|online|tech|wiki|blog|news|museum|science|bio|eco|earth|club|page|uk|us|ca|au|nz|ie|de|fr|es|it|nl|be|at|ch|se|no|fi|dk|is|pl|cz|pt|gr|ru|ua|eu|jp|cn|kr|in|br|mx|ar|za)(?![\w-])(?:[/?#][^\s<>"]*)?/gi;
 function trimUrl(u) {
     for (;;) {
         const last = u.slice(-1);
@@ -76,7 +79,7 @@ function linkified(text) {
         m[0] = trimUrl(m[0]);
         if (m.index > at) out.push(document.createTextNode(text.slice(at, m.index)));
         const a = document.createElement('a');
-        a.href = /^www\./i.test(m[0]) ? 'https://' + m[0] : m[0];
+        a.href = /^https?:\/\//i.test(m[0]) ? m[0] : 'https://' + m[0];
         a.textContent = m[0];
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
@@ -1038,16 +1041,6 @@ function setStyle(st) {
     savePrefs();
     refresh();
 }
-// Labels over, beside or inside nodes. Inside, nodes are bigger, so the Standard layout is redone.
-const LABEL_MODES = ['over', 'beside', 'inside'];
-function setLabels(mode) {
-    prefs.labels = mode;
-    view.labelsBeside = mode === 'beside';
-    const inside = mode === 'inside';
-    if (view.lay.inside !== inside) { view.lay.inside = inside; if (view.lay.style === STANDARD) view.relayout(true); }
-    view.draw();
-    savePrefs();
-}
 function tune(f) {
     f(view.lay);
     if (view.lay.style === STANDARD) view.relayout(true);
@@ -1093,10 +1086,6 @@ const MENUS = {
     ],
     View: () => [
         ...STYLES.map((st, i) => ({ label: STYLE_NAMES[st] + ' layout', key: String(i + 1), checked: view.lay.style === st, run: () => setStyle(st) })),
-        { sep: true },
-        { label: 'Labels over nodes', checked: prefs.labels === 'over', run: () => setLabels('over') },
-        { label: 'Labels beside nodes', checked: prefs.labels === 'beside', run: () => setLabels('beside') },
-        { label: 'Labels inside nodes', key: 'L', checked: prefs.labels === 'inside', run: () => setLabels('inside') },
         { sep: true },
         { label: 'Dark mode', key: 'Shift+D', checked: prefs.theme === 'dark', run: () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') },
         { sep: true },
@@ -1361,7 +1350,6 @@ addEventListener('keydown', e => {
         ArrowLeft: () => navigate('left'), ArrowRight: () => navigate('right'),
         Home: () => view.fitView(),
         1: () => setStyle(STYLES[0]), 2: () => setStyle(STYLES[1]), 3: () => setStyle(STYLES[2]), 4: () => setStyle(STYLES[3]),
-        l: () => setLabels(LABEL_MODES[(LABEL_MODES.indexOf(prefs.labels) + 1) % LABEL_MODES.length]),
         d: e.shiftKey ? () => applyTheme(prefs.theme === 'dark' ? 'light' : 'dark') : actAdd,  // D: add a daughter
         '/': focusSearch, '?': () => $('helpDlg').showModal(),
         '+': () => tune(l => { l.spread = Math.min(340 * DEG, l.spread + 10 * DEG); }),
@@ -1397,10 +1385,7 @@ if (CHANNEL) {
     document.querySelector('.brand').after(b);
 }
 view.lay.style = STYLES.includes(prefs.style) ? prefs.style : STANDARD;
-if (!LABEL_MODES.includes(prefs.labels)) prefs.labels = prefs.beside ? 'beside' : 'over';  // older prefs
-delete prefs.beside;
-view.labelsBeside = prefs.labels === 'beside';
-view.lay.inside = prefs.labels === 'inside';
+delete prefs.beside, delete prefs.labels;  // label settings of older versions
 applyTheme(prefs.theme === 'light' ? 'light' : 'dark');
 
 (async () => {
